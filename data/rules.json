@@ -1,0 +1,61 @@
+{
+  "version": "2026.11.10.023031.707",
+  "proxyMode": "FULL_PROXY",
+  "blacklist": [
+    "*.youtube.com",
+    "youtube.com",
+    "*.facebook.com",
+    "facebook.com",
+    "*.tiktok.com",
+    "tiktok.com"
+  ],
+  "internalWhitelist": [
+    "lic.vnu.edu.vn",
+    "*.lic.vnu.edu.vn"
+  ],
+  "globalAcademicWhitelist": [
+    "*.sciencedirect.com",
+    "sciencedirect.com",
+    "*.ieee.org",
+    "ieee.org",
+    "*.springer.com",
+    "springer.com",
+    "*.nature.com",
+    "nature.com",
+    "*.acm.org"
+  ],
+  "authMode": "demo",
+  "keycloakAuthority": "https://idp.vnu.edu.vn/auth/realms/vnu",
+  "proxyHost": "vags.vnu.edu.vn",
+  "proxyPort": 443,
+  "proxyScheme": "HTTPS",
+  "allowedOUs": [
+    "canbo",
+    "pqtkt"
+  ],
+  "disallowedOUs": [
+    "sinhvien"
+  ],
+  "allowedMemberTypes": [
+    "canbo"
+  ],
+  "disallowedMemberTypes": [
+    "sinhvien"
+  ],
+  "adminOU": "pqtkt",
+  "userOverrides": {
+    "allowed": [
+      "phongnd"
+    ],
+    "denied": [],
+    "userSpecificRules": {
+      "phongnd": {
+        "proxyDomains": [
+          "idp.vnu.edu.vn"
+        ],
+        "directDomains": []
+      }
+    }
+  },
+  "updatedAt": "2026-11-10T02:30:31.7077881Z"
+}

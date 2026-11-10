@@ -1,0 +1,42 @@
+{
+  "manifest_version": 3,
+  "name": "VNU Academic Gateway (VAGS)",
+  "version": "2.1.4",
+  "description": "Định tuyến tự động CSDL Khoa học Quốc tế & Thư viện số ĐHQGHN (vags.vnu.edu.vn:443).",
+  "icons": {
+    "16": "icon-16.png",
+    "48": "icon-48.png",
+    "128": "icon-128.png"
+  },
+  "permissions": [
+    "proxy",
+    "storage",
+    "alarms"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "VNU Academic Gateway (VAGS)",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icon-16.png",
+      "48": "icon-48.png",
+      "128": "icon-128.png"
+    }
+  }
+}

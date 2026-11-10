@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "VNU Academic Gateway (VAGS)",
+  "version": "1.0.0",
+  "description": "Định tuyến tự động CSDL Khoa học Quốc tế & Thư viện số ĐHQGHN (vags.vnu.edu.vn:443) với đồng bộ Real-time SSE.",
+  "permissions": [
+    "proxy",
+    "storage",
+    "alarms"
+  ],
+  "host_permissions": [
+    "https://vags.vnu.edu.vn/*",
+    "https://idp.vnu.edu.vn/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "VNU Academic Gateway (VAGS)",
+    "default_popup": "popup.html"
+  }
+}
+

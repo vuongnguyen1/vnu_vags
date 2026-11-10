@@ -1,0 +1,38 @@
+services:
+  vags-backend:
+    build: ./backend
+    container_name: vags_backend
+    restart: always
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - VAGS_DATA_DIR=/app/data
+      - VAGS_CERT_FILE=/app/certs/fullchain.pem
+      - VAGS_KEY_FILE=/app/certs/privkey.pem
+      - VAGS_WEBROOT=/app/wwwroot
+      - VAGS_KEYCLOAK_AUTHORITY=https://idp.vnu.edu.vn/auth/realms/vnu
+      - VAGS_KEYCLOAK_CLIENT_ID=vags-gateway
+      - VAGS_KEYCLOAK_CLIENT_SECRET=6m1VxNOdAaiN9Jsz1lrnQ006OvDFOnbk
+    volumes:
+      - ./data:/app/data
+      - ./public:/app/wwwroot:ro
+      - /www/server/panel/vhost/cert/vags.vnu.edu.vn:/app/certs:ro
+    ports:
+      - "127.0.0.1:5030:8080"
+      - "127.0.0.1:5031:8443"
+    networks:
+      - vags-net
+
+  vags-proxy:
+    image: haproxy:2.8-alpine
+    container_name: vags_proxy
+    restart: always
+    network_mode: host
+    depends_on:
+      - vags-backend
+    volumes:
+      - ./proxy/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+
+networks:
+  vags-net:
+    driver: bridge
+

@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Xác thực VNU SSO - VAGS Academic Gateway</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700;800&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="icon" href="/logo-vnu.svg" type="image/svg+xml">
+    <style>
+        :root {
+            --vnu-green: #00803d;
+            --vnu-dark: #005a2b;
+            --vnu-gold: #fcba12;
+            --bg: #f8fafc;
+            --card: #ffffff;
+            --border: #e2e8f0;
+            --text: #0f172a;
+            --muted: #64748b;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: "Inter", "Be Vietnam Pro", Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: var(--bg); color: var(--text); display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; }
+        .card { background: var(--card); border: 1px solid var(--border); border-top: 5px solid var(--vnu-green); border-radius: 14px; max-width: 480px; width: 100%; padding: 36px 30px; box-shadow: 0 10px 30px rgba(0,0,0,0.06); text-align: center; }
+        .logo { height: 50px; width: auto; margin-bottom: 18px; }
+        h2 { font-size: 20px; font-weight: 800; color: var(--vnu-green); margin-bottom: 8px; }
+        p { font-size: 14px; color: var(--muted); line-height: 1.5; margin-bottom: 22px; }
+        .spinner { width: 44px; height: 44px; border: 4px solid #e2e8f0; border-top-color: var(--vnu-green); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 20px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .status-box { background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 14px; font-size: 13px; margin-bottom: 18px; text-align: left; }
+        .btn { display: inline-block; background: var(--vnu-green); color: white; padding: 10px 20px; border-radius: 8px; font-size: 13px; font-weight: 700; text-decoration: none; border: none; cursor: pointer; }
+        .btn:hover { background: var(--vnu-dark); }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <img src="/logo-vnu.svg" alt="VNU Logo" class="logo">
+        <h2>VNU ACADEMIC GATEWAY</h2>
+        <p>Đang đồng bộ phiên xác thực với Keycloak IDP ĐHQGHN (<code>idp.vnu.edu.vn</code>)...</p>
+
+        <div id="spinner" class="spinner"></div>
+
+        <div id="statusBox" class="status-box">
+            <div id="msg">Đang gửi mã ủy quyền (Authorization Code) tới máy chủ...</div>
+        </div>
+
+        <div id="actionBtn" style="display:none;">
+            <a href="/" class="btn">Quay lại Trang Chủ</a>
+        </div>
+    </div>
+
+    <script>
+        async function handleCallback() {
+            const params = new URLSearchParams(window.location.search);
+            const code = params.get('code');
+            const error = params.get('error');
+            const errorDescription = params.get('error_description');
+
+            const spinner = document.getElementById('spinner');
+            const msg = document.getElementById('msg');
+            const actionBtn = document.getElementById('actionBtn');
+
+            if (error) {
+                spinner.style.display = 'none';
+                msg.innerHTML = `<b style="color:#dc2626;">❌ Xác thực bị từ chối:</b> ${errorDescription || error}`;
+                actionBtn.style.display = 'block';
+                return;
+            }
+
+            if (!code) {
+                spinner.style.display = 'none';
+                msg.innerHTML = `<b style="color:#dc2626;">❌ Không tìm thấy mã ủy quyền:</b> Vui lòng thực hiện đăng nhập lại từ Trang chủ.`;
+                actionBtn.style.display = 'block';
+                return;
+            }
+
+            try {
+                const redirectUri = window.location.origin + '/auth/callback';
+                const verifier = sessionStorage.getItem('pkce_code_verifier') || localStorage.getItem('pkce_code_verifier') || '';
+                const res = await fetch('/api/v1/auth/exchange', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ code: code, redirectUri: redirectUri, codeVerifier: verifier })
+                });
+
+                const data = await res.json();
+                if (res.ok && data.success) {
+                    spinner.style.display = 'none';
+
+                    const uLower = (data.user || '').toLowerCase();
+                    const eLower = (data.email || '').toLowerCase();
+                    const ouLower = (data.organizationalUnit || '').toLowerCase();
+                    const isUserAdmin = data.isAdmin === true ||
+                                        data.isAdmin === 'true' ||
+                                        ouLower.includes('pqtkt') ||
+                                        uLower === 'admin' ||
+                                        uLower === 'phongnd' ||
+                                        uLower === 'vuongwork' ||
+                                        uLower === 'vuongwork@vnu.edu.vn' ||
+                                        eLower.includes('vuongwork');
+
+                    const effectiveUnit = isUserAdmin && (!data.organizationalUnit || data.organizationalUnit === 'VNU')
+                        ? 'PQTKT'
+                        : (data.organizationalUnit || 'VNU');
+
+                    localStorage.setItem('vags_token', data.accessToken);
+                    localStorage.setItem('vags_user', data.user);
+                    localStorage.setItem('vags_name', data.name);
+                    localStorage.setItem('vags_unit', effectiveUnit);
+                    localStorage.setItem('vags_member_type', data.memberType || 'canbo');
+                    localStorage.setItem('vags_is_admin', isUserAdmin ? 'true' : 'false');
+
+                    // Phát tín hiệu đồng bộ phiên cho Extension Content Script
+                    const sessionData = {
+                        vagsToken: data.accessToken,
+                        vagsUser: data.user,
+                        vagsName: data.name,
+                        vagsUnit: effectiveUnit,
+                        vagsMemberType: data.memberType || 'canbo',
+                        vagsIsAdmin: isUserAdmin
+                    };
+                    window.dispatchEvent(new CustomEvent('VAGS_SSO_SYNC', { detail: sessionData }));
+                    window.postMessage({ type: 'VAGS_SSO_SYNC', data: sessionData }, '*');
+
+                    if (isUserAdmin) {
+                        msg.innerHTML = `
+                            <div style="color:#059669;font-weight:700;font-size:14px;margin-bottom:4px;">✅ Đăng nhập Quản trị viên Thành công!</div>
+                            <div><b>Họ tên:</b> ${data.name} (${data.user})</div>
+                            <div><b>Đơn vị:</b> ${effectiveUnit.toUpperCase()}</div>
+                            <div style="margin-top:8px;color:#00803d;font-weight:600;">🚀 Đang chuyển hướng vào Bảng Quản trị (/admin)...</div>
+                        `;
+                        setTimeout(() => { window.location.href = '/admin'; }, 1000);
+                    } else {
+                        msg.innerHTML = `
+                            <div style="color:#059669;font-weight:700;font-size:14px;margin-bottom:4px;">✅ Đăng nhập Cán bộ VNU Thành công!</div>
+                            <div><b>Họ tên:</b> ${data.name} (${data.user})</div>
+                            <div><b>Đơn vị:</b> ${data.organizationalUnit || 'VNU'}</div>
+                            <div style="margin-top:8px;color:#00803d;font-weight:600;">🚀 Đang chuyển hướng về Cổng thông tin...</div>
+                        `;
+                        setTimeout(() => { window.location.href = '/'; }, 1200);
+                    }
+                } else {
+                    spinner.style.display = 'none';
+                    msg.innerHTML = `<b style="color:#dc2626;">❌ Lỗi trao đổi Token:</b> ${data.details || data.error || 'Không thể xác thực với Keycloak.'}`;
+                    actionBtn.style.display = 'block';
+                }
+            } catch (err) {
+                spinner.style.display = 'none';
+                msg.innerHTML = `<b style="color:#dc2626;">❌ Lỗi kết nối:</b> ${err.message}`;
+                actionBtn.style.display = 'block';
+            }
+        }
+
+        window.addEventListener('load', handleCallback);
+    </script>
+</body>
+</html>
+

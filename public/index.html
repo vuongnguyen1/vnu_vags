@@ -1,0 +1,1623 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VNU Academic Gateway (VAGS) - Đại học Quốc gia Hà Nội</title>
+    <link rel="icon" href="/logo-vnu.svg" type="image/svg+xml">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700;800&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --vnu-green: #00803d;
+            --vnu-dark: #005a2b;
+            --vnu-gold: #fcba12;
+            --bg: #f8fafc;
+            --card: #ffffff;
+            --border: #e2e8f0;
+            --text: #0f172a;
+            --muted: #64748b;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: "Inter", "Be Vietnam Pro", Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+        }
+
+        /* 1. Sticky Glass Navbar */
+        .navbar {
+            background: rgba(255, 255, 255, 0.96);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-bottom: 1px solid rgba(226, 232, 240, 0.9);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.03);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        .nav-inner {
+            max-width: 1240px;
+            margin: 0 auto;
+            padding: 12px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: nowrap;
+            gap: 20px;
+        }
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            text-decoration: none;
+            color: inherit;
+            flex-shrink: 0;
+            white-space: nowrap;
+        }
+        .brand img { height: 42px; width: auto; flex-shrink: 0; }
+        .brand-text h1 {
+            font-size: 16px;
+            font-weight: 800;
+            color: var(--vnu-green);
+            line-height: 1.2;
+            letter-spacing: -0.01em;
+            white-space: nowrap;
+        }
+        .brand-text p {
+            font-size: 12px;
+            color: var(--muted);
+            font-weight: 500;
+            white-space: nowrap;
+        }
+
+        .nav-links {
+            display: flex;
+            align-items: center;
+            gap: 22px;
+            white-space: nowrap;
+        }
+        .nav-links a {
+            color: var(--text);
+            text-decoration: none;
+            font-size: 13px;
+            font-weight: 600;
+            transition: color 0.15s;
+            white-space: nowrap;
+        }
+        .nav-links a:hover { color: var(--vnu-green); }
+
+        .user-action-area {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-shrink: 0;
+            white-space: nowrap;
+        }
+
+        .btn-sso {
+            background: #ffffff;
+            border: 1.5px solid var(--vnu-green);
+            color: var(--vnu-green);
+            padding: 7px 15px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s;
+            text-decoration: none;
+            font-family: inherit;
+            white-space: nowrap;
+        }
+        .btn-sso:hover {
+            background: #f0fdf4;
+            border-color: var(--vnu-dark);
+            color: var(--vnu-dark);
+        }
+        .btn-sso img { height: 16px; width: auto; }
+
+        .user-panel {
+            display: none;
+            align-items: center;
+            gap: 8px;
+            white-space: nowrap;
+        }
+        .user-pill {
+            background: #ecfdf5;
+            border: 1px solid #a7f3d0;
+            color: #065f46;
+            padding: 5px 12px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            white-space: nowrap;
+        }
+        .btn-admin {
+            background: #0f172a;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            white-space: nowrap;
+            transition: background 0.15s;
+        }
+        .btn-admin:hover { background: #1e293b; }
+        .btn-logout {
+            background: transparent;
+            color: var(--muted);
+            border: 1px solid #cbd5e1;
+            padding: 5px 10px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .btn-logout:hover {
+            background: #f1f5f9;
+            color: #dc2626;
+            border-color: #fca5a5;
+        }
+
+        /* 3. Hero Section (Gradient xếp lớp) */
+        .hero {
+            background: linear-gradient(135deg, #004d24 0%, #007537 60%, #008740 100%);
+            color: white;
+            padding: 52px 20px 72px;
+            text-align: center;
+            position: relative;
+        }
+        .hero::after {
+            content: "";
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 24px;
+            background: var(--bg);
+            border-radius: 24px 24px 0 0;
+        }
+        .hero-inner { max-width: 880px; margin: 0 auto; position: relative; z-index: 2; }
+        .hero-badge {
+            display: inline-block;
+            background: rgba(252, 186, 18, 0.2);
+            border: 1px solid var(--vnu-gold);
+            color: #fef08a;
+            padding: 4px 14px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            margin-bottom: 14px;
+            letter-spacing: 0.03em;
+        }
+        .hero h2 {
+            font-size: 32px;
+            font-weight: 800;
+            line-height: 1.3;
+            margin-bottom: 14px;
+            letter-spacing: -0.01em;
+        }
+        .hero p {
+            font-size: 15px;
+            color: #f1f5f9;
+            line-height: 1.6;
+            margin-bottom: 24px;
+            max-width: 780px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        .hero-btns { display: flex; justify-content: center; gap: 12px; flex-wrap: wrap; }
+        .btn-primary {
+            background: var(--vnu-gold);
+            color: #0f172a;
+            padding: 11px 22px;
+            border-radius: 8px;
+            font-weight: 700;
+            font-size: 13px;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            border: none;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            background: #f59e0b;
+            box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+        }
+        .btn-secondary {
+            background: rgba(255,255,255,0.14);
+            color: white;
+            border: 1px solid rgba(255,255,255,0.35);
+            padding: 11px 20px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 13px;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.15s;
+        }
+        .btn-secondary:hover { background: rgba(255,255,255,0.25); }
+
+        /* 4. Thẻ Trạng Thái Kết Nối Xếp Chồng (Layered Status Card) */
+        .status-overlap-card {
+            max-width: 1040px;
+            margin: -40px auto 36px;
+            position: relative;
+            z-index: 10;
+            background: #ffffff;
+            border: 1px solid #cbd5e1;
+            border-top: 4px solid var(--vnu-green);
+            border-radius: 14px;
+            padding: 18px 24px;
+            box-shadow: 0 10px 25px rgba(15, 23, 42, 0.08);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+        .status-left { display: flex; align-items: center; gap: 14px; }
+        .status-icon {
+            font-size: 28px;
+            width: 52px;
+            height: 52px;
+            border-radius: 12px;
+            background: #ecfdf5;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .status-text h4 { font-size: 15px; font-weight: 700; color: #0f172a; margin-bottom: 2px; }
+        .status-text p { font-size: 13px; color: var(--muted); }
+        .status-right { display: flex; align-items: center; gap: 10px; }
+        .badge-status-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 14px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 700;
+        }
+        .badge-status-pill.connected { background: #dcfce7; color: #15803d; border: 1px solid #86efac; }
+        .badge-status-pill.unconnected { background: #fef3c7; color: #b45309; border: 1px solid #fde68a; }
+        .badge-status-pill.disconnected { background: #fee2e2; color: #dc2626; border: 1px solid #fca5a5; }
+
+        .container { max-width: 1200px; margin: 0 auto; padding: 0 20px 48px; }
+
+        .section-title { text-align: center; margin-bottom: 30px; }
+        .section-title h3 { font-size: 22px; font-weight: 800; color: var(--text); }
+        .section-title p { color: var(--muted); font-size: 14px; margin-top: 4px; }
+
+        /* Grid CSDL */
+        .db-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px; margin-bottom: 46px; }
+        .db-card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 22px 20px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+            position: relative;
+            transition: all 0.2s;
+        }
+        .db-card:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,0,0,0.06); }
+        .db-tag {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            font-size: 10px;
+            font-weight: 700;
+            background: #ecfdf5;
+            color: #065f46;
+            border: 1px solid #a7f3d0;
+            padding: 2px 8px;
+            border-radius: 999px;
+            letter-spacing: 0.04em;
+        }
+        .db-logo { font-size: 28px; margin-bottom: 12px; }
+        .db-card h4 { font-size: 16px; font-weight: 700; margin-bottom: 6px; }
+        .db-card p { font-size: 13px; color: var(--muted); margin-bottom: 14px; line-height: 1.5; }
+        .db-card a {
+            font-size: 12px;
+            color: var(--vnu-green);
+            font-weight: 700;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .db-card a:hover { text-decoration: underline; }
+
+        /* Hướng dẫn cài đặt */
+        .guide-box {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 32px 28px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+            margin-bottom: 40px;
+        }
+        .method-card {
+            background: #f8fafc;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 18px 20px;
+            margin-top: 14px;
+        }
+        .method-title {
+            font-size: 14px;
+            font-weight: 800;
+            color: var(--text);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+        .badge-method {
+            background: #e0f2fe;
+            color: #0369a1;
+            font-size: 11px;
+            font-weight: 700;
+            padding: 2px 8px;
+            border-radius: 999px;
+        }
+
+        .admin-banner {
+            background: #0f172a;
+            color: white;
+            border-radius: 12px;
+            padding: 24px 28px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+        .admin-banner-text h4 { font-size: 16px; font-weight: 700; }
+        .admin-banner-text p { font-size: 13px; color: #94a3b8; margin-top: 4px; }
+
+        footer {
+            background: #ffffff;
+            border-top: 1px solid var(--border);
+            padding: 32px 20px;
+            font-size: 13px;
+            color: var(--muted);
+        }
+        .footer-inner {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 18px;
+        }
+
+        /* 2.5. Thanh Cảnh Báo Chưa Đăng Nhập SSO (Alert Banner) */
+        .auth-alert-banner {
+            background: linear-gradient(90deg, #fffbeb 0%, #fef3c7 100%);
+            border-bottom: 1.5px solid #fde68a;
+            padding: 12px 24px;
+            font-size: 13px;
+            color: #92400e;
+            box-shadow: 0 2px 6px rgba(180, 83, 9, 0.05);
+            transition: all 0.3s ease;
+        }
+        .auth-alert-banner.authenticated {
+            background: linear-gradient(90deg, #ecfdf5 0%, #d1fae5 100%);
+            border-bottom: 1.5px solid #a7f3d0;
+            color: #065f46;
+        }
+        .auth-alert-inner {
+            max-width: 1240px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+        .auth-alert-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .auth-alert-icon { font-size: 22px; flex-shrink: 0; }
+        .auth-alert-text strong { font-weight: 800; color: #78350f; font-size: 13px; }
+        .auth-alert-banner.authenticated .auth-alert-text strong { color: #047857; }
+        .auth-alert-text p { font-size: 12px; margin-top: 1px; color: #b45309; line-height: 1.4; }
+        .auth-alert-banner.authenticated .auth-alert-text p { color: #065f46; }
+        .btn-alert-login {
+            background: #00803d;
+            color: #ffffff;
+            border: none;
+            padding: 7px 16px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: background 0.15s;
+            white-space: nowrap;
+        }
+        .btn-alert-login:hover { background: #006832; }
+
+        /* Khối Hướng Dẫn Liên Tục Dài Xuống (Continuous Vertical Workflow) */
+        .profile-guide-container {
+            background: #ffffff;
+            border: 2px solid #00803d;
+            border-radius: 16px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 8px 30px rgba(0, 128, 61, 0.08);
+        }
+        .profile-guide-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 2px solid #e2e8f0;
+            padding-bottom: 18px;
+            margin-bottom: 28px;
+            flex-wrap: wrap;
+            gap: 14px;
+        }
+        .vertical-guide-wrapper {
+            display: flex;
+            flex-direction: column;
+            gap: 28px;
+        }
+        .guide-step-card {
+            background: #ffffff;
+            border: 1px solid #cbd5e1;
+            border-left: 5px solid #00803d;
+            border-radius: 14px;
+            padding: 24px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .guide-step-card:hover {
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.07);
+        }
+        .guide-step-header {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            margin-bottom: 18px;
+        }
+        .step-badge-circle {
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            background: #00803d;
+            color: white;
+            font-weight: 900;
+            font-size: 17px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            box-shadow: 0 3px 8px rgba(0, 128, 61, 0.35);
+        }
+        .guide-step-title {
+            font-size: 17px;
+            font-weight: 800;
+            color: #0f172a;
+        }
+        .guide-step-subtitle {
+            font-size: 13px;
+            color: #64748b;
+            margin-top: 2px;
+        }
+        .guide-step-body {
+            display: grid;
+            grid-template-columns: minmax(320px, 1.1fr) minmax(300px, 0.9fr);
+            gap: 24px;
+            align-items: center;
+        }
+        @media (max-width: 900px) {
+            .guide-step-body {
+                grid-template-columns: 1fr;
+            }
+        }
+        .guide-image-container {
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid #cbd5e1;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+            background: #f8fafc;
+        }
+        .guide-real-screenshot {
+            width: 100%;
+            height: auto;
+            display: block;
+            border-radius: 12px;
+            transition: transform 0.2s;
+        }
+        .guide-real-screenshot:hover {
+            transform: scale(1.01);
+        }
+        .guide-image-grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+        @media (max-width: 600px) {
+            .guide-image-grid-2 {
+                grid-template-columns: 1fr;
+            }
+        }
+        .screenshot-caption {
+            font-size: 11px;
+            font-weight: 700;
+            color: #0f172a;
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .guide-step-desc {
+            font-size: 13.5px;
+            line-height: 1.7;
+            color: #334155;
+        }
+        .guide-step-desc ol {
+            padding-left: 20px;
+            margin-top: 8px;
+        }
+        .guide-step-desc li {
+            margin-bottom: 8px;
+        }
+        .guide-step-desc b {
+            color: #0f172a;
+        }
+        .tip-box {
+            background: #f0fdf4;
+            border: 1px solid #bbf7d0;
+            border-radius: 8px;
+            padding: 10px 14px;
+            font-size: 12.5px;
+            color: #166534;
+            margin-top: 12px;
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+        }
+
+        /* Mockup Cửa sổ Chrome */
+        .chrome-mockup {
+            background: #0f172a;
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid #334155;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+            color: #e2e8f0;
+        }
+        .chrome-mockup-header {
+            background: #1e293b;
+            padding: 10px 14px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid #334155;
+        }
+        .chrome-dots {
+            display: flex;
+            gap: 6px;
+        }
+        .chrome-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+        .chrome-top-right {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            position: relative;
+        }
+        .profile-pulse-target {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: #059669;
+            color: white;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            cursor: pointer;
+            box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+            animation: pulse-ring 2s infinite;
+        }
+        @keyframes pulse-ring {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+        }
+        .pointer-callout {
+            position: absolute;
+            top: 42px;
+            right: 0;
+            background: #10b981;
+            color: #022c22;
+            font-weight: 800;
+            font-size: 11px;
+            padding: 4px 10px;
+            border-radius: 6px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            white-space: nowrap;
+            z-index: 20;
+        }
+        .pointer-callout::before {
+            content: "";
+            position: absolute;
+            top: -6px;
+            right: 12px;
+            border-width: 0 6px 6px 6px;
+            border-style: solid;
+            border-color: transparent transparent #10b981 transparent;
+        }
+
+        /* Khối Hướng Dẫn Cài Đặt Thủ Công (Luôn Mở Rộng 100%, Không Thu Gọn) */
+        .manual-guide-box {
+            background: #ffffff;
+            border: 1px solid #cbd5e1;
+            border-top: 4px solid #475569;
+            border-radius: 14px;
+            padding: 28px;
+            margin-top: 36px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.03);
+        }
+        .manual-cards-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(330px, 1fr));
+            gap: 24px;
+            margin-top: 20px;
+        }
+        .manual-card {
+            background: #f8fafc;
+            border: 1.5px solid #cbd5e1;
+            border-radius: 12px;
+            padding: 22px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+        .btn-direct-download {
+            background: #00803d;
+            color: white;
+            padding: 11px 18px;
+            border-radius: 8px;
+            font-weight: 700;
+            font-size: 13px;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 16px;
+            transition: all 0.15s;
+            box-shadow: 0 2px 6px rgba(0, 128, 61, 0.2);
+        }
+        .btn-direct-download:hover {
+            background: #006832;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 128, 61, 0.3);
+        }
+        .btn-direct-download.firefox {
+            background: #ea580c;
+            box-shadow: 0 2px 6px rgba(234, 88, 12, 0.2);
+        }
+        .btn-direct-download.firefox:hover {
+            background: #c2410c;
+            box-shadow: 0 4px 12px rgba(234, 88, 12, 0.3);
+        }
+        .unzip-instruction-box {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 14px;
+            font-size: 13px;
+            line-height: 1.6;
+            color: #334155;
+            margin-top: 8px;
+        }
+        .unzip-instruction-box ol {
+            padding-left: 18px;
+        }
+        .unzip-instruction-box li {
+            margin-bottom: 6px;
+        }
+    </style>
+</head>
+<body>
+    <!-- 2. Modern Glass Navbar -->
+    <header class="navbar">
+        <div class="nav-inner">
+            <a href="/" class="brand">
+                <img src="/logo-vnu.svg" alt="VNU Logo">
+                <div class="brand-text">
+                    <h1>VNU ACADEMIC GATEWAY</h1>
+                    <p>Đại học Quốc gia Hà Nội</p>
+                </div>
+            </a>
+            <div class="nav-links">
+                <a href="#about">Giới thiệu</a>
+                <a href="#databases">CSDL Hỗ trợ</a>
+                <a href="#guide">Hướng dẫn cài đặt</a>
+            </div>
+            <div class="user-action-area">
+                <!-- Nút Đăng nhập VNU SSO chính thức qua Keycloak Production -->
+                <button id="btnOpenLogin" class="btn-sso" onclick="triggerKeycloakLogin()">
+                    <img src="/logo-vnu.svg" alt="VNU">
+                    <span>Đăng nhập VNU SSO</span>
+                </button>
+
+                <!-- Panel Người dùng sau khi đăng nhập qua SSO -->
+                <div id="userPanel" class="user-panel">
+                    <span id="userPill" class="user-pill">
+                        <span>👤</span>
+                        <span id="userNameTxt">Cán bộ VNU</span>
+                    </span>
+                    <a id="btnAdminLink" href="/admin" class="btn-admin" style="display:none;">
+                        <span>🛡️ Quản trị</span>
+                    </a>
+                    <button onclick="handleLogout(true)" class="btn-logout" title="Đăng xuất hoàn toàn cả phiên VNU SSO">Đăng xuất</button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- 2.5. Thanh Cảnh Báo Trạng Thái Xác Thực VNU SSO (Alert Banner) -->
+    <div id="unauthAlertBanner" class="auth-alert-banner">
+        <div class="auth-alert-inner">
+            <div class="auth-alert-left">
+                <span id="authAlertIcon" class="auth-alert-icon">⚠️</span>
+                <div class="auth-alert-text">
+                    <strong id="authAlertTitle">Chưa Xác Thực Danh Tính Cán Bộ VNU SSO</strong>
+                    <p id="authAlertDesc">Bạn chưa đăng nhập tài khoản ĐHQGHN. Vui lòng bấm nút <b>[🔑 Đăng nhập VNU SSO]</b> ở góc trên bên phải màn hình để kích hoạt ủy quyền CSDL.</p>
+                </div>
+            </div>
+            <button id="btnAlertLogin" class="btn-alert-login" onclick="triggerKeycloakLogin()">
+                <span>🔑 Đăng nhập ngay</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- 3. Hero Section (Giao diện Tập Trung Google Chrome Profile) -->
+    <section class="hero" id="about">
+        <div class="hero-inner">
+            <span class="hero-badge">Cổng Học Thuật ĐHQGHN</span>
+            <h2>Cổng Truy Cập Cơ Sở Dữ Liệu Khoa Học Quốc Tế</h2>
+            <p>Hệ thống tự động phân tuyến lưu lượng tới các nhà xuất bản khoa học qua mạng ĐHQGHN (vags.vnu.edu.vn:443), hỗ trợ cán bộ, giảng viên tra cứu, tải tài liệu phục vụ đào tạo và nghiên cứu khoa học.</p>
+            <div class="hero-btns">
+                <button onclick="handleHeroAction()" class="btn-primary" id="heroMainBtn">
+                    <span>🔑 Đăng Nhập VNU SSO</span>
+                </button>
+                <a href="#guide" class="btn-secondary">
+                    <span>📖 Hướng Dẫn Đồng Bộ Chrome Profile</span>
+                </a>
+                <a href="/admin" class="btn-secondary" id="heroAdminBtn" style="display:none;">
+                    <span>🛡️ Vào Trang Quản Trị (/admin)</span>
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- 4. Thẻ Trạng Thái Kết Nối Xếp Chồng (Layered Connection Status Badge) -->
+    <div class="status-overlap-card">
+        <div class="status-left">
+            <div class="status-icon" id="statusIcon">🛡️</div>
+            <div class="status-text">
+                <h4 id="statusTitle">Kiểm tra kết nối Tiện ích Mở Rộng & Định tuyến PAC</h4>
+                <p id="statusMsg">Hệ thống đang phát hiện kết nối Extension hoặc tệp định tuyến PAC...</p>
+            </div>
+        </div>
+        <div class="status-right">
+            <span id="statusBadge" class="badge-status-pill unconnected">⏳ Đang nhận diện...</span>
+            <button onclick="checkConnectionIP(event)" class="btn-sso" style="padding:6px 12px;font-size:12px;">
+                🔍 Kiểm tra IP VNU
+            </button>
+        </div>
+    </div>
+
+    <main class="container">
+        <!-- Danh mục CSDL Quốc tế -->
+        <section id="databases">
+            <div class="section-title">
+                <h3>Các Cơ Sở Dữ Liệu Khoa Học Được Phân Tuyến Tự Động</h3>
+                <p>Tiện ích VAGS sẽ tự động kích hoạt đường truyền an toàn khi bạn mở các địa chỉ học thuật sau:</p>
+            </div>
+            <div class="db-grid">
+                <div class="db-card">
+                    <span class="db-tag">ỦY QUYỀN VAGS</span>
+                    <div class="db-logo">🔬</div>
+                    <h4>ScienceDirect (Elsevier)</h4>
+                    <p>Bài báo nghiên cứu, tạp chí chuyên ngành Khoa học Tự nhiên, Y Dược, Kỹ thuật và Công nghệ.</p>
+                    <a href="https://www.sciencedirect.com" target="_blank" rel="noopener">sciencedirect.com ↗</a>
+                </div>
+                <div class="db-card">
+                    <span class="db-tag">ỦY QUYỀN VAGS</span>
+                    <div class="db-logo">⚡</div>
+                    <h4>IEEE Xplore Digital Library</h4>
+                    <p>Tài nguyên học thuật chuyên sâu về Điện, Điện tử, Công nghệ thông tin và Viễn thông.</p>
+                    <a href="https://ieeexplore.ieee.org" target="_blank" rel="noopener">ieeexplore.ieee.org ↗</a>
+                </div>
+                <div class="db-card">
+                    <span class="db-tag">ỦY QUYỀN VAGS</span>
+                    <div class="db-logo">📚</div>
+                    <h4>SpringerLink & Nature</h4>
+                    <p>Tạp chí bình duyệt quốc tế, sách chuyên khảo và các ấn phẩm học thuật từ Nature Portfolio và Springer.</p>
+                    <a href="https://link.springer.com" target="_blank" rel="noopener">springer.com & nature.com ↗</a>
+                </div>
+                <div class="db-card">
+                    <span class="db-tag">ỦY QUYỀN VAGS</span>
+                    <div class="db-logo">🏛️</div>
+                    <h4>Thư viện Số VNU (LIC)</h4>
+                    <p>Trung tâm Thư viện và Tri thức số ĐHQGHN: luận văn, luận án, giáo trình và tài liệu nội sinh số.</p>
+                    <a href="https://lic.vnu.edu.vn" target="_blank" rel="noopener">lic.vnu.edu.vn ↗</a>
+                </div>
+            </div>
+        </section>
+
+        <!-- Hướng dẫn Cài đặt & Sử dụng (Quy Trình Liên Tục Kéo Dài Xuống - 1 Tab Trực Quan) -->
+        <section class="guide-box" id="guide">
+            <div class="section-title" style="margin-bottom:28px;">
+                <span class="hero-badge" style="background:rgba(0,128,61,0.1);border-color:#00803d;color:#00803d;">CÁCH DÙNG TIỆN LỢI NHẤT</span>
+                <h3 style="font-size:24px;margin-top:6px;">Hướng Dẫn Cài Đặt & Sử Dụng Tiện Ích CSDL VAGS</h3>
+                <p>Quý Thầy/Cô thực hiện theo quy trình trực quan liên tục dưới đây (ưu tiên Cách 1 để hệ thống tự động cài đặt ngầm):</p>
+            </div>
+
+            <!-- ================= PHẦN 1: TÂM ĐIỂM GOOGLE CHROME PROFILE (KHUYẾN NGHỊ 100%) ================= -->
+            <div class="profile-guide-container">
+                <div class="profile-guide-header">
+                    <div style="display:flex;align-items:center;gap:14px;">
+                        <div style="width:46px;height:46px;border-radius:12px;background:#00803d;color:white;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:18px;box-shadow:0 3px 8px rgba(0,128,61,0.3);">
+                            VNU
+                        </div>
+                        <div>
+                            <h4 style="font-size:18px;font-weight:800;color:#0f172a;display:flex;align-items:center;gap:10px;">
+                                Cách 1: Đồng Bộ Hồ Sơ Google Chrome Bằng Tài Khoản ĐHQGHN
+                                <span class="badge-method" style="background:#dcfce7;color:#15803d;border:1px solid #86efac;font-size:11px;">Khuyến nghị 100% • Tự động cài đặt</span>
+                            </h4>
+                            <p style="font-size:13px;color:var(--muted);margin-top:3px;">
+                                Hệ thống đã được quản trị tập trung qua Google Workspace ĐHQGHN (OU: <b>canbo</b>). Cán bộ không cần tải file hay thao tác kỹ thuật phức tạp!
+                            </p>
+                        </div>
+                    </div>
+                    <div>
+                        <span style="font-size:11px;color:var(--muted);display:block;text-align:right;">Miền quản trị tổ chức:</span>
+                        <span style="font-size:12px;font-family:monospace;font-weight:700;color:#00803d;background:#ecfdf5;padding:3px 8px;border-radius:6px;border:1px solid #a7f3d0;">@vnu.edu.vn</span>
+                    </div>
+                </div>
+
+                <!-- Danh Sách Các Bước Kéo Dài Liên Tục (Vertical Flow) -->
+                <div class="vertical-guide-wrapper">
+
+                    <!-- BƯỚC 1 -->
+                    <div class="guide-step-card">
+                        <div class="guide-step-header">
+                            <div class="step-badge-circle">1</div>
+                            <div>
+                                <div class="guide-step-title">Bấm vào biểu tượng Avatar Profile ở góc trên bên phải Chrome</div>
+                                <div class="guide-step-subtitle">Mở menu Hồ sơ người dùng để kích hoạt tính năng đồng bộ tài khoản tổ chức</div>
+                            </div>
+                        </div>
+
+                        <div class="guide-step-body">
+                            <!-- Ảnh chụp màn hình Chrome Profile Menu thật -->
+                            <div class="guide-image-container">
+                                <img src="/images/guide/step1-chrome-profile.png" alt="Mở menu Profile Google Chrome ở góc trên bên phải" class="guide-real-screenshot">
+                            </div>
+
+                            <!-- Hướng dẫn thao tác Bước 1 -->
+                            <div class="guide-step-desc">
+                                <b>Các bước thực hiện trên máy tính:</b>
+                                <ol>
+                                    <li>Mở trình duyệt <b>Google Chrome</b> (hoặc Microsoft Edge).</li>
+                                    <li>Nhìn lên <b>góc trên cùng bên phải</b> của cửa sổ trình duyệt (cạnh dấu 3 chấm dọc ⋮).</li>
+                                    <li>Bấm vào biểu tượng <b>Hình tròn Avatar Profile (Người đại diện)</b>.</li>
+                                    <li>
+                                        Tùy vào trạng thái hiện tại của trình duyệt, chọn 1 trong 2 cách:
+                                        <ul style="margin-top:6px;padding-left:18px;">
+                                            <li style="margin-bottom:6px;"><b>👉 Cách 1 (Khuyên dùng nếu chưa đăng nhập):</b> Bấm nút xanh <b>"Bật tính năng đồng bộ..." (Turn on sync...)</b>.</li>
+                                            <li><b>👉 Cách 2 (Nếu đang dùng Gmail cá nhân):</b> Cuộn xuống mục <i>"Hồ sơ khác" (Other profiles)</i> $\rightarrow$ Bấm <b>"➕ Thêm" (Add profile)</b> để tạo một cửa sổ Chrome riêng biệt chuyên cho công tác ĐHQGHN, hoàn toàn độc lập và không lẫn dữ liệu cá nhân!</li>
+                                        </ul>
+                                    </li>
+                                </ol>
+                                <div class="tip-box">
+                                    <span>💡</span>
+                                    <span><b>Mẹo cho Cán bộ:</b> Tạo riêng một Profile Google Chrome cho email <b>@vnu.edu.vn</b> giúp trình duyệt tự động nhận diện chính sách trường và phân tách 100% công việc với tài khoản cá nhân.</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- BƯỚC 2 -->
+                    <div class="guide-step-card">
+                        <div class="guide-step-header">
+                            <div class="step-badge-circle">2</div>
+                            <div>
+                                <div class="guide-step-title">Nhập Email VNU & Xác thực Cổng VNU Keycloak IDP</div>
+                                <div class="guide-step-subtitle">Google Workspace tự động nhận diện tổ chức và chuyển hướng sang cổng xác thực ĐHQGHN</div>
+                            </div>
+                        </div>
+
+                        <div class="guide-step-body">
+                            <!-- Ảnh chụp màn hình Bước 2: Google Sign-in & VNU Keycloak -->
+                            <div class="guide-image-grid-2">
+                                <div class="guide-image-container">
+                                    <div style="padding:6px 10px;background:#f8fafc;border-bottom:1px solid #e2e8f0;" class="screenshot-caption">2.1. Đăng nhập Google với email VNU</div>
+                                    <img src="/images/guide/step2-google-signin.png" alt="Đăng nhập Google Workspace với email @vnu.edu.vn" class="guide-real-screenshot">
+                                </div>
+                                <div class="guide-image-container">
+                                    <div style="padding:6px 10px;background:#f8fafc;border-bottom:1px solid #e2e8f0;" class="screenshot-caption">2.2. Google chuyển sang Cổng VNU Keycloak</div>
+                                    <img src="/images/guide/step3-vnu-idp.png" alt="Xác thực tại Cổng VNU Keycloak idp.vnu.edu.vn" class="guide-real-screenshot">
+                                </div>
+                            </div>
+
+                            <!-- Hướng dẫn thao tác Bước 2 -->
+                            <div class="guide-step-desc">
+                                <b>Các bước thực hiện trên màn hình đăng nhập:</b>
+                                <ol>
+                                    <li>Tại ô đăng nhập Google (ảnh 2.1), nhập địa chỉ email cơ quan do ĐHQGHN cấp: <code>tên_cán_bộ@vnu.edu.vn</code> $\rightarrow$ Bấm <b>Tiếp theo (Next)</b>.</li>
+                                    <li>Google Workspace sẽ tự động nhận diện tên miền <code>@vnu.edu.vn</code> và lập tức chuyển tiếp màn hình sang <b>Cổng xác thực tập trung ĐHQGHN (VNU Keycloak SSO - idp.vnu.edu.vn)</b> (ảnh 2.2).</li>
+                                    <li>Tại cổng VNU SSO, Thầy/Cô nhập mật khẩu tài khoản email/SSO của mình.</li>
+                                    <li>Bấm nút <b>Đăng nhập (Sign In)</b> để hoàn tất ủy quyền danh tính cán bộ.</li>
+                                </ol>
+                                <div class="tip-box">
+                                    <span>🔒</span>
+                                    <span><b>Bảo mật danh tính:</b> Mật khẩu của Thầy/Cô được xác thực trực tiếp tại máy chủ VNU Keycloak nội bộ của ĐHQGHN (idp.vnu.edu.vn), Google không lưu giữ mật khẩu này.</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- BƯỚC 3 -->
+                    <div class="guide-step-card">
+                        <div class="guide-step-header">
+                            <div class="step-badge-circle">3</div>
+                            <div>
+                                <div class="guide-step-title">Xác nhận "Bật tính năng đồng bộ hóa" & Quản trị bởi vnu.edu.vn</div>
+                                <div class="guide-step-subtitle">Chrome nhận diện hồ sơ tổ chức và chuẩn bị nạp tiện ích mở rộng VAGS</div>
+                            </div>
+                        </div>
+
+                        <div class="guide-step-body">
+                            <!-- Ảnh chụp màn hình Chrome Turn on sync -->
+                            <div class="guide-image-container">
+                                <img src="/images/guide/step4-turn-on-sync.png" alt="Bật tính năng đồng bộ và xác nhận tổ chức quản trị vnu.edu.vn" class="guide-real-screenshot">
+                            </div>
+
+                            <!-- Hướng dẫn thao tác Bước 3 -->
+                            <div class="guide-step-desc">
+                                <b>Hộp thoại xác nhận trên Chrome:</b>
+                                <ol>
+                                    <li>Ngay sau khi xác thực Keycloak thành công, Chrome sẽ hiển thị hộp thoại: <i>"Bật tính năng đồng bộ hóa? (Turn on sync?)"</i>.</li>
+                                    <li>Thông báo tổ chức xuất hiện: <i>"Hồ sơ do vnu.edu.vn quản lý (Your profile is managed by vnu.edu.vn)"</i>.</li>
+                                    <li>Thầy/Cô bấm nút <b>"Có, tôi đồng ý" (Yes, I'm in)</b> (hoặc bấm <b>"Liên kết dữ liệu" / Link data</b> nếu có).</li>
+                                    <li><b>Xong!</b> Toàn bộ chính sách và tiện ích VAGS được Google Workspace kích hoạt tự động cho máy tính.</li>
+                                </ol>
+                                <div class="tip-box">
+                                    <span>🏢</span>
+                                    <span><b>Lưu ý:</b> Bắt buộc phải bấm <b>"Có, tôi đồng ý" (Yes, I'm in)</b> thì Google Chrome mới kích hoạt chính sách đồng bộ tiện ích VAGS tự động.</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- BƯỚC 4 -->
+                    <div class="guide-step-card">
+                        <div class="guide-step-header">
+                            <div class="step-badge-circle">4</div>
+                            <div>
+                                <div class="guide-step-title">Tiện ích VAGS tự động xuất hiện trên thanh công cụ Chrome</div>
+                                <div class="guide-step-subtitle">Biểu tượng [VNU] màu xanh lá cây được ghim tự động bên cạnh thanh địa chỉ</div>
+                            </div>
+                        </div>
+
+                        <div class="guide-step-body">
+                            <!-- Ảnh chụp màn hình Bước 4: Extension VAGS xuất hiện kèm nút Đăng nhập SSO -->
+                            <div class="guide-image-container">
+                                <img src="/images/guide/step4b-vags-installed.png" alt="Tiện ích VNU Academic Gateway tự động xuất hiện trên thanh công cụ Chrome" class="guide-real-screenshot">
+                            </div>
+
+                            <!-- Hướng dẫn thao tác Bước 4 -->
+                            <div class="guide-step-desc">
+                                <b>Nhận diện tiện ích trên Chrome:</b>
+                                <ol>
+                                    <li>Biểu tượng <b>[VNU]</b> màu xanh lá cây sẽ <b>tự động xuất hiện</b> trên thanh công cụ của Chrome (góc trên bên phải, cạnh biểu tượng mảnh ghép 🧩).</li>
+                                    <li>Bấm vào biểu tượng <b>[VNU]</b> để mở cửa sổ tiện ích.</li>
+                                    <li>Tại cửa sổ vừa mở, Thầy/Cô bấm vào nút màu xanh: <b>🔑 Đăng nhập VNU SSO</b> để mở trang xác thực kích hoạt ủy quyền.</li>
+                                </ol>
+                                <div class="tip-box">
+                                    <span>💡</span>
+                                    <span><b>Hoàn toàn tự động:</b> Google Workspace đã tự động tải tiện ích về máy tính. Thầy/Cô không cần tải tệp .zip hay bật Developer Mode!</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- BƯỚC 5 -->
+                    <div class="guide-step-card" style="border-left-color:#0284c7;background:#f0f9ff;">
+                        <div class="guide-step-header">
+                            <div class="step-badge-circle" style="background:#0284c7;">5</div>
+                            <div>
+                                <div class="guide-step-title" style="color:#0369a1;">Xác thực phiên Cán bộ trên Cổng VAGS & Tiện ích tự động kích hoạt Proxy</div>
+                                <div class="guide-step-subtitle">Hệ thống đồng bộ danh tính Cán bộ ĐHQGHN và tự động bật đường truyền 112.137.133.14</div>
+                            </div>
+                        </div>
+
+                        <div class="guide-step-body">
+                            <!-- Ảnh chụp màn hình Bước 5: Đăng nhập VAGS & Tiện ích đồng bộ thành công -->
+                            <div class="guide-image-container">
+                                <img src="/images/guide/step5-sso-sync-activated.png" alt="Xác thực danh tính Cán bộ VNU và tiện ích tự động kích hoạt proxy" class="guide-real-screenshot">
+                            </div>
+
+                            <!-- Hướng dẫn thao tác Bước 5 -->
+                            <div class="guide-step-desc">
+                                <b>Kích hoạt danh tính Cán bộ:</b>
+                                <ol>
+                                    <li>Sau khi bấm nút ở Bước 4, trình duyệt mở cổng <b>https://vags.vnu.edu.vn</b>. Thầy/Cô đăng nhập tài khoản Cán bộ ĐHQGHN.</li>
+                                    <li>Ngay khi đăng nhập thành công, tiện ích VAGS sẽ <b>tự động bắt tín hiệu đồng bộ</b>:
+                                        <ul style="margin-top:6px;padding-left:18px;">
+                                            <li>Thẻ thông tin: <b>[CB] Họ và tên • email@vnu.edu.vn</b> kèm nhãn <b>Cán bộ ✓</b>.</li>
+                                            <li>Công tắc: Chuyển sang <b>"Đường truyền Proxy: Đang Bật"</b> (màu xanh).</li>
+                                            <li>Dòng trạng thái: <b>🟢 KẾT NỐI PROXY THÀNH CÔNG ✓ (IP 112.137.133.14 - Mạng ĐHQGHN)</b>.</li>
+                                        </ul>
+                                    </li>
+                                    <li>Từ thời điểm này, toàn bộ phân tuyến CSDL quốc tế đã được kích hoạt hoàn toàn tự động!</li>
+                                </ol>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- BƯỚC 6 (BƯỚC ĐÍCH) -->
+                    <div class="guide-step-card" style="border-left-color:#059669;background:#fafffd;">
+                        <div class="guide-step-header">
+                            <div class="step-badge-circle" style="background:#059669;">6</div>
+                            <div>
+                                <div class="guide-step-title" style="color:#065f46;">Mở website CSDL Quốc tế & Tải toàn văn bài báo khoa học miễn phí 100%</div>
+                                <div class="guide-step-subtitle">Trang web tự động nhận diện "Brought to you by: Vietnam National University Library"</div>
+                            </div>
+                        </div>
+
+                        <div class="guide-step-body">
+                            <!-- Ảnh chụp màn hình Bước 6: ScienceDirect nhận diện Thư viện ĐHQGHN -->
+                            <div class="guide-image-container">
+                                <img src="/images/guide/step6-sciencedirect-vnu.png" alt="ScienceDirect nhận diện thuê bao Vietnam National University Library" class="guide-real-screenshot">
+                            </div>
+
+                            <!-- Hướng dẫn thao tác Bước 6 -->
+                            <div class="guide-step-desc">
+                                <b>Minh chứng kết nối thành công:</b>
+                                <ol>
+                                    <li>Thầy/Cô mở bất kỳ website CSDL quốc tế nào, ví dụ: <a href="https://www.sciencedirect.com" target="_blank" style="color:#00803d;font-weight:700;">ScienceDirect</a>, <a href="https://ieeexplore.ieee.org" target="_blank" style="color:#00803d;font-weight:700;">IEEE Xplore</a>, <a href="https://link.springer.com" target="_blank" style="color:#00803d;font-weight:700;">Springer</a>, Nature, Scopus...</li>
+                                    <li>Ngay trên đầu trang (như ảnh minh họa bên cạnh), hệ thống sẽ tự động hiển thị:
+                                        <div style="background:#ecfdf5;border:1.5px solid #10b981;padding:8px 12px;border-radius:8px;margin:8px 0;font-size:12px;color:#065f46;">
+                                            🏛️ <b>Brought to you by: Vietnam National University Library</b><br>
+                                            <small>(Cấp quyền truy cập bởi: Thư viện Đại học Quốc gia Hà Nội)</small>
+                                        </div>
+                                    </li>
+                                    <li>Mọi bài báo khoa học, chương sách, báo cáo nghiên cứu... đều mở khóa nút <b>Download PDF (Tải toàn văn miễn phí)</b> thay vì yêu cầu mua bài!</li>
+                                </ol>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- ================= PHẦN 2: HƯỚNG DẪN CÀI ĐẶT THỦ CÔNG (LUÔN MỞ RỘNG 100%, KHÔNG THU GỌN) ================= -->
+            <div class="manual-guide-box">
+                <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;border-bottom:1px solid #e2e8f0;padding-bottom:14px;margin-bottom:18px;">
+                    <div>
+                        <h4 style="font-size:16px;font-weight:800;color:#0f172a;display:flex;align-items:center;gap:8px;">
+                            <span>📁</span> Cách 2: Hướng Dẫn Cài Đặt Thủ Công Bằng Tệp Mở Rộng (.zip)
+                        </h4>
+                        <p style="font-size:12.5px;color:var(--muted);margin-top:2px;">
+                            Dành cho Thầy/Cô sử dụng Mozilla Firefox hoặc máy tính cá nhân không muốn đồng bộ Profile Chrome của trường:
+                        </p>
+                    </div>
+                    <span style="font-size:11px;background:#f1f5f9;color:#475569;padding:4px 10px;border-radius:6px;font-weight:700;border:1px solid #cbd5e1;">Phiên bản v2.1.1</span>
+                </div>
+
+                <div class="manual-cards-grid">
+                    <!-- CỘT 1: GOOGLE CHROME & MICROSOFT EDGE (.ZIP THỦ CÔNG) -->
+                    <div class="manual-card">
+                        <div>
+                            <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+                                <span style="font-size:24px;">🌐</span>
+                                <div>
+                                    <h5 style="font-size:15px;font-weight:800;color:#1d4ed8;">Google Chrome & Microsoft Edge</h5>
+                                    <span style="font-size:11px;color:var(--muted);">Cài đặt gói giải nén (Unpacked Extension)</span>
+                                </div>
+                            </div>
+
+                            <!-- Link tải trực tiếp Chrome zip -->
+                            <a href="/vags-extension-chrome.zip" class="btn-direct-download" download>
+                                <span>⬇️ Tải Gói Cài Đặt Chrome (.zip)</span>
+                            </a>
+
+                            <div class="unzip-instruction-box">
+                                <b>Hướng dẫn giải nén và nạp tiện ích:</b>
+                                <ol>
+                                    <li>Bấm nút xanh ở trên để tải file <code>vags-extension-chrome.zip</code> về máy tính.</li>
+                                    <li>Tìm đến file vừa tải, <b>chuột phải</b> $\rightarrow$ Chọn <b>"Extract All..." (hoặc "Giải nén vào...")</b> để tạo một thư mục.</li>
+                                    <li>Mở tab mới trên Chrome, gõ vào thanh địa chỉ: <code style="background:#f1f5f9;padding:2px 6px;border-radius:4px;color:#1d4ed8;font-weight:700;">chrome://extensions</code> (nếu dùng Edge: <code style="background:#f1f5f9;padding:2px 6px;border-radius:4px;color:#1d4ed8;font-weight:700;">edge://extensions</code>).</li>
+                                    <li>Nhìn lên góc trên bên phải, gạt <b>BẬT</b> công tắc <b>"Developer mode" (Chế độ cho nhà phát triển)</b>.</li>
+                                    <li>Nhìn sang góc trên bên trái, bấm nút <b>"Load unpacked" (Tải tiện ích đã giải nén)</b>.</li>
+                                    <li>Chọn đúng thư mục vừa giải nén ở Bước 2 $\rightarrow$ Bấm <b>Select Folder</b>.</li>
+                                    <li>Tiện ích VAGS xuất hiện trên thanh công cụ $\rightarrow$ Bấm nút <b>🔑 Đăng nhập VNU SSO</b> để kích hoạt.</li>
+                                </ol>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- CỘT 2: MOZILLA FIREFOX (.ZIP / .XPI THỦ CÔNG) -->
+                    <div class="manual-card">
+                        <div>
+                            <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+                                <span style="font-size:24px;">🦊</span>
+                                <div>
+                                    <h5 style="font-size:15px;font-weight:800;color:#ea580c;">Mozilla Firefox</h5>
+                                    <span style="font-size:11px;color:var(--muted);">Cài đặt phần bổ trợ Firefox (Gecko Add-on)</span>
+                                </div>
+                            </div>
+
+                            <!-- Link tải trực tiếp Firefox zip -->
+                            <a href="/vags-extension-firefox.zip" class="btn-direct-download firefox" download>
+                                <span>🦊 Tải Add-on Mozilla Firefox (.zip)</span>
+                            </a>
+
+                            <div class="unzip-instruction-box">
+                                <b>Hướng dẫn giải nén và nạp phần bổ trợ Firefox:</b>
+                                <ol>
+                                    <li>Bấm nút cam ở trên để tải file <code>vags-extension-firefox.zip</code> về máy tính $\rightarrow$ Giải nén ra thư mục.</li>
+                                    <li>Mở tab mới trên Firefox, gõ vào thanh địa chỉ: <code style="background:#f1f5f9;padding:2px 6px;border-radius:4px;color:#ea580c;font-weight:700;">about:debugging#/runtime/this-firefox</code>.</li>
+                                    <li>Bấm nút <b>"Load Temporary Add-on..." (Tải phần bổ trợ tạm thời...)</b>.</li>
+                                    <li>Dẫn tới thư mục vừa giải nén và chọn file <code>manifest.json</code>.</li>
+                                    <li>Tiện ích VAGS sẽ được nạp ngay lập tức vào trình duyệt Firefox.</li>
+                                    <li>Bấm vào biểu tượng VAGS trên thanh công cụ và đăng nhập VNU SSO để bắt đầu tra cứu.</li>
+                                </ol>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- CỘT 3: CẤU HÌNH TỰ ĐỘNG BẰNG PAC SCRIPT & MẬT KHẨU ỨNG DỤNG CHO THIẾT BỊ DI ĐỘNG -->
+                <div style="margin-top:20px;padding:18px 20px;background:#f8fafc;border:1px solid #cbd5e1;border-radius:12px;">
+                    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px;">
+                        <div>
+                            <strong style="font-size:14px;color:#0f172a;display:flex;align-items:center;gap:6px;">
+                                <span>📱</span> Phương án 3: Cấu hình PAC Script & Mật Khẩu Ứng Dụng (iOS, Android, macOS)
+                            </strong>
+                            <p style="font-size:12px;color:var(--muted);margin-top:2px;">
+                                Dành cho thiết bị di động hoặc Thầy/Cô cấu hình trực tiếp vào cài đặt Proxy của hệ thống:
+                            </p>
+                        </div>
+                        <div>
+                            <a href="/vags.pac" target="_blank" style="font-family:monospace;font-size:12px;background:#0f172a;color:#38bdf8;padding:6px 12px;border-radius:6px;text-decoration:none;display:inline-block;font-weight:700;">PAC URL: https://vags.vnu.edu.vn/vags.pac ↗</a>
+                        </div>
+                    </div>
+
+                    <!-- Hộp Mật khẩu ứng dụng (Proxy Access Key) -->
+                    <div id="proxyKeySection" style="background:#ffffff;border:1px solid #e2e8f0;border-radius:8px;padding:14px 16px;">
+                        <div id="proxyKeyUnauth" style="font-size:12px;color:#64748b;display:flex;align-items:center;gap:8px;">
+                            <span>🔒</span>
+                            <span>Vui lòng đăng nhập <b>VNU SSO</b> ở góc trên bên phải để nhận <b>Mật khẩu ứng dụng (Proxy Access Key)</b> định danh bảo mật cho thiết bị.</span>
+                        </div>
+                        <div id="proxyKeyAuth" style="display:none;">
+                            <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
+                                <span style="font-size:12px;font-weight:700;color:#0f172a;">Thông tin xác thực Proxy định danh (App Password):</span>
+                                <button type="button" onclick="regenerateUserProxyKey()" style="padding:4px 10px;font-size:11px;background:#f1f5f9;color:#0f172a;border:1px solid #cbd5e1;cursor:pointer;border-radius:6px;font-weight:600;">
+                                    🔄 Tạo Mới Mã Truy Cập
+                                </button>
+                            </div>
+                            <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:12px;font-size:12px;">
+                                <div style="background:#f8fafc;padding:10px 12px;border-radius:6px;border:1px solid #e2e8f0;">
+                                    <div style="color:#64748b;font-size:11px;margin-bottom:2px;">Máy chủ Proxy (Host & Port):</div>
+                                    <code style="font-weight:700;color:#0f172a;font-size:13px;">vags.vnu.edu.vn : 443</code>
+                                </div>
+                                <div style="background:#f8fafc;padding:10px 12px;border-radius:6px;border:1px solid #e2e8f0;">
+                                    <div style="color:#64748b;font-size:11px;margin-bottom:2px;">Tên đăng nhập (Username):</div>
+                                    <code id="displayProxyUser" style="font-weight:700;color:#0369a1;font-size:13px;">canbo@vnu.edu.vn</code>
+                                </div>
+                                <div style="background:#f8fafc;padding:10px 12px;border-radius:6px;border:1px solid #e2e8f0;display:flex;align-items:center;justify-content:space-between;">
+                                    <div>
+                                        <div style="color:#64748b;font-size:11px;margin-bottom:2px;">Mật khẩu ứng dụng (Access Key):</div>
+                                        <code id="displayProxyKey" style="font-weight:800;color:#059669;font-size:13px;letter-spacing:0.5px;">vags_k_...</code>
+                                    </div>
+                                    <button type="button" onclick="copyProxyKey()" style="background:#e0f2fe;color:#0369a1;border:none;padding:5px 10px;border-radius:4px;cursor:pointer;font-size:11px;font-weight:700;">📋 Chép</button>
+                                </div>
+                            </div>
+                            <div style="font-size:11px;color:#64748b;margin-top:10px;">
+                                💡 <b>Lưu ý an toàn:</b> Dùng cặp Username/Access Key trên khi thiết bị di động (iPhone/iPad/Android) hoặc trình duyệt yêu cầu xác thực Proxy. Proxy sẽ chặn hoàn toàn các truy cập từ khách lạ không có tài khoản.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Banner Quản trị viên PQTKT (Chỉ hiển thị khi đăng nhập đúng tài khoản Quản trị) -->
+        <div class="admin-banner" id="adminBanner" style="display:none;">
+            <div class="admin-banner-text">
+                <h4>Quản Trị Hệ Thống (Phòng Quản Trị & Kế Hoạch - PQTKT)</h4>
+                <p>Cán bộ quản trị thuộc đơn vị pqtkt đăng nhập qua VNU SSO để vào Bảng quản trị cấu hình định tuyến và theo dõi lưu lượng thời gian thực.</p>
+            </div>
+            <div>
+                <a href="/admin" class="btn-primary" style="background:#00803d;color:white;box-shadow:none;">
+                    <span>🛡️ Vào Trang Quản Trị (/admin) ↗</span>
+                </a>
+            </div>
+        </div>
+    </main>
+
+    <footer>
+        <div class="footer-inner">
+            <div>
+                <strong style="color:var(--text);font-size:14px;">ĐẠI HỌC QUỐC GIA HÀ NỘI — VIETNAM NATIONAL UNIVERSITY, HANOI</strong>
+                <p style="margin-top:4px;">Cổng Truy cập Cơ sở Dữ liệu Khoa học Quốc tế (VAGS) • Địa chỉ: 144 Xuân Thủy, Cầu Giấy, Hà Nội</p>
+                <p>Đơn vị quản lý: Phòng Quản trị & Kế hoạch (PQTKT) • Trung tâm Thư viện & Tri thức số (LIC)</p>
+            </div>
+            <div>
+                <p>Trạng thái Cổng: <span style="color:#059669;font-weight:700;">● Hoạt động (:443)</span></p>
+                <p>Hạ tầng: 112.137.133.14 (Mạng ĐHQGHN)</p>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        let isExtensionDetected = false;
+
+        function scrollToDatabases() {
+            const el = document.getElementById('databases');
+            if (el) el.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function handleHeroAction() {
+            const user = localStorage.getItem('vags_user');
+            if (user) {
+                scrollToDatabases();
+            } else {
+                triggerKeycloakLogin();
+            }
+        }
+
+        function checkSession() {
+            const user = localStorage.getItem('vags_user');
+            const unit = localStorage.getItem('vags_unit');
+            const name = localStorage.getItem('vags_name');
+            const token = localStorage.getItem('vags_token');
+            const memberType = localStorage.getItem('vags_member_type') || 'canbo';
+            const userLower = (user || '').toLowerCase();
+            const isAdmin = (unit && unit.toLowerCase().includes('pqtkt')) ||
+                            userLower === 'admin' ||
+                            userLower === 'phongnd' ||
+                            userLower === 'vuongwork' ||
+                            userLower === 'vuongwork@vnu.edu.vn' ||
+                            localStorage.getItem('vags_is_admin') === 'true';
+
+            const unauthBanner = document.getElementById('unauthAlertBanner');
+            const authAlertIcon = document.getElementById('authAlertIcon');
+            const authAlertTitle = document.getElementById('authAlertTitle');
+            const authAlertDesc = document.getElementById('authAlertDesc');
+            const btnAlertLogin = document.getElementById('btnAlertLogin');
+            const heroMainBtn = document.getElementById('heroMainBtn');
+
+            if (user) {
+                document.getElementById('btnOpenLogin').style.display = 'none';
+                document.getElementById('userPanel').style.display = 'inline-flex';
+                document.getElementById('userNameTxt').textContent = `${name || user}${unit ? ' (' + unit.toUpperCase() + ')' : ''}`;
+                
+                // Cập nhật banner trạng thái xác thực
+                if (unauthBanner) unauthBanner.className = 'auth-alert-banner authenticated';
+                if (authAlertIcon) authAlertIcon.textContent = '🟢';
+                if (authAlertTitle) authAlertTitle.textContent = `Đã Xác Thực Cán Bộ: ${name || user}${unit ? ' • Đơn vị ' + unit.toUpperCase() : ''}`;
+                if (authAlertDesc) authAlertDesc.textContent = 'Tài khoản Cán bộ ĐHQGHN hợp lệ. Quyền truy cập Proxy CSDL Khoa học Quốc tế đang hoạt động.';
+                if (btnAlertLogin) btnAlertLogin.style.display = 'none';
+
+                // Nút Hero chuyển sang Bắt đầu tra cứu
+                if (heroMainBtn) {
+                    heroMainBtn.innerHTML = '<span>🚀 Bắt Đầu Tra Cứu CSDL</span>';
+                }
+
+                if (isAdmin) {
+                    document.getElementById('btnAdminLink').style.display = 'inline-flex';
+                    document.getElementById('heroAdminBtn').style.display = 'inline-flex';
+                    document.getElementById('adminBanner').style.display = 'flex';
+                } else {
+                    document.getElementById('btnAdminLink').style.display = 'none';
+                    document.getElementById('heroAdminBtn').style.display = 'none';
+                    document.getElementById('adminBanner').style.display = 'none';
+                }
+
+                // Phát tín hiệu đồng bộ phiên cho Extension Content Script
+                const sessionData = {
+                    vagsToken: token,
+                    vagsUser: user,
+                    vagsName: name || user,
+                    vagsUnit: unit || '',
+                    vagsMemberType: memberType,
+                    vagsIsAdmin: isAdmin
+                };
+                window.dispatchEvent(new CustomEvent('VAGS_SSO_SYNC', { detail: sessionData }));
+                window.postMessage({ type: 'VAGS_SSO_SYNC', data: sessionData }, '*');
+
+                // Gửi Heartbeat ngay lập tức khi tải trang để định danh IP người dùng trong hệ thống
+                fetch('/api/v1/user/heartbeat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user: user, unit: unit || 'VNU', memberType: memberType || 'canbo' })
+                }).catch(() => {});
+
+                // Nạp Mật khẩu ứng dụng (Proxy Key) cho PAC và thiết bị di động
+                loadUserProxyKey(user);
+            } else {
+                document.getElementById('btnOpenLogin').style.display = 'inline-flex';
+                document.getElementById('userPanel').style.display = 'none';
+                document.getElementById('heroAdminBtn').style.display = 'none';
+                document.getElementById('adminBanner').style.display = 'none';
+
+                const pUnauth = document.getElementById('proxyKeyUnauth');
+                const pAuth = document.getElementById('proxyKeyAuth');
+                if (pUnauth) pUnauth.style.display = 'flex';
+                if (pAuth) pAuth.style.display = 'none';
+
+                // Banner trạng thái chưa xác thực
+                if (unauthBanner) unauthBanner.className = 'auth-alert-banner';
+                if (authAlertIcon) authAlertIcon.textContent = '⚠️';
+                if (authAlertTitle) authAlertTitle.textContent = 'Chưa Xác Thực Danh Tính Cán Bộ VNU SSO';
+                if (authAlertDesc) authAlertDesc.innerHTML = 'Bạn chưa đăng nhập tài khoản ĐHQGHN. Vui lòng bấm nút <b>[🔑 Đăng nhập VNU SSO]</b> ở góc trên bên phải màn hình để kích hoạt ủy quyền CSDL.';
+                if (btnAlertLogin) btnAlertLogin.style.display = 'inline-flex';
+
+                if (heroMainBtn) {
+                    heroMainBtn.innerHTML = '<span>🔑 Đăng Nhập VNU SSO</span>';
+                }
+            }
+        }
+
+        // Quản lý Mật khẩu ứng dụng (Proxy Access Key) cho PAC / Thiết bị di động
+        async function loadUserProxyKey(user) {
+            if (!user) return;
+            try {
+                const res = await fetch(`/api/v1/user/proxy-key?user=${encodeURIComponent(user)}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    const key = data ? (data.proxyKey || data.key) : null;
+                    if (key) {
+                        const pUnauth = document.getElementById('proxyKeyUnauth');
+                        const pAuth = document.getElementById('proxyKeyAuth');
+                        if (pUnauth) pUnauth.style.display = 'none';
+                        if (pAuth) pAuth.style.display = 'block';
+                        document.getElementById('displayProxyUser').textContent = user;
+                        document.getElementById('displayProxyKey').textContent = key;
+                    }
+                }
+            } catch (e) {
+                console.warn('[VAGS] Không thể tải Proxy Key:', e);
+            }
+        }
+
+        async function regenerateUserProxyKey() {
+            const user = localStorage.getItem('vags_user');
+            if (!user) {
+                alert('Vui lòng đăng nhập VNU SSO trước!');
+                return;
+            }
+            if (!confirm('Bạn có chắc chắn muốn cấp lại Mật khẩu ứng dụng Proxy mới? Mật khẩu cũ trên các thiết bị sẽ hết hạn.')) return;
+            try {
+                const res = await fetch('/api/v1/user/proxy-key/regenerate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user })
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    const key = data ? (data.proxyKey || data.key) : null;
+                    if (key) {
+                        document.getElementById('displayProxyKey').textContent = key;
+                        alert('Đã tạo thành công Mật khẩu ứng dụng Proxy mới: ' + key);
+                    }
+                }
+            } catch (e) {
+                alert('Lỗi tạo mã: ' + e.message);
+            }
+        }
+
+        function copyProxyKey() {
+            const key = document.getElementById('displayProxyKey').textContent;
+            navigator.clipboard.writeText(key).then(() => {
+                alert('Đã sao chép Mật khẩu ứng dụng vào bộ nhớ tạm: ' + key);
+            }).catch(() => {
+                prompt('Mật khẩu ứng dụng Proxy:', key);
+            });
+        }
+
+        // Nhận diện trạng thái Extension hoặc PAC Script
+        function detectExtension() {
+            const hasDomAttr = document.documentElement.getAttribute('data-vags-extension') === 'installed';
+            const isEnabled = document.documentElement.getAttribute('data-vags-enabled') === 'true';
+
+            // Gửi Ping và đợi Pong từ Extension Content Script
+            window.postMessage({ type: 'VAGS_EXTENSION_PING' }, '*');
+            setTimeout(() => {
+                if (!isExtensionDetected) {
+                    if (hasDomAttr) {
+                        if (isEnabled) setExtensionActive();
+                        else setExtensionDisabled();
+                    } else {
+                        setExtensionInactive();
+                    }
+                }
+            }, 600);
+        }
+
+        function setExtensionActive(ver) {
+            isExtensionDetected = true;
+            document.getElementById('statusIcon').textContent = '🟢';
+            document.getElementById('statusTitle').textContent = `Tiện Ích VAGS Đang Hoạt Động (Extension v${ver || '2.1.4'})`;
+            document.getElementById('statusMsg').textContent = 'Trình duyệt của bạn đã sẵn sàng truy cập ScienceDirect, IEEE, Springer qua mạng ĐHQGHN.';
+            const badge = document.getElementById('statusBadge');
+            badge.className = 'badge-status-pill connected';
+            badge.textContent = '● Đã kết nối Tiện ích';
+        }
+
+        function setExtensionDisabled() {
+            isExtensionDetected = true;
+            document.getElementById('statusIcon').textContent = '🔴';
+            document.getElementById('statusTitle').textContent = 'Tiện Ích VAGS Đã Bị Tắt (Proxy Disabled)';
+            document.getElementById('statusMsg').textContent = 'Công tắc định tuyến proxy đang bị TẮT trong Extension. Bấm biểu tượng VAGS trên trình duyệt và BẬT lại để tra cứu CSDL.';
+            const badge = document.getElementById('statusBadge');
+            badge.className = 'badge-status-pill disconnected';
+            badge.textContent = '✕ Đã Tắt Proxy';
+        }
+
+        function setExtensionNotLoggedIn() {
+            isExtensionDetected = true;
+            document.getElementById('statusIcon').textContent = '🔴';
+            document.getElementById('statusTitle').textContent = 'Tiện Ích Chưa Đăng Nhập Tài Khoản VNU';
+            document.getElementById('statusMsg').textContent = 'Tiện ích đã cài đặt nhưng chưa được đăng nhập SSO. Bấm nút [🔑 Đăng nhập VNU SSO] để mở cổng.';
+            const badge = document.getElementById('statusBadge');
+            badge.className = 'badge-status-pill disconnected';
+            badge.textContent = '✕ Chưa Đăng Nhập';
+        }
+
+        function setExtensionInactive() {
+            document.getElementById('statusIcon').textContent = 'ℹ️';
+            document.getElementById('statusTitle').textContent = 'Chưa Phát Hiện Tiện Ích Mở Rộng Trên Trình Duyệt';
+            document.getElementById('statusMsg').textContent = 'Bạn có thể tải cài đặt Extension ở trên hoặc cấu hình tự động PAC script: https://vags.vnu.edu.vn/vags.pac';
+            const badge = document.getElementById('statusBadge');
+            badge.className = 'badge-status-pill unconnected';
+            badge.textContent = '○ Chưa cài Extension';
+        }
+
+        window.addEventListener('message', (event) => {
+            if (event.data && (event.data.type === 'VAGS_EXTENSION_PONG' || event.data.type === 'VAGS_EXTENSION_STATUS')) {
+                const info = event.data;
+                if (!info.enabled) {
+                    setExtensionDisabled();
+                } else if (!info.isLoggedIn && !localStorage.getItem('vags_user')) {
+                    setExtensionNotLoggedIn();
+                } else {
+                    setExtensionActive(info.version);
+                }
+            }
+        });
+
+        // Kiểm tra nhanh IP nhận diện
+        async function checkConnectionIP(e) {
+            const btn = (e && e.target) || (typeof event !== 'undefined' ? event?.target : null) || document.querySelector('button[onclick*="checkConnectionIP"]');
+            const originalText = btn ? btn.textContent : '';
+            if (btn) btn.textContent = 'Đang kiểm tra...';
+            try {
+                const res = await fetch('/api/v1/health', { cache: 'no-store' });
+                const d = await res.json();
+                alert(`[VAGS Connection Test]\n\n• Địa chỉ IP Egress VNU: 112.137.133.14\n• Cổng Học Thuật: ${d.status === 'healthy' ? 'Đang hoạt động (OK)' : 'Lỗi'}\n• Tập luật Version: ${d.version || '2.0.0'}\n\nKhi mở ScienceDirect hoặc IEEE, hệ thống tự động định tuyến qua máy chủ trường.`);
+            } catch (err) {
+                alert('Không thể kết nối tới dịch vụ VAGS Gateway: ' + err.message);
+            } finally {
+                if (btn) btn.textContent = originalText;
+            }
+        }
+
+        async function generatePkce() {
+            function dec2hex(dec) {
+                return ('0' + dec.toString(16)).substr(-2);
+            }
+            function generateRandomString() {
+                var array = new Uint32Array(56/2);
+                window.crypto.getRandomValues(array);
+                return Array.from(array, dec2hex).join('');
+            }
+            function sha256(plain) {
+                const encoder = new TextEncoder();
+                const data = encoder.encode(plain);
+                return window.crypto.subtle.digest('SHA-256', data);
+            }
+            function base64urlencode(a) {
+                var str = "";
+                var bytes = new Uint8Array(a);
+                var len = bytes.byteLength;
+                for (var i = 0; i < len; i++) {
+                    str += String.fromCharCode(bytes[i]);
+                }
+                return btoa(str).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+            }
+            const verifier = generateRandomString();
+            const hashed = await sha256(verifier);
+            const challenge = base64urlencode(hashed);
+            return { verifier, challenge };
+        }
+
+        async function triggerKeycloakLogin() {
+            try {
+                const pkce = await generatePkce();
+                sessionStorage.setItem('pkce_code_verifier', pkce.verifier);
+                localStorage.setItem('pkce_code_verifier', pkce.verifier);
+
+                const clientId = 'vags-gateway';
+                const redirectUri = encodeURIComponent(window.location.origin + '/auth/callback');
+                const authUrl = `https://idp.vnu.edu.vn/auth/realms/vnu/protocol/openid-connect/auth?client_id=${clientId}&response_type=code&scope=openid%20profile%20email&redirect_uri=${redirectUri}&state=vags_sso&code_challenge=${pkce.challenge}&code_challenge_method=S256`;
+                window.location.href = authUrl;
+            } catch (err) {
+                console.error('PKCE error', err);
+                const clientId = 'vags-gateway';
+                const redirectUri = encodeURIComponent(window.location.origin + '/auth/callback');
+                window.location.href = `https://idp.vnu.edu.vn/auth/realms/vnu/protocol/openid-connect/auth?client_id=${clientId}&response_type=code&scope=openid%20profile%20email&redirect_uri=${redirectUri}&state=vags_sso`;
+            }
+        }
+
+        async function handleLogout(forceIdpLogout = false) {
+            try {
+                await fetch('/api/v1/auth/logout', { method: 'POST' });
+            } catch (e) { }
+
+            localStorage.removeItem('vags_token');
+            localStorage.removeItem('vags_user');
+            localStorage.removeItem('vags_unit');
+            localStorage.removeItem('vags_name');
+            localStorage.removeItem('vags_member_type');
+            localStorage.removeItem('vags_is_admin');
+            sessionStorage.clear();
+
+            window.dispatchEvent(new CustomEvent('VAGS_SSO_LOGOUT'));
+            window.postMessage({ type: 'VAGS_SSO_LOGOUT' }, '*');
+            checkSession();
+
+            // Nếu người dùng muốn kết thúc hoàn toàn cả phiên VNU Keycloak IDP để đổi tài khoản
+            if (forceIdpLogout) {
+                const redirectUri = encodeURIComponent(window.location.origin);
+                window.location.href = `https://idp.vnu.edu.vn/auth/realms/vnu/protocol/openid-connect/logout?client_id=vags-gateway&post_logout_redirect_uri=${redirectUri}`;
+            }
+        }
+
+        checkSession();
+        detectExtension();
+    </script>
+</body>
+</html>

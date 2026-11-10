@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>VAGS Extension</title>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --card: #1e293b;
+            --border: #334155;
+            --text: #f8fafc;
+            --muted: #94a3b8;
+            --vnu: #00803d;
+            --vnu-light: #10b981;
+        }
+        * { box-sizing: border-box; }
+        body {
+            width: 350px;
+            margin: 0;
+            padding: 14px;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            font-size: 13px;
+        }
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 12px;
+        }
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .brand-badge {
+            width: 26px;
+            height: 26px;
+            background: #00803d;
+            color: white;
+            font-weight: 800;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+        }
+        .brand-title {
+            font-weight: 700;
+            font-size: 13px;
+            color: #ffffff;
+            line-height: 1.2;
+        }
+        .brand-sub {
+            font-size: 11px;
+            color: var(--muted);
+        }
+        .badge {
+            padding: 3px 8px;
+            border-radius: 999px;
+            font-size: 10px;
+            font-weight: 700;
+            background: rgba(16, 185, 129, 0.2);
+            color: #6ee7b7;
+            border: 1px solid rgba(16, 185, 129, 0.4);
+        }
+        .badge.offline {
+            background: rgba(239, 68, 68, 0.2);
+            color: #fca5a5;
+            border-color: rgba(239, 68, 68, 0.4);
+        }
+        .card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 12px;
+            margin-bottom: 10px;
+        }
+        .user-box {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .user-avatar {
+            width: 34px;
+            height: 34px;
+            background: rgba(16, 185, 129, 0.2);
+            color: #34d399;
+            font-weight: 700;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            border: 1px solid rgba(16, 185, 129, 0.4);
+        }
+        .user-name {
+            font-weight: 700;
+            font-size: 13px;
+            color: #ffffff;
+        }
+        .user-detail {
+            font-size: 11px;
+            color: var(--muted);
+            margin-top: 2px;
+        }
+        .role-tag {
+            padding: 2px 7px;
+            background: #065f46;
+            color: #a7f3d0;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: 700;
+            border: 1px solid #059669;
+        }
+        .role-tag.warn {
+            background: #78350f;
+            color: #fde68a;
+            border-color: #b45309;
+        }
+        .switch-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .switch-label {
+            font-weight: 700;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: #10b981;
+        }
+        .dot.off {
+            background: #64748b;
+        }
+        /* Toggle Switch */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 44px;
+            height: 24px;
+        }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider {
+            position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #475569; transition: .3s; border-radius: 24px;
+        }
+        .slider:before {
+            position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px;
+            background-color: white; transition: .3s; border-radius: 50%;
+        }
+        input:checked + .slider { background-color: #00803d; }
+        input:checked + .slider:before { transform: translateX(20px); }
+        input:disabled + .slider { opacity: 0.4; cursor: not-allowed; }
+
+        /* Khung Xác Thực Kết Nối Thực Tế */
+        .live-conn-card {
+            background: #111827;
+            border: 1px solid #374151;
+            border-radius: 10px;
+            padding: 10px 12px;
+            margin-bottom: 10px;
+            transition: all 0.25s;
+        }
+        .live-conn-card.success {
+            background: #064e3b;
+            border-color: #059669;
+        }
+        .live-conn-card.failed {
+            background: #451a1a;
+            border-color: #dc2626;
+        }
+        .live-conn-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 4px;
+        }
+        .live-conn-title {
+            font-weight: 800;
+            font-size: 11px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: #ffffff;
+        }
+        .live-conn-desc {
+            font-size: 11px;
+            color: #cbd5e1;
+            line-height: 1.4;
+        }
+
+        .tester-box {
+            background: #111827;
+            border: 1px solid #1f2937;
+            border-radius: 8px;
+            padding: 10px;
+            margin-top: 10px;
+        }
+        .tester-title {
+            font-size: 11px;
+            font-weight: 700;
+            color: #cbd5e1;
+            margin-bottom: 6px;
+            display: flex;
+            justify-content: space-between;
+        }
+        .tester-input-row {
+            display: flex;
+            gap: 6px;
+        }
+        .tester-input {
+            flex: 1;
+            background: #1f2937;
+            border: 1px solid #374151;
+            border-radius: 6px;
+            padding: 6px 8px;
+            font-size: 11px;
+            color: #f8fafc;
+            outline: none;
+        }
+        .tester-btn {
+            background: #00803d;
+            border: none;
+            color: white;
+            padding: 6px 10px;
+            font-size: 11px;
+            font-weight: 700;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+        .tester-btn:hover { background: #006832; }
+        .result-box {
+            margin-top: 6px;
+            padding: 6px 8px;
+            border-radius: 6px;
+            font-size: 11px;
+            line-height: 1.4;
+        }
+        .result-proxy {
+            background: rgba(16, 185, 129, 0.15);
+            border: 1px solid rgba(16, 185, 129, 0.35);
+            color: #6ee7b7;
+        }
+        .result-direct {
+            background: rgba(148, 163, 184, 0.15);
+            border: 1px solid rgba(148, 163, 184, 0.3);
+            color: #cbd5e1;
+        }
+
+        .btn {
+            width: 100%;
+            border: none;
+            border-radius: 8px;
+            padding: 8px 12px;
+            font-weight: 700;
+            cursor: pointer;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            margin-top: 8px;
+            text-decoration: none;
+        }
+        .btn-primary { background: #00803d; color: white; }
+        .btn-primary:hover { background: #006832; }
+        .btn-sub {
+            background: transparent;
+            color: var(--muted);
+            font-size: 11px;
+            padding: 4px;
+            border: none;
+            cursor: pointer;
+        }
+        .btn-sub:hover { color: #f8fafc; }
+        .footer-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-top: 10px;
+            padding-top: 8px;
+            border-top: 1px solid var(--border);
+            font-size: 11px;
+            color: var(--muted);
+        }
+        .footer-row a { color: #38bdf8; text-decoration: none; }
+        .footer-row a:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="brand">
+            <div class="brand-badge">VNU</div>
+            <div>
+                <div class="brand-title">VNU Academic Gateway</div>
+                <div class="brand-sub">Cổng CSDL Khoa học Quốc tế</div>
+            </div>
+        </div>
+        <span id="sseStatus" class="badge">● SSE Live</span>
+    </div>
+
+    <!-- 1. Trạng thái Đăng nhập Người dùng -->
+    <div class="card" id="userCard">
+        <!-- Khối khi đã đăng nhập -->
+        <div class="user-box" id="loggedInBox" style="display:none;">
+            <div class="user-info">
+                <div class="user-avatar" id="avatarTxt">CB</div>
+                <div>
+                    <div class="user-name" id="userName">Cán bộ VNU</div>
+                    <div class="user-detail" id="userDetail">canbo@vnu.edu.vn • ĐHQGHN</div>
+                </div>
+            </div>
+            <span class="role-tag" id="roleTag">Cán bộ ✓</span>
+        </div>
+
+        <!-- Khối khi chưa đăng nhập -->
+        <div id="loggedOutBox" style="text-align:center;padding:4px 0;">
+            <div style="font-weight:700;color:#f8fafc;font-size:13px;margin-bottom:3px;">Chưa Đăng Nhập VNU SSO</div>
+            <div style="color:var(--muted);font-size:11px;margin-bottom:8px;">Vui lòng xác thực tài khoản ĐHQGHN để kích hoạt ủy quyền CSDL</div>
+            <button id="btnOpenLogin" class="btn btn-primary">🔑 Đăng nhập VNU SSO</button>
+        </div>
+
+        <!-- Cảnh báo nếu là Sinh viên -->
+        <div id="studentWarning" style="display:none;margin-top:8px;padding:8px;background:rgba(217, 119, 6, 0.15);border:1px solid rgba(217, 119, 6, 0.4);border-radius:6px;font-size:11px;color:#fde68a;">
+            ⚠️ <b>Tài khoản Sinh viên:</b> Dịch vụ Proxy CSDL quốc tế chỉ áp dụng cho Cán bộ & Giảng viên. Bạn vẫn có thể truy cập Thư viện số VNU trực tiếp.
+        </div>
+    </div>
+
+    <!-- 2. Công tắc Bật / Tắt Proxy -->
+    <div class="card" id="proxyCard">
+        <div class="switch-row">
+            <div>
+                <div class="switch-label">
+                    <span class="dot off" id="proxyDot"></span>
+                    <span id="proxyStateTxt">Đường truyền Proxy: Chờ đăng nhập</span>
+                </div>
+                <div style="font-size:11px;color:var(--muted);margin-top:2px;">Phân tuyến tự động qua vags.vnu.edu.vn:443</div>
+            </div>
+            <label class="switch">
+                <input type="checkbox" id="proxyToggle" disabled>
+                <span class="slider"></span>
+            </label>
+        </div>
+    </div>
+
+    <!-- 2.5. KHUNG XÁC THỰC KẾT NỐI THỰC TẾ (REAL-TIME IP VERIFICATION) -->
+    <div class="live-conn-card" id="liveConnCard">
+        <div class="live-conn-header">
+            <div class="live-conn-title" id="liveConnTitle">
+                <span id="liveConnIcon">🔒</span>
+                <span id="liveConnTxt">CHƯA KÍCH HOẠT ỦY QUYỀN PROXY</span>
+            </div>
+            <button id="btnVerifyRealIp" class="btn-sub" style="color:#38bdf8;padding:2px 6px;font-size:10px;border:1px solid rgba(56,189,248,0.3);border-radius:4px;">🔄 Đo lại</button>
+        </div>
+        <div class="live-conn-desc" id="liveConnDetail">
+            Vui lòng xác thực tài khoản ĐHQGHN để kích hoạt ủy quyền CSDL.
+        </div>
+    </div>
+
+    <!-- 3. Công cụ Kiểm tra Định tuyến Nhanh -->
+    <div class="tester-box">
+        <div class="tester-title">
+            <span>🔍 Kiểm tra liên kết định tuyến:</span>
+            <span id="ruleVerTxt" style="color:#64748b;">v2.0</span>
+        </div>
+        <div class="tester-input-row">
+            <input type="text" id="testUrlInput" class="tester-input" placeholder="Nhập tên miền (VD: sciencedirect.com)">
+            <button id="btnTestRoute" class="tester-btn">Kiểm tra</button>
+        </div>
+        <div id="testResultBox" class="result-box result-proxy" style="display:none;"></div>
+    </div>
+
+    <!-- 4. Chân trang Footer -->
+    <div class="footer-row">
+        <a href="https://vags.vnu.edu.vn" target="_blank" rel="noopener">Cổng VAGS ↗</a>
+        <div style="display:flex;gap:8px;">
+            <button id="btnSyncNow" class="btn-sub">🔄 Đồng bộ</button>
+            <button id="btnLogout" class="btn-sub" style="display:none;">Đăng xuất</button>
+        </div>
+    </div>
+
+    <script src="popup.js"></script>
+</body>
+</html>

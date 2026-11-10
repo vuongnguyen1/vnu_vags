@@ -1,0 +1,39 @@
+# Runtime databases and logs
+data/*.db
+data/*.db-wal
+data/*.db-shm
+data/*.log
+data/security.log
+data/vags_monitor.db*
+data/monitor.db*
+data/monitoring.db*
+
+# Private keys and SSL certificates
+keys/*.pem
+keys/*.key
+keys/*.pfx
+keys/*.crt
+*.pem
+*.key
+*.pfx
+
+# .NET Build artifacts
+**/bin/
+**/obj/
+/app/publish/
+
+# Node.js dependencies
+node_modules/
+npm-debug.log*
+
+# Render temporary scripts
+render_screenshots.js
+
+# Recursive symlinks
+public/public
+
+# OS & Editor metadata
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

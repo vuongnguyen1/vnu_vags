@@ -1,0 +1,2349 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hệ Thống Quản Trị Academic Gateway (VAGS) - Đại học Quốc gia Hà Nội</title>
+    <link rel="icon" href="/logo-vnu.svg" type="image/svg+xml">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700;800&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --vnu-green: #00803d;
+            --vnu-dark: #005a2b;
+            --vnu-gold: #fcba12;
+            --bg: #f8fafc;
+            --card: #ffffff;
+            --border: #e2e8f0;
+            --text: #0f172a;
+            --muted: #64748b;
+            --primary: #00803d;
+            --primary-hover: #006832;
+            --success: #059669;
+            --danger: #dc2626;
+            --warning: #d97706;
+            --info: #0284c7;
+        }
+        * { box-sizing: border-box; }
+        body {
+            font-family: "Inter", "Be Vietnam Pro", Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            margin: 0;
+            padding: 16px 20px 48px;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.5;
+        }
+        .wrapper { max-width: 1360px; margin: 0 auto; }
+
+        /* Top Header Navbar */
+        .header-nav {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 14px;
+            background: #ffffff;
+            border: 1px solid var(--border);
+            border-top: 4px solid var(--vnu-green);
+            padding: 14px 22px;
+            border-radius: 14px;
+            margin-bottom: 18px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.03);
+        }
+        .logo-box { display: flex; align-items: center; gap: 14px; }
+        .logo-box img { height: 42px; width: auto; }
+        .title-box h1 { margin: 0; font-size: 17px; color: var(--vnu-green); font-weight: 800; letter-spacing: -0.01em; white-space: nowrap; }
+        .title-box p { margin: 2px 0 0; font-size: 12px; color: var(--muted); white-space: nowrap; }
+
+        .user-panel { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+        .admin-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 14px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 700;
+            background: #ecfdf5;
+            color: #065f46;
+            border: 1px solid #a7f3d0;
+            white-space: nowrap;
+        }
+        .pill-live {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 5px 12px;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 700;
+            background: #dcfce7;
+            color: #15803d;
+            border: 1px solid #86efac;
+            white-space: nowrap;
+        }
+        .pill-live .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #16a34a;
+            animation: pulse 1.8s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.4; transform: scale(0.85); }
+        }
+
+        .btn-sm {
+            padding: 7px 14px;
+            font-size: 12px;
+            font-weight: 700;
+            border-radius: 8px;
+            border: 1px solid #cbd5e1;
+            background: white;
+            color: var(--text);
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.15s;
+            white-space: nowrap;
+        }
+        .btn-sm:hover { background: #f1f5f9; }
+        .btn-sm.primary { background: var(--vnu-green); color: white; border-color: var(--vnu-green); }
+        .btn-sm.primary:hover { background: var(--vnu-dark); }
+        .btn-sm.danger { background: #dc2626; color: white; border-color: #dc2626; }
+        .btn-sm.danger:hover { background: #b91c1c; }
+
+        /* Modern 5-Tab Bar */
+        .tabs-nav {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: #ffffff;
+            border: 1px solid var(--border);
+            padding: 6px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            overflow-x: auto;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.02);
+        }
+        .tab-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 18px;
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--muted);
+            background: transparent;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.18s;
+            white-space: nowrap;
+        }
+        .tab-btn:hover {
+            color: var(--text);
+            background: #f1f5f9;
+        }
+        .tab-btn.active {
+            color: white;
+            background: var(--vnu-green);
+            box-shadow: 0 2px 8px rgba(0, 128, 61, 0.25);
+        }
+
+        /* Tab Content Panes */
+        .tab-pane {
+            display: none;
+            animation: fadeIn 0.2s ease-in-out;
+        }
+        .tab-pane.active {
+            display: block;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(4px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 16px;
+            margin-bottom: 22px;
+        }
+        .stat-card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 18px 20px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+            position: relative;
+            overflow: hidden;
+        }
+        .stat-card::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: var(--vnu-green);
+        }
+        .stat-card.blue::before { background: #2563eb; }
+        .stat-card.purple::before { background: #8b5cf6; }
+        .stat-card.gold::before { background: #d97706; }
+        .stat-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700; }
+        .stat-value { font-size: 24px; font-weight: 800; margin-top: 6px; color: var(--text); font-variant-numeric: tabular-nums; }
+        .stat-sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+        /* General Card */
+        .card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            padding: 24px;
+            border-radius: 14px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+            margin-bottom: 20px;
+        }
+        .card-header-flex {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        .card h3 { margin: 0; font-size: 16px; color: var(--text); font-weight: 800; display: flex; align-items: center; gap: 8px; }
+        .card p.desc { margin: 4px 0 0; font-size: 13px; color: var(--muted); }
+
+        /* Mode Selector Box */
+        .mode-box {
+            background: #f8fafc;
+            border: 1.5px solid #cbd5e1;
+            border-radius: 12px;
+            padding: 16px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 14px;
+            margin-bottom: 20px;
+        }
+        .mode-info h4 { margin: 0; font-size: 14px; font-weight: 700; color: #0f172a; display: flex; align-items: center; gap: 8px; }
+        .mode-info p { margin: 4px 0 0; font-size: 12px; color: var(--muted); max-width: 680px; }
+        .mode-btn-group { display: flex; gap: 8px; }
+        .mode-btn {
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            border: 1.5px solid #cbd5e1;
+            background: white;
+            color: #475569;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+        .mode-btn.active-full {
+            background: #00803d;
+            color: white;
+            border-color: #00803d;
+            box-shadow: 0 2px 6px rgba(0,128,61,0.25);
+        }
+        .mode-btn.active-academic {
+            background: #2563eb;
+            color: white;
+            border-color: #2563eb;
+            box-shadow: 0 2px 6px rgba(37,99,235,0.25);
+        }
+
+        /* Filter Chips */
+        .filter-row { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 14px; align-items: center; justify-content: space-between; }
+        .filter-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+        .chip {
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            border: 1px solid var(--border);
+            background: #f8fafc;
+            color: var(--muted);
+            transition: all 0.15s;
+            white-space: nowrap;
+        }
+        .chip:hover { background: #e2e8f0; color: var(--text); }
+        .chip.active { background: var(--vnu-green); color: white; border-color: var(--vnu-green); }
+
+        .search-input {
+            padding: 8px 14px;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            font-size: 12px;
+            width: 240px;
+            outline: none;
+            transition: border-color 0.15s;
+        }
+        .search-input:focus { border-color: var(--vnu-green); }
+
+        /* Tables */
+        .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; margin-bottom: 16px; background: white; }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        thead tr { background: #f8fafc; border-bottom: 1px solid var(--border); }
+        th { padding: 12px 14px; font-weight: 700; color: #475569; text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; white-space: nowrap; }
+        td { padding: 11px 14px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+        tr:last-child td { border-bottom: none; }
+        tr:hover { background: #f8fafc; }
+
+        .domain-badge { display: inline-flex; align-items: center; gap: 6px; padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+        .domain-academic { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+        .domain-lic { background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; }
+        .domain-blacklist { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
+        .domain-vnu { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; }
+        .domain-override { background: #fefce8; color: #a16207; border: 1px solid #fef08a; }
+
+        .route-action { font-weight: 700; font-size: 12px; white-space: nowrap; }
+        .route-proxy { color: #059669; }
+        .route-direct { color: #64748b; }
+        .route-block { color: #dc2626; }
+
+        .btn-table { padding: 4px 10px; font-size: 11px; border-radius: 6px; font-weight: 600; cursor: pointer; border: none; white-space: nowrap; }
+        .btn-table.danger { background: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5; }
+        .btn-table.danger:hover { background: #dc2626; color: white; }
+
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        @media (max-width: 960px) { .grid-2 { grid-template-columns: 1fr; } }
+
+        .ou-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            background: #f1f5f9;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 700;
+            margin: 4px 4px 4px 0;
+            white-space: nowrap;
+        }
+        .ou-chip .rm-btn { cursor: pointer; color: #94a3b8; font-weight: bold; margin-left: 2px; }
+        .ou-chip .rm-btn:hover { color: #dc2626; }
+
+        .status { margin-top: 14px; padding: 12px 14px; border-radius: 8px; font-weight: 600; font-size: 13px; display: none; }
+        .status.show { display: block; background: #ecfdf5; color: var(--success); border: 1px solid #a7f3d0; }
+
+        /* Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(4px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s;
+        }
+        .modal-overlay.active { opacity: 1; pointer-events: auto; }
+        .modal {
+            background: white;
+            border-radius: 14px;
+            width: 100%;
+            max-width: 480px;
+            padding: 24px;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+        }
+        .modal h3 { margin: 0 0 16px; font-size: 16px; font-weight: 800; color: #0f172a; }
+        .form-group { margin-bottom: 14px; }
+        .form-group label { display: block; font-size: 12px; font-weight: 700; color: #475569; margin-bottom: 6px; }
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 9px 12px;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            font-size: 13px;
+            outline: none;
+        }
+        .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+
+        /* Auth Gate Overlay */
+        #authGate {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: #0f172a;
+            z-index: 9999;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            color: white;
+            text-align: center;
+        }
+        .auth-gate-box {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 16px;
+            padding: 40px 32px;
+            max-width: 460px;
+            width: 100%;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 0. MÀN HÌNH KHÓA BẢO VỆ PHÂN QUYỀN (RBAC GATE) -->
+    <div id="authGate">
+        <div class="auth-gate-box">
+            <div style="font-size:48px;margin-bottom:12px;">🛡️</div>
+            <h2 style="font-size:20px;font-weight:800;color:white;margin:0 0 8px;">Khu Vực Quản Trị Hệ Thống VAGS</h2>
+            <p style="font-size:13px;color:#94a3b8;margin-bottom:24px;line-height:1.6;">
+                Bảng điều khiển này chỉ dành riêng cho Cán bộ thuộc <b>Phòng Quản Trị Kỹ Thuật (PQTKT)</b> hoặc tài khoản được ủy quyền. Vui lòng xác thực tài khoản qua VNU Single Sign-On.
+            </p>
+            <div style="display:flex;flex-direction:column;gap:10px;">
+                <button onclick="loginKeycloakSso()" style="background:#00803d;color:white;padding:12px 20px;border-radius:10px;font-weight:700;font-size:14px;border:none;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px;">
+                    <img src="/logo-vnu.svg" alt="VNU" style="height:20px;">
+                    <span>Đăng nhập VNU SSO Quản Trị</span>
+                </button>
+                <a href="/" style="color:#94a3b8;font-size:13px;text-decoration:none;margin-top:6px;">← Quay về Trang chủ Học Thuật</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN DASHBOARD CONTENT -->
+    <div class="wrapper" id="dashboardMain" style="display:none;">
+        <!-- 1. HEADER NAVIGATION -->
+        <header class="header-nav">
+            <div class="logo-box">
+                <img src="/logo-vnu.svg" alt="VNU Logo">
+                <div class="title-box">
+                    <h1>HỆ THỐNG QUẢN TRỊ ACADEMIC GATEWAY (VAGS)</h1>
+                    <p>Đại học Quốc gia Hà Nội • Trung Tâm Điều Hành & Giám Sát Proxy Toàn Phần</p>
+                </div>
+            </div>
+
+            <div class="user-panel">
+                <span class="pill-live" id="sseLivePill">
+                    <span class="dot"></span>
+                    <span id="sseStatusTxt">SSE Live</span>
+                </span>
+                <span class="admin-badge">
+                    <span>👑</span>
+                    <span id="adminNameTxt">Quản trị viên: phongnd (PQTKT)</span>
+                </span>
+                <button onclick="saveAndBroadcastRules()" class="btn-sm primary" id="btnBroadcast">
+                    <span>🚀 Lưu & Phát Sóng Ngay (SSE)</span>
+                </button>
+                <button onclick="broadcastForceUpdate()" class="btn-sm" style="background:#7c3aed;color:white;border-color:#7c3aed;" id="btnForceUpdate" title="Gửi tín hiệu SSE ép tất cả Extension đang trực tuyến cập nhật lên v2.1.4">
+                    <span>📢 Ép Cập Nhật Extension (2.1.4)</span>
+                </button>
+                <a href="/" class="btn-sm">
+                    <span>🏠 Trang Chủ</span>
+                </a>
+                <button onclick="handleLogout()" class="btn-sm danger">Đăng xuất</button>
+            </div>
+        </header>
+
+        <!-- 2. MODERN 6-TAB BAR -->
+        <nav class="tabs-nav">
+            <button class="tab-btn active" onclick="switchTab('overview')">
+                <span>📊</span> <span>Tổng Quan & Phiên Kết Nối</span>
+            </button>
+            <button class="tab-btn" onclick="switchTab('analytics')">
+                <span>📈</span> <span>Giám Sát & Lưu Lượng (SQLite WAL)</span>
+            </button>
+            <button class="tab-btn" onclick="switchTab('routing')">
+                <span>🚫</span> <span>Cấu Hình Full Proxy & Blacklist</span>
+            </button>
+            <button class="tab-btn" onclick="switchTab('users')">
+                <span>👤</span> <span>Phân Quyền & Ngoại Lệ</span>
+            </button>
+            <button class="tab-btn" onclick="switchTab('logs')">
+                <span>⚡</span> <span>Nhật Ký Cán Bộ Trực Tiếp</span>
+            </button>
+            <button class="tab-btn" onclick="switchTab('test')">
+                <span>🧪</span> <span>Phòng Kiểm Thử & IP Shield</span>
+            </button>
+        </nav>
+
+        <!-- ========================================== -->
+        <!-- TAB 1: TỔNG QUAN & PHIÊN KẾT NỐI           -->
+        <!-- ========================================== -->
+        <section id="pane-overview" class="tab-pane active">
+            <!-- Metric Cards -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-label">Phiên Extension Kết Nối (SSE)</div>
+                    <div class="stat-value" id="statSseClients">0</div>
+                    <div class="stat-sub">Đang lắng nghe tập luật thời gian thực</div>
+                </div>
+                <div class="stat-card blue">
+                    <div class="stat-label">Cán Bộ Đang Kết Nối (IP Thật)</div>
+                    <div class="stat-value" id="statUniqueIps">0</div>
+                    <div class="stat-sub">Địa chỉ IP người dùng nhận diện độc bản</div>
+                </div>
+                <div class="stat-card purple">
+                    <div class="stat-label">Lưu Lượng Proxy (:443 CONNECT)</div>
+                    <div class="stat-value" id="statProxyTraffic">0 / 0</div>
+                    <div class="stat-sub">Được cấp phép / Bị chặn theo luật</div>
+                </div>
+                <div class="stat-card gold">
+                    <div class="stat-label">Hạ Tầng Egress IP VNU</div>
+                    <div class="stat-value" id="statEgressIp" style="font-size:20px;color:#00803d;">112.137.133.14</div>
+                    <div class="stat-sub" style="color:#059669;font-weight:700;">IP Leak Shield: Đang Bảo Vệ ✓</div>
+                </div>
+            </div>
+
+            <!-- Bảng Phiên Cán Bộ Hoạt Động (Active Sessions Table) -->
+            <div class="card">
+                <div class="card-header-flex">
+                    <div>
+                        <h3 id="activeSessionsHeading">👥 Danh Sách Phiên Cán Bộ Kết Nối</h3>
+                        <p class="desc" id="activeSessionsDesc">Ghi nhận chi tiết địa chỉ IP thật của người dùng, trình duyệt và thời gian kết nối qua SSE:</p>
+                    </div>
+                    <button class="btn-sm" onclick="fetchMetrics()">🔄 Làm mới danh sách</button>
+                </div>
+
+                <!-- Thanh Quản Trị Khẩn Cấp / Force Toàn Bộ -->
+                <div style="display:flex;gap:12px;margin:12px 0 16px 0;background:#fef2f2;border:1px solid #fecaca;padding:12px 16px;border-radius:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;">
+                    <div>
+                        <strong style="color:#991b1b;font-size:13px;display:flex;align-items:center;gap:6px;">
+                            <span>🚨</span> <span>QUẢN TRỊ KHẨN CẤP (FORCE CONTROLS)</span>
+                        </strong>
+                        <div style="font-size:12px;color:#b91c1c;margin-top:2px;">
+                            Phát sóng tín hiệu SSE ép tắt Proxy hoặc ngắt phiên toàn bộ Extension đang kết nối tức thì:
+                        </div>
+                    </div>
+                    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                        <button onclick="forceAllProxyOff()" class="btn-sm" style="background:#ea580c;color:#fff;border:none;font-weight:700;display:flex;align-items:center;gap:5px;cursor:pointer;">
+                            <span>⚡</span> Force Tắt Proxy Toàn Bộ
+                        </button>
+                        <button onclick="forceAllLogout()" class="btn-sm" style="background:#dc2626;color:#fff;border:none;font-weight:700;display:flex;align-items:center;gap:5px;cursor:pointer;">
+                            <span>🛑</span> Force Đăng Xuất Toàn Bộ
+                        </button>
+                    </div>
+                </div>
+
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Cán Bộ & Đơn Vị</th>
+                                <th>Địa Chỉ IP Thật Cán Bộ</th>
+                                <th>Trình Duyệt & Nền Tảng</th>
+                                <th>Thời Gian Kết Nối</th>
+                                <th>Trạng Thái</th>
+                                <th style="text-align:right;">Thao Tác Quản Trị</th>
+                            </tr>
+                        </thead>
+                        <tbody id="activeSessionsTableBody">
+                            <tr>
+                                <td colspan="6" style="text-align:center;padding:24px;color:var(--muted);">Đang tải dữ liệu phiên...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ========================================== -->
+        <!-- TAB 2: GIÁM SÁT & LƯU LƯỢNG (SQLITE WAL)    -->
+        <!-- ========================================== -->
+        <section id="pane-analytics" class="tab-pane">
+            <!-- Metric Cards -->
+            <div class="stats-grid">
+                <div class="stat-card" style="border-top:3px solid #00803d;">
+                    <div class="stat-label">👥 Người Dùng Online (Lease 5 Phút)</div>
+                    <div class="stat-value" id="statOnlineStable" style="color:#00803d;">0</div>
+                    <div class="stat-sub">Ổn định tuyệt đối • Không bị nhảy nhót số lượng</div>
+                </div>
+                <div class="stat-card" style="border-top:3px solid #0284c7;">
+                    <div class="stat-label">⚡ Băng Thông / Dữ Liệu Chuyển</div>
+                    <div class="stat-value" id="statBandwidthTotal" style="color:#0284c7;">0 MB</div>
+                    <div class="stat-sub" id="statBandwidthRxTx">Rx: 0 MB | Tx: 0 MB</div>
+                </div>
+                <div class="stat-card" style="border-top:3px solid #7c3aed;">
+                    <div class="stat-label">📊 Tổng Yêu Cầu Kết Nối (Tunnel)</div>
+                    <div class="stat-value" id="statTotalTunnels" style="color:#7c3aed;">0</div>
+                    <div class="stat-sub" id="statAllowedBlockedRatio">0 Cho phép | 0 Chặn</div>
+                </div>
+                <div class="stat-card" style="border-top:3px solid #059669;">
+                    <div class="stat-label">🌐 IP Egress ĐHQGHN & SQLite WAL</div>
+                    <div class="stat-value" id="statEgressIpDisplay" style="color:#059669;font-family:monospace;font-size:19px;">112.137.133.14</div>
+                    <div class="stat-sub">PROXY Protocol v1: Đã bật • IP thật client</div>
+                </div>
+            </div>
+
+            <!-- 4-Column Top Analytics Grid -->
+            <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(280px, 1fr));gap:18px;margin-bottom:20px;">
+                <!-- Col 1: Top URLs / Domains by Requests -->
+                <div class="card" style="margin-bottom:0;">
+                    <div class="card-header-flex" style="margin-bottom:12px;">
+                        <div>
+                            <h3 style="font-size:14px;">🌐 Top CSDL & Tên Miền (Lượt Truy Vấn)</h3>
+                            <p class="desc">Tần suất kết nối CSDL và dịch vụ</p>
+                        </div>
+                        <span class="badge badge-active" style="font-size:10px;">Lượt Reqs</span>
+                    </div>
+                    <div id="topUrlsContainer" style="display:flex;flex-direction:column;gap:10px;min-height:220px;">
+                        <div style="text-align:center;padding:30px;color:var(--muted);font-size:12px;">Đang tải dữ liệu top tên miền...</div>
+                    </div>
+                </div>
+
+                <!-- Col 2: Top Bandwidth Domains (High-Bandwidth / Video / Files) -->
+                <div class="card" style="margin-bottom:0;border-top:3px solid #ef4444;">
+                    <div class="card-header-flex" style="margin-bottom:12px;">
+                        <div>
+                            <h3 style="font-size:14px;color:#b91c1c;">🔥 Top Tên Miền Ngốn Băng Thông</h3>
+                            <p class="desc">Theo dõi dung lượng lớn để phát hiện & Block</p>
+                        </div>
+                        <span class="badge" style="background:#fee2e2;color:#b91c1c;font-size:10px;font-weight:700;">Băng Thông</span>
+                    </div>
+                    <div id="topBandwidthContainer" style="display:flex;flex-direction:column;gap:10px;min-height:220px;">
+                        <div style="text-align:center;padding:30px;color:var(--muted);font-size:12px;">Đang tải dữ liệu băng thông...</div>
+                    </div>
+                </div>
+
+                <!-- Col 3: Top Users (Real Cán Bộ) -->
+                <div class="card" style="margin-bottom:0;">
+                    <div class="card-header-flex" style="margin-bottom:12px;">
+                        <div>
+                            <h3 style="font-size:14px;">👥 Top Cán Bộ Sử Dụng Thật</h3>
+                            <p class="desc">Định danh chính xác tài khoản SSO & Đơn vị</p>
+                        </div>
+                        <span class="badge badge-active" style="font-size:10px;">Xác Thực</span>
+                    </div>
+                    <div id="topUsersContainer" style="display:flex;flex-direction:column;gap:10px;min-height:220px;">
+                        <div style="text-align:center;padding:30px;color:var(--muted);font-size:12px;">Đang tải danh sách cán bộ...</div>
+                    </div>
+                </div>
+
+                <!-- Col 4: Top Client IPs (Real Public IPs) -->
+                <div class="card" style="margin-bottom:0;">
+                    <div class="card-header-flex" style="margin-bottom:12px;">
+                        <div>
+                            <h3 style="font-size:14px;">💻 Top IP Client Thực Tế</h3>
+                            <p class="desc">IP thật cán bộ kết nối từ xa (PROXY v1)</p>
+                        </div>
+                        <span class="badge badge-active" style="font-size:10px;">IP Thật</span>
+                    </div>
+                    <div id="topIpsContainer" style="display:flex;flex-direction:column;gap:10px;min-height:220px;">
+                        <div style="text-align:center;padding:30px;color:var(--muted);font-size:12px;">Đang tải danh sách IP client...</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Full Searchable & Filterable Audit Trace Table -->
+            <div class="card">
+                <div class="card-header-flex">
+                    <div>
+                        <h3>🔍 Nhật Ký Truy Vết Lưu Lượng Toàn Diện (SQLite Audit Trace)</h3>
+                        <p class="desc">Ghi nhận vĩnh viễn với chế độ SQLite WAL, bảo đảm hiệu năng tối đa và truy vết từng gói tin tunnel:</p>
+                    </div>
+                    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                        <input type="text" id="auditSearchInput" class="search-input" placeholder="🔍 Tìm theo IP, User, Host..." onkeyup="onAuditSearch()">
+                        <select id="auditFilterAllowed" class="btn-sm" onchange="onAuditSearch()" style="padding:6px 10px;">
+                            <option value="">Tất cả trạng thái</option>
+                            <option value="true">✓ Cho phép (Allowed)</option>
+                            <option value="false">✕ Bị chặn (Blocked)</option>
+                        </select>
+                        <button class="btn-sm" onclick="fetchAnalyticsData()">🔄 Làm mới</button>
+                        <a href="/api/v1/admin/audit-logs/export" target="_blank" class="btn-sm primary">📥 Xuất CSV</a>
+                    </div>
+                </div>
+
+                <div class="table-wrap" style="max-height:550px;overflow-y:auto;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Thời Gian (UTC+7)</th>
+                                <th>IP Thật Cán Bộ</th>
+                                <th>Tài Khoản & Đơn Vị</th>
+                                <th>Tên Miền Đích (Host:Port)</th>
+                                <th>Trạng Thái</th>
+                                <th>Lưu Lượng (Rx/Tx)</th>
+                                <th>Độ Trễ</th>
+                                <th>Luật Áp Dụng</th>
+                            </tr>
+                        </thead>
+                        <tbody id="auditLogsTableBody">
+                            <tr>
+                                <td colspan="8" style="text-align:center;padding:30px;color:var(--muted);">Đang tải nhật ký truy vết...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Phân Trang Cho Nhật Ký Truy Vết SQLite -->
+                <div id="auditPaginationContainer" style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;font-size:12px;color:var(--muted);border-top:1px solid #e2e8f0;flex-wrap:wrap;gap:8px;">
+                    <div id="auditPageInfo">Hiển thị 0 bản ghi</div>
+                    <div style="display:flex;gap:4px;align-items:center;">
+                        <button onclick="changeAuditPage(-1)" id="auditPrevBtn" class="btn-sm" style="padding:4px 10px;cursor:pointer;">« Trước</button>
+                        <span id="auditPageIndicator" style="font-weight:700;color:#0f172a;padding:0 8px;">Trang 1 / 1</span>
+                        <button onclick="changeAuditPage(1)" id="auditNextBtn" class="btn-sm" style="padding:4px 10px;cursor:pointer;">Sau »</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bảng Phân Tích Toàn Bộ Tên Miền (AdGuard DNS Style Domains Breakdown) -->
+            <div class="card" style="margin-top:20px;">
+                <div class="card-header-flex">
+                    <div>
+                        <h3>🌐 Bảng Phân Tích Chi Tiết Tên Miền (Domains Breakdown • AdGuard DNS Style)</h3>
+                        <p class="desc">Thống kê toàn bộ các domain đã qua cổng: số lượt request, dung lượng nhận/gửi và phát hiện nhanh domain ngốn băng thông:</p>
+                    </div>
+                    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                        <input type="text" id="domainSearchInput" class="search-input" placeholder="🔍 Tìm kiếm domain..." onkeyup="onDomainSearch()">
+                        <button class="btn-sm" onclick="fetchDomainsBreakdown(1)">🔄 Làm mới</button>
+                    </div>
+                </div>
+
+                <div class="table-wrap" style="max-height:550px;overflow-y:auto;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Tên Miền (Domain)</th>
+                                <th>Lượt Yêu Cầu (Requests)</th>
+                                <th>Cho Phép / Chặn</th>
+                                <th>Lưu Lượng Tải Về (Rx)</th>
+                                <th>Lưu Lượng Gửi Đi (Tx)</th>
+                                <th>Tổng Băng Thông</th>
+                                <th>Số Cán Bộ</th>
+                                <th>Lần Cuối Truy Vấn</th>
+                                <th style="text-align:right;">Thao Tác</th>
+                            </tr>
+                        </thead>
+                        <tbody id="domainsBreakdownTableBody">
+                            <tr>
+                                <td colspan="9" style="text-align:center;padding:30px;color:var(--muted);">Đang tải bảng phân tích tên miền...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Phân Trang Cho Bảng Phân Tích Tên Miền -->
+                <div id="domainPaginationContainer" style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;font-size:12px;color:var(--muted);border-top:1px solid #e2e8f0;flex-wrap:wrap;gap:8px;">
+                    <div id="domainPageInfo">Hiển thị 0 domain</div>
+                    <div style="display:flex;gap:4px;align-items:center;">
+                        <button onclick="changeDomainPage(-1)" id="domainPrevBtn" class="btn-sm" style="padding:4px 10px;cursor:pointer;">« Trước</button>
+                        <span id="domainPageIndicator" style="font-weight:700;color:#0f172a;padding:0 8px;">Trang 1 / 1</span>
+                        <button onclick="changeDomainPage(1)" id="domainNextBtn" class="btn-sm" style="padding:4px 10px;cursor:pointer;">Sau »</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ========================================== -->
+        <!-- TAB 2: CẤU HÌNH FULL PROXY & BLACKLIST     -->
+        <!-- ========================================== -->
+        <section id="pane-routing" class="tab-pane">
+            <!-- Chế độ Định tuyến Toàn phần -->
+            <div class="mode-box">
+                <div class="mode-info">
+                    <h4 id="modeStatusTitle">🛡️ Chế độ Định tuyến: FULL PROXY (Toàn Phần)</h4>
+                    <p id="modeStatusDesc">
+                        Tất cả các website trên Internet đều được phân tuyến qua Proxy VAGS (Egress IP: 112.137.133.14). Chỉ duy nhất các tên miền nằm trong Blacklist (băng thông cao) và mạng nội bộ *.vnu.edu.vn là đi trực tiếp (DIRECT).
+                    </p>
+                </div>
+                <div class="mode-btn-group">
+                    <button id="btnModeFull" class="mode-btn active-full" onclick="switchProxyMode('FULL_PROXY')">
+                        🛡️ Full Proxy (Khuyên dùng)
+                    </button>
+                    <button id="btnModeAcademic" class="mode-btn" onclick="switchProxyMode('ACADEMIC_ONLY')">
+                        📚 Chỉ CSDL Quốc Tế
+                    </button>
+                </div>
+            </div>
+
+            <!-- Bảng Quản lý Danh mục Tên miền (Khi ở Full Proxy thì ưu tiên Blacklist) -->
+            <div class="card">
+                <div class="card-header-flex">
+                    <div>
+                        <h3 id="tableTitle">📋 Danh Mục Tên Miền Blacklist Băng Thông Cao (Đi DIRECT)</h3>
+                        <p class="desc" id="tableDesc">Trong chế độ Full Proxy, các tên miền trong danh sách này sẽ được loại trừ để không tải qua đường truyền VNU:</p>
+                    </div>
+                    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                        <button onclick="syncLicDatabases(event)" class="btn-sm" style="background:#0284c7;color:white;border-color:#0284c7;">
+                            ⚡ Đồng bộ CSDL LIC
+                        </button>
+                        <button onclick="openAddModal()" class="btn-sm primary">
+                            + Thêm Tên Miền Mới
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Thanh Bộ lọc & Tìm kiếm -->
+                <div class="filter-row">
+                    <div class="filter-chips" id="filterChipsContainer">
+                        <span class="chip active" data-cat="all" onclick="filterCategory('all')">Tất cả (<span id="count-all">0</span>)</span>
+                        <span class="chip" data-cat="blacklist" onclick="filterCategory('blacklist')">🚫 Blacklist Băng Thông Cao (<span id="count-blacklist">0</span>)</span>
+                        <span class="chip" data-cat="academic" onclick="filterCategory('academic')">📚 CSDL Quốc Tế (<span id="count-academic">0</span>)</span>
+                        <span class="chip" data-cat="lic" onclick="filterCategory('lic')">🏛️ Thư Viện Số VNU (<span id="count-lic">0</span>)</span>
+                    </div>
+
+                    <input type="text" id="domainSearch" class="search-input" placeholder="🔍 Tìm kiếm domain..." oninput="renderTable()">
+                </div>
+
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Tên Miền / Mẫu (Pattern)</th>
+                                <th>Phân Loại</th>
+                                <th>Hành Động Định Tuyến</th>
+                                <th>Trạng Thái</th>
+                                <th style="text-align:right;">Thao Tác</th>
+                            </tr>
+                        </thead>
+                        <tbody id="rulesTableBody">
+                            <!-- Nạp động qua JS -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <div id="saveStatus" class="status"></div>
+            </div>
+        </section>
+
+        <!-- ========================================== -->
+        <!-- TAB 3: PHÂN QUYỀN CÁN BỘ & NGOẠI LỆ        -->
+        <!-- ========================================== -->
+        <section id="pane-users" class="tab-pane">
+            <!-- Cấu trúc Phân quyền Chuẩn ĐHQGHN -->
+            <div class="card" style="margin-bottom:20px;border-left:4px solid #00803d;">
+                <div class="card-header-flex">
+                    <div>
+                        <h3>🏛️ Cấu Trúc Phân Quyền & Cấp Bậc Đối Tượng VNU SSO</h3>
+                        <p class="desc">Nguyên tắc phân quyền truy cập CSDL Khoa học Quốc tế & Quản trị hệ thống VAGS:</p>
+                    </div>
+                </div>
+
+                <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(280px, 1fr));gap:14px;margin-top:8px;">
+                    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:14px;">
+                        <div style="font-weight:800;color:#166534;font-size:13px;display:flex;align-items:center;gap:6px;">
+                            <span>🎓</span> <span>CÁN BỘ (CANBO) — ĐỐI TƯỢNG TO NHẤT</span>
+                        </div>
+                        <div style="font-size:12px;color:#15803d;margin-top:4px;line-height:1.5;">
+                            Bao trùm toàn bộ Cán bộ, Giảng viên, Nghiên cứu viên thuộc tất cả các trường/viện thành viên (UET, HUS, ULIS, USSH, LIC, VNU...). <b>Mặc định ĐƯỢC PHÉP TRUY CẬP PROXY</b>.
+                        </div>
+                    </div>
+
+                    <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:14px;">
+                        <div style="font-weight:800;color:#991b1b;font-size:13px;display:flex;align-items:center;gap:6px;">
+                            <span>⛔</span> <span>SINH VIÊN (SINHVIEN) — BỊ LOẠI BỎ</span>
+                        </div>
+                        <div style="font-size:12px;color:#b91c1c;margin-top:4px;line-height:1.5;">
+                            Người học và sinh viên <b>BỊ CHẶN HOÀN TOÀN</b>, không được ủy quyền qua Proxy CSDL Quốc tế (trừ khi được cấp quyền riêng trong danh sách Ngoại lệ bên dưới).
+                        </div>
+                    </div>
+
+                    <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:14px;">
+                        <div style="font-weight:800;color:#1e40af;font-size:13px;display:flex;align-items:center;gap:6px;">
+                            <span>👑</span> <span>PQTKT — OU QUẢN TRỊ CAO NHẤT</span>
+                        </div>
+                        <div style="font-size:12px;color:#1d4ed8;margin-top:4px;line-height:1.5;">
+                            Phòng Quản Trị Kỹ Thuật (PQTKT) nắm giữ toàn quyền quản trị, chỉnh sửa tập luật định tuyến, phát sóng SSE và cấp phát ngoại lệ.
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid-2">
+                <!-- Quản lý Đơn vị OU Thành Viên -->
+                <div class="card">
+                    <div class="card-header-flex">
+                        <div>
+                            <h3>🏢 Đơn Vị Thành Viên Được Cấp Phép</h3>
+                            <p class="desc">Các trường đại học, viện nghiên cứu trực thuộc ĐHQGHN có Cán bộ được sử dụng Proxy:</p>
+                        </div>
+                    </div>
+
+                    <div id="ouList" style="margin-bottom:16px;"></div>
+
+                    <div style="display:flex;gap:8px;">
+                        <input type="text" id="newOuInput" placeholder="Nhập mã đơn vị (VD: uet, hus, lic, canbo...)" style="padding:8px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:12px;flex:1;">
+                        <button onclick="addOu()" class="btn-sm primary">+ Thêm Đơn Vị</button>
+                    </div>
+                </div>
+
+                <!-- Quản lý Ngoại lệ Từng Cán bộ (User Overrides) -->
+                <div class="card">
+                    <div class="card-header-flex">
+                        <div>
+                            <h3>👤 Cấu Hình Ngoại Lệ Cá Nhân (User Overrides)</h3>
+                            <p class="desc">Gán quyền riêng hoặc domain proxy đặc biệt cho từng tài khoản (VD: phongnd):</p>
+                        </div>
+                    </div>
+
+                    <div style="margin-bottom:14px;">
+                        <strong style="font-size:12px;color:#475569;">Tài khoản Được Cấp Quyền Riêng (Allowed Users):</strong>
+                        <div id="allowedUsersList" style="margin-top:6px;display:flex;flex-wrap:wrap;gap:6px;"></div>
+                    </div>
+
+                    <div style="display:flex;gap:8px;margin-bottom:16px;">
+                        <input type="text" id="newUserInput" placeholder="Tên tài khoản cán bộ (VD: phongnd)" style="padding:8px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:12px;flex:1;">
+                        <button onclick="addUserOverride()" class="btn-sm primary">+ Thêm Ngoại Lệ</button>
+                    </div>
+
+                    <div style="border-top:1px dashed #cbd5e1;padding-top:14px;">
+                        <strong style="font-size:12px;color:#475569;">Gán Domain Proxy Riêng Biệt (VD: phongnd → idp.vnu.edu.vn):</strong>
+                        <div id="userSpecificList" style="margin-top:8px;font-size:12px;"></div>
+
+                        <div style="display:flex;gap:6px;margin-top:10px;">
+                            <input type="text" id="specificUserInput" placeholder="User (VD: phongnd)" style="padding:7px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:12px;width:120px;">
+                            <input type="text" id="specificDomainInput" placeholder="Domain (VD: idp.vnu.edu.vn)" style="padding:7px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:12px;flex:1;">
+                            <button onclick="addUserSpecificDomain()" class="btn-sm primary">+ Gán Domain</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quản Lý Khoá Tài Khoản (Locked / Denied Users) -->
+            <div class="card" style="margin-top:20px;border-left:4px solid #dc2626;">
+                <div class="card-header-flex">
+                    <div>
+                        <h3 style="color:#991b1b;">🔒 Danh Sách Tài Khoản Bị Khoá Quyền Proxy (Locked Users)</h3>
+                        <p class="desc">Các tài khoản bị cấm sử dụng Proxy VAGS (bị ngắt kết nối ngay lập tức và từ chối 403 Forbidden nếu cố kết nối qua Proxy):</p>
+                    </div>
+                </div>
+
+                <div style="margin-bottom:14px;">
+                    <div id="deniedUsersList" style="margin-top:6px;display:flex;flex-wrap:wrap;gap:8px;"></div>
+                </div>
+
+                <div style="display:flex;gap:8px;max-width:480px;">
+                    <input type="text" id="newLockUserInput" placeholder="Nhập username cán bộ cần khoá (VD: baduser)" style="padding:8px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:12px;flex:1;">
+                    <button onclick="lockUserFromInput()" class="btn-sm" style="background:#dc2626;color:#fff;border:none;font-weight:700;cursor:pointer;">+ Khoá Tài Khoản</button>
+                </div>
+            </div>
+
+            <!-- Bảo Vệ Mạng Nội Bộ & Docker Loopback (Bypass List) -->
+            <div class="card" style="margin-top:20px;border-left:4px solid #00803d;">
+                <div class="card-header-flex">
+                    <div>
+                        <h3 style="color:#00803d;">🛡️ Danh Sách Dải IP Nội Bộ & Docker (Luôn Bypass Fail-Open Sang DIRECT)</h3>
+                        <p class="desc">Bảo đảm an toàn tuyệt đối, chống rò rỉ hoặc nghẽn cổng khi kết nối máy chủ nội bộ ĐHQGHN, Docker và Loopback:</p>
+                    </div>
+                </div>
+                <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;">
+                    <span class="ou-chip" style="background:#ecfdf5;color:#065f46;border-color:#a7f3d0;font-family:monospace;">127.0.0.1 (Localhost)</span>
+                    <span class="ou-chip" style="background:#ecfdf5;color:#065f46;border-color:#a7f3d0;font-family:monospace;">::1 (IPv6 Loopback)</span>
+                    <span class="ou-chip" style="background:#ecfdf5;color:#065f46;border-color:#a7f3d0;font-family:monospace;">10.0.0.0/8 (Mạng Cụm ĐHQGHN)</span>
+                    <span class="ou-chip" style="background:#ecfdf5;color:#065f46;border-color:#a7f3d0;font-family:monospace;">172.16.0.0/12 (Docker Bridge & Overlay)</span>
+                    <span class="ou-chip" style="background:#ecfdf5;color:#065f46;border-color:#a7f3d0;font-family:monospace;">192.168.0.0/16 (Mạng Nội Bộ LAN)</span>
+                    <span class="ou-chip" style="background:#ecfdf5;color:#065f46;border-color:#a7f3d0;font-family:monospace;">*.docker.internal & host.docker.internal</span>
+                    <span class="ou-chip" style="background:#ecfdf5;color:#065f46;border-color:#a7f3d0;font-family:monospace;">vags.vnu.edu.vn (Cổng Gateway)</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- ========================================== -->
+        <!-- TAB 4: NHẬT KÝ CÁN BỘ TRỰC TIẾP           -->
+        <!-- ========================================== -->
+        <section id="pane-logs" class="tab-pane">
+            <div class="card">
+                <div class="card-header-flex">
+                    <div>
+                        <h3>⚡ Nhật Ký Lưu Lượng Trực Tiếp & Giám Sát Cán Bộ (Live Audit Stream)</h3>
+                        <p class="desc">Theo dõi thời gian thực cán bộ nào đang đăng nhập, truy vấn tài nguyên nào, từ IP thật nào và trạng thái cấp phép:</p>
+                    </div>
+                    <div style="display:flex;gap:8px;align-items:center;">
+                        <input type="text" id="logSearch" class="search-input" placeholder="🔍 Tìm kiếm user, host, IP..." oninput="filterLogs()">
+                        <button class="btn-sm" onclick="fetchMetrics()">🔄 Làm mới</button>
+                    </div>
+                </div>
+
+                <div class="table-wrap" style="max-height:500px;overflow-y:auto;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Thời Gian (UTC/VN)</th>
+                                <th>Cán Bộ (User)</th>
+                                <th>Đơn Vị (OU)</th>
+                                <th>Tên Miền Đích (Target)</th>
+                                <th>Hành Động</th>
+                                <th>Quy Tắc Khớp / Lý Do</th>
+                                <th>Địa Chỉ IP Thật Cán Bộ</th>
+                            </tr>
+                        </thead>
+                        <tbody id="proxyLogsTableBody">
+                            <tr>
+                                <td colspan="7" style="text-align:center;padding:24px;color:var(--muted);">Đang tải dữ liệu nhật ký...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ========================================== -->
+        <!-- TAB 5: PHÒNG KIỂM THỬ ĐỊNH TUYẾN & IP SHIELD -->
+        <!-- ========================================== -->
+        <section id="pane-test" class="tab-pane">
+            <div class="grid-2">
+                <!-- Bộ Kiểm Thử PAC -->
+                <div class="card">
+                    <h3>🧪 Phòng Kiểm Thử Định Tuyến (Routing Lab)</h3>
+                    <p class="desc">Nhập URL bất kỳ để kiểm tra thuật toán PAC trên Chrome & Firefox sẽ đưa liên kết đi PROXY hay DIRECT:</p>
+
+                    <div style="display:flex;gap:8px;margin-bottom:12px;">
+                        <input type="text" id="testHostInput" value="lic.vnu.edu.vn" style="padding:8px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;flex:1;">
+                        <button onclick="testRouting()" class="btn-sm primary">Kiểm tra ngay</button>
+                    </div>
+
+                    <div style="margin-bottom:14px;display:flex;flex-wrap:wrap;gap:6px;">
+                        <span class="chip" onclick="quickTest('lic.vnu.edu.vn')">lic.vnu.edu.vn</span>
+                        <span class="chip" onclick="quickTest('www.iplocation.net')">www.iplocation.net</span>
+                        <span class="chip" onclick="quickTest('idp.vnu.edu.vn')">idp.vnu.edu.vn (Ngoại lệ phongnd)</span>
+                        <span class="chip" onclick="quickTest('ieeexplore.ieee.org')">ieeexplore.ieee.org</span>
+                        <span class="chip" onclick="quickTest('sciencedirect.com')">sciencedirect.com</span>
+                        <span class="chip" onclick="quickTest('pmu.vnu.edu.vn')">pmu.vnu.edu.vn</span>
+                        <span class="chip" onclick="quickTest('youtube.com')">youtube.com</span>
+                    </div>
+
+                    <div id="testResultBox" style="background:#f8fafc;border:1px solid #cbd5e1;border-radius:10px;padding:14px;font-size:13px;">
+                        <div style="font-weight:800;color:#059669;margin-bottom:6px;" id="resAction">🟢 Kết quả: PROXY (:443)</div>
+                        <div><b>Quy tắc khớp:</b> <code id="resRule">lic.vnu.edu.vn</code></div>
+                        <div><b>Nhóm luật:</b> <span id="resCat">Thư viện số VNU</span></div>
+                        <div><b>Lý do:</b> <span id="resReason">Thư viện số ĐHQGHN ưu tiên đi qua Proxy</span></div>
+                    </div>
+                </div>
+
+                <!-- Trạng Thái Chống Rò Rỉ IP -->
+                <div class="card">
+                    <h3>🛡️ Trạng Thái An Toàn Chống Rò Rỉ IP (IP Leak Shield)</h3>
+                    <p class="desc">Cơ chế ẩn danh và bảo vệ IP nguồn khi kết nối tới các nhà xuất bản học thuật quốc tế:</p>
+
+                    <div style="background:#0f172a;color:#f8fafc;padding:18px 20px;border-radius:12px;font-size:13px;box-shadow:inset 0 2px 4px rgba(0,0,0,0.2);">
+                        <div style="display:flex;justify-content:space-between;margin-bottom:10px;">
+                            <span style="color:#94a3b8;">Địa chỉ IP Egress Nhận Diện:</span>
+                            <strong style="color:#34d399;font-size:14px;">112.137.133.14 (Mạng ĐHQGHN)</strong>
+                        </div>
+                        <div style="display:flex;justify-content:space-between;margin-bottom:10px;">
+                            <span style="color:#94a3b8;">Header X-Forwarded-For:</span>
+                            <strong style="color:#38bdf8;">Đã tước bỏ (Stripped) ✓</strong>
+                        </div>
+                        <div style="display:flex;justify-content:space-between;margin-bottom:10px;">
+                            <span style="color:#94a3b8;">Header Client-IP / X-Real-IP:</span>
+                            <strong style="color:#38bdf8;">Đã khóa (Blocked) ✓</strong>
+                        </div>
+                        <div style="display:flex;justify-content:space-between;margin-bottom:10px;">
+                            <span style="color:#94a3b8;">Chế độ Triệt tiêu Rò rỉ CDN:</span>
+                            <strong style="color:#fde047;">Full Proxy Active ✓</strong>
+                        </div>
+                        <div style="display:flex;justify-content:space-between;">
+                            <span style="color:#94a3b8;">Giao thức Đường Hầm (Tunnel):</span>
+                            <strong style="color:#a7f3d0;">HTTPS CONNECT (:443) Direct TCP</strong>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- MODAL THÊM DOMAIN MỚI -->
+    <div id="addModal" class="modal-overlay">
+        <div class="modal">
+            <h3>+ Thêm Tên Miền Định Tuyến Mới</h3>
+            <div class="form-group">
+                <label>Tên miền / Wildcard Pattern</label>
+                <input type="text" id="addDomainPattern" placeholder="VD: *.springer.com hoặc lic.vnu.edu.vn">
+            </div>
+            <div class="form-group">
+                <label>Phân loại Danh mục</label>
+                <select id="addDomainCategory">
+                    <option value="blacklist">🚫 Blacklist Băng Thông Cao (DIRECT)</option>
+                    <option value="academic">📚 CSDL Quốc Tế (PROXY :443)</option>
+                    <option value="lic">🏛️ Thư Viện Số VNU LIC (PROXY :443)</option>
+                </select>
+            </div>
+            <div class="modal-actions">
+                <button onclick="closeAddModal()" class="btn-sm">Hủy</button>
+                <button onclick="submitAddModal()" class="btn-sm primary">Thêm & Cập Nhật</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- JAVASCRIPT CONTROLLER -->
+    <script>
+        let currentRules = null;
+        let activeCategory = 'all';
+        let rawLogs = [];
+        let sseSource = null;
+
+        // 1. RBAC Authentication Gate Check
+        function checkAdminAuth() {
+            const user = localStorage.getItem('vags_user');
+            const unit = localStorage.getItem('vags_unit');
+            const userLower = (user || '').toLowerCase();
+            const isAdmin = (unit && unit.toLowerCase().includes('pqtkt')) ||
+                            userLower === 'admin' ||
+                            userLower === 'phongnd' ||
+                            userLower === 'vuongwork' ||
+                            userLower === 'vuongwork@vnu.edu.vn' ||
+                            localStorage.getItem('vags_is_admin') === 'true';
+
+            if (!isAdmin) {
+                document.getElementById('authGate').style.display = 'flex';
+                document.getElementById('dashboardMain').style.display = 'none';
+                return false;
+            } else {
+                document.getElementById('authGate').style.display = 'none';
+                document.getElementById('dashboardMain').style.display = 'block';
+                const name = localStorage.getItem('vags_name') || user || 'Quản trị viên';
+                document.getElementById('adminNameTxt').innerText = `${name} (${(unit || 'PQTKT').toUpperCase()})`;
+                return true;
+            }
+        }
+
+        // 2. Tab Navigation Switcher
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+
+            const targetBtn = Array.from(document.querySelectorAll('.tab-btn')).find(b => (b.getAttribute('onclick') || '').includes(tabId));
+            if (targetBtn) targetBtn.classList.add('active');
+
+            const targetPane = document.getElementById('pane-' + tabId);
+            if (targetPane) targetPane.classList.add('active');
+        }
+
+        // 3. Nạp Rules từ API
+        async function loadRules() {
+            try {
+                let res = await fetch('/api/v1/rules');
+                if (!res.ok) {
+                    res = await fetch('/api/v1/rules/latest');
+                }
+                if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
+                currentRules = await res.json();
+                updateStats();
+                updateModeUI();
+                renderTable();
+                renderOUs();
+                renderUserOverrides();
+            } catch (e) {
+                console.error("Lỗi nạp rules:", e);
+                alert("Lỗi nạp tập luật từ máy chủ: " + e.message);
+            }
+        }
+
+        // 4. Cập nhật giao diện theo chế độ Proxy (Full Proxy vs Academic Only)
+        function updateModeUI() {
+            const isFull = (currentRules.proxyMode || 'FULL_PROXY') === 'FULL_PROXY';
+            const btnFull = document.getElementById('btnModeFull');
+            const btnAcademic = document.getElementById('btnModeAcademic');
+            const title = document.getElementById('modeStatusTitle');
+            const desc = document.getElementById('modeStatusDesc');
+            const tableTitle = document.getElementById('tableTitle');
+            const tableDesc = document.getElementById('tableDesc');
+
+            if (isFull) {
+                btnFull.className = 'mode-btn active-full';
+                btnAcademic.className = 'mode-btn';
+                title.innerText = '🛡️ Chế độ Định tuyến: FULL PROXY (Toàn Phần)';
+                desc.innerText = 'Tất cả các website trên Internet đều được phân tuyến qua Proxy VAGS (:443). Chỉ duy nhất Blacklist (băng thông cao) và *.vnu.edu.vn là đi trực tiếp (DIRECT).';
+                tableTitle.innerText = '📋 Danh Mục Tên Miền Blacklist Băng Thông Cao (Đi DIRECT)';
+                tableDesc.innerText = 'Trong chế độ Full Proxy, các tên miền trong danh sách này sẽ được loại trừ để không chiếm dụng băng thông ĐHQGHN:';
+            } else {
+                btnFull.className = 'mode-btn';
+                btnAcademic.className = 'mode-btn active-academic';
+                title.innerText = '📚 Chế độ Định tuyến: CHỈ CSDL KHOA HỌC (ACADEMIC ONLY)';
+                desc.innerText = 'Chỉ các nhà xuất bản học thuật (ScienceDirect, IEEE, Springer...) và Thư viện số VNU mới đi qua Proxy. Các trang khác đi DIRECT.';
+                tableTitle.innerText = '📋 Danh Mục Tên Miền Định Tuyến Học Thuật (Whitelist & Blacklist)';
+                tableDesc.innerText = 'Quản lý toàn bộ danh mục Whitelist và Blacklist được áp dụng:';
+            }
+        }
+
+        function switchProxyMode(mode) {
+            currentRules.proxyMode = mode;
+            updateModeUI();
+            saveAndBroadcastRules();
+        }
+
+        // 5. Đồng bộ CSDL LIC
+        async function syncLicDatabases(e) {
+            const btn = (e && e.target) || (typeof event !== 'undefined' ? event?.target : null) || document.querySelector('button[onclick*="syncLicDatabases"]');
+            const oldTxt = btn ? btn.innerText : '';
+            if (btn) btn.innerText = '⏳ Đang đồng bộ...';
+            try {
+                const res = await fetch('/api/v1/lic/sync', { method: 'POST' });
+                const data = await res.json();
+                alert(`✓ Đồng bộ thành công ${data.totalDatabases} CSDL Quốc tế từ Thư viện số VNU!`);
+                await loadRules();
+            } catch (err) {
+                alert('Lỗi đồng bộ CSDL LIC: ' + err.message);
+            } finally {
+                if (btn) btn.innerText = oldTxt;
+            }
+        }
+
+        // 6. Cập nhật số liệu thống kê
+        function updateStats() {
+            const blacklistCount = currentRules.blacklist?.length || 0;
+            const academicCount = currentRules.globalAcademicWhitelist?.length || 0;
+            const licCount = currentRules.internalWhitelist?.length || 0;
+            const total = blacklistCount + academicCount + licCount;
+
+            document.getElementById('count-all').innerText = total;
+            document.getElementById('count-blacklist').innerText = blacklistCount;
+            document.getElementById('count-academic').innerText = academicCount;
+            document.getElementById('count-lic').innerText = licCount;
+        }
+
+        // 7. Render Bảng Rules
+        function renderTable() {
+            const tbody = document.getElementById('rulesTableBody');
+            tbody.innerHTML = '';
+            const search = document.getElementById('domainSearch').value.toLowerCase().trim();
+
+            const rows = [];
+            const add = (pattern, cat, action, badgeClass, catName) => {
+                if (activeCategory !== 'all' && activeCategory !== cat) return;
+                if (search && !pattern.toLowerCase().includes(search) && !catName.toLowerCase().includes(search)) return;
+                rows.push({ pattern, cat, action, badgeClass, catName });
+            };
+
+            (currentRules.blacklist || []).forEach(p => add(p, 'blacklist', 'DIRECT', 'domain-blacklist', '🚫 Băng thông cao'));
+            (currentRules.globalAcademicWhitelist || []).forEach(p => add(p, 'academic', 'PROXY (:443)', 'domain-academic', '📚 CSDL Quốc Tế'));
+            (currentRules.internalWhitelist || []).forEach(p => add(p, 'lic', 'PROXY (:443)', 'domain-lic', '🏛️ Thư viện số VNU'));
+
+            if (rows.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--muted);">Không tìm thấy tên miền nào phù hợp.</td></tr>`;
+                return;
+            }
+
+            rows.forEach(r => {
+                const tr = document.createElement('tr');
+                const actionClass = r.action.startsWith('PROXY') ? 'route-proxy' : 'route-direct';
+                tr.innerHTML = `
+                    <td><strong style="font-family:monospace;font-size:13px;">${r.pattern}</strong></td>
+                    <td><span class="domain-badge ${r.badgeClass}">${r.catName}</span></td>
+                    <td><span class="route-action ${actionClass}">● ${r.action}</span></td>
+                    <td><span style="color:#059669;font-weight:700;font-size:12px;">✓ Đang áp dụng</span></td>
+                    <td style="text-align:right;">
+                        <button class="btn-table danger" onclick="deleteRule('${r.pattern}', '${r.cat}')">Xóa</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function filterCategory(cat) {
+            activeCategory = cat;
+            document.querySelectorAll('#filterChipsContainer .chip').forEach(c => {
+                c.classList.toggle('active', c.getAttribute('data-cat') === cat);
+            });
+            renderTable();
+        }
+
+        function deleteRule(pattern, category) {
+            if (!confirm(`Xác nhận xóa quy tắc '${pattern}'?`)) return;
+            if (category === 'blacklist') currentRules.blacklist = currentRules.blacklist.filter(p => p !== pattern);
+            if (category === 'academic') currentRules.globalAcademicWhitelist = currentRules.globalAcademicWhitelist.filter(p => p !== pattern);
+            if (category === 'lic') currentRules.internalWhitelist = currentRules.internalWhitelist.filter(p => p !== pattern);
+
+            updateStats();
+            renderTable();
+            saveAndBroadcastRules();
+        }
+
+        // 8. Thêm Rule Mới Modal
+        function openAddModal() {
+            document.getElementById('addModal').classList.add('active');
+            document.getElementById('addDomainPattern').focus();
+        }
+        function closeAddModal() {
+            document.getElementById('addModal').classList.remove('active');
+        }
+        function submitAddModal() {
+            const pattern = document.getElementById('addDomainPattern').value.trim().toLowerCase();
+            const cat = document.getElementById('addDomainCategory').value;
+            if (!pattern) return;
+
+            if (cat === 'blacklist') {
+                if (!currentRules.blacklist) currentRules.blacklist = [];
+                if (!currentRules.blacklist.includes(pattern)) currentRules.blacklist.unshift(pattern);
+            } else if (cat === 'academic') {
+                if (!currentRules.globalAcademicWhitelist) currentRules.globalAcademicWhitelist = [];
+                if (!currentRules.globalAcademicWhitelist.includes(pattern)) currentRules.globalAcademicWhitelist.unshift(pattern);
+            } else if (cat === 'lic') {
+                if (!currentRules.internalWhitelist) currentRules.internalWhitelist = [];
+                if (!currentRules.internalWhitelist.includes(pattern)) currentRules.internalWhitelist.unshift(pattern);
+            }
+
+            closeAddModal();
+            document.getElementById('addDomainPattern').value = '';
+            updateStats();
+            renderTable();
+            saveAndBroadcastRules();
+        }
+
+        // 9. Lưu & Phát Sóng Real-time SSE
+        async function saveAndBroadcastRules() {
+            const btn = document.getElementById('btnBroadcast');
+            const statusBox = document.getElementById('saveStatus');
+            btn.disabled = true;
+            btn.innerText = '⏳ Đang lưu & phát sóng...';
+
+            try {
+                if (!currentRules) throw new Error("Chưa có dữ liệu rules để lưu.");
+                const res = await fetch('/api/v1/admin/rules', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(currentRules)
+                });
+                if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
+                const result = await res.json();
+                statusBox.className = 'status show';
+                statusBox.innerHTML = `✓ ${result.message || 'Lưu thành công'} (Version: <b>${result.version}</b>)`;
+                setTimeout(() => { statusBox.className = 'status'; }, 4000);
+            } catch (e) {
+                alert('Lỗi khi lưu rules: ' + e.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerText = '🚀 Lưu & Phát Sóng Ngay (SSE)';
+            }
+        }
+
+        async function broadcastForceUpdate() {
+            const btn = document.getElementById('btnForceUpdate');
+            const oldTxt = btn ? btn.innerText : '';
+            if (!confirm('Xác nhận phát lệnh ép toàn bộ máy cán bộ đang online tự động tải và nạp Extension v2.1.4 ngay lập tức?')) return;
+            if (btn) { btn.disabled = true; btn.innerText = '⏳ Đang phát lệnh...'; }
+            try {
+                const res = await fetch('/api/v1/admin/broadcast-update', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ version: '2.1.4' })
+                });
+                const data = await res.json();
+                alert(`✓ ${data.message}`);
+            } catch (e) {
+                alert('Lỗi phát lệnh cập nhật: ' + e.message);
+            } finally {
+                if (btn) { btn.disabled = false; btn.innerText = oldTxt; }
+            }
+        }
+
+        // 10. Phân quyền OU
+        function renderOUs() {
+            const box = document.getElementById('ouList');
+            box.innerHTML = '';
+            (currentRules.allowedOUs || []).forEach(ou => {
+                const chip = document.createElement('span');
+                chip.className = 'ou-chip';
+                chip.innerHTML = `${ou.toUpperCase()} <span class="rm-btn" onclick="removeOu('${ou}')">&times;</span>`;
+                box.appendChild(chip);
+            });
+        }
+        function addOu() {
+            const inp = document.getElementById('newOuInput');
+            const val = inp.value.trim().toLowerCase();
+            if (!val) return;
+            if (!currentRules.allowedOUs) currentRules.allowedOUs = [];
+            if (!currentRules.allowedOUs.includes(val)) {
+                currentRules.allowedOUs.push(val);
+                inp.value = '';
+                renderOUs();
+                saveAndBroadcastRules();
+            }
+        }
+        function removeOu(ou) {
+            currentRules.allowedOUs = currentRules.allowedOUs.filter(o => o !== ou);
+            renderOUs();
+            saveAndBroadcastRules();
+        }
+
+        // 11. Ngoại lệ Cán bộ (User Overrides & Lock)
+        function renderUserOverrides() {
+            const allowedBox = document.getElementById('allowedUsersList');
+            if (allowedBox) {
+                allowedBox.innerHTML = '';
+                const allowed = currentRules.userOverrides?.allowed || [];
+                allowed.forEach(u => {
+                    const chip = document.createElement('span');
+                    chip.className = 'ou-chip';
+                    chip.style.background = '#fef3c7';
+                    chip.style.borderColor = '#fde68a';
+                    chip.innerHTML = `👤 ${u} <span class="rm-btn" onclick="removeUserOverride('${u}')">&times;</span>`;
+                    allowedBox.appendChild(chip);
+                });
+            }
+
+            const deniedBox = document.getElementById('deniedUsersList');
+            if (deniedBox) {
+                deniedBox.innerHTML = '';
+                const denied = currentRules.userOverrides?.denied || [];
+                if (denied.length === 0) {
+                    deniedBox.innerHTML = '<span style="color:var(--muted);font-size:12px;">Hiện không có tài khoản nào bị khoá.</span>';
+                } else {
+                    denied.forEach(u => {
+                        const chip = document.createElement('span');
+                        chip.className = 'ou-chip';
+                        chip.style.background = '#fee2e2';
+                        chip.style.borderColor = '#fca5a5';
+                        chip.style.color = '#991b1b';
+                        chip.innerHTML = `🔒 <strong>${u}</strong> <span class="rm-btn" title="Mở khoá tài khoản này" onclick="unlockUser('${u}')" style="color:#b91c1c;margin-left:6px;font-weight:bold;cursor:pointer;">&times; Mở khoá</span>`;
+                        deniedBox.appendChild(chip);
+                    });
+                }
+            }
+
+            const specificBox = document.getElementById('userSpecificList');
+            if (specificBox) {
+                specificBox.innerHTML = '';
+                const specific = currentRules.userOverrides?.userSpecificRules || {};
+                const users = Object.keys(specific);
+                if (users.length === 0) {
+                    specificBox.innerHTML = '<span style="color:var(--muted);">Chưa có cán bộ nào được gán domain proxy riêng biệt.</span>';
+                    return;
+                }
+
+                users.forEach(u => {
+                    const row = document.createElement('div');
+                    row.style.marginBottom = '6px';
+                    const pDomains = specific[u].proxyDomains || [];
+                    row.innerHTML = `
+                        <div style="font-weight:700;color:#0f172a;">👤 Tài khoản: <code style="color:#00803d;">${u}</code>:</div>
+                        <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:2px;">
+                            ${pDomains.map(d => `
+                                <span class="domain-badge domain-override">
+                                    ${d} <span style="cursor:pointer;margin-left:4px;" onclick="removeUserSpecificDomain('${u}', '${d}')">&times;</span>
+                                </span>
+                            `).join('')}
+                        </div>
+                    `;
+                    specificBox.appendChild(row);
+                });
+            }
+        }
+
+        async function lockUser(username, reason = "") {
+            if (!username) return;
+            const cleanUser = decodeURIComponent(username).trim();
+            try {
+                const res = await fetch('/api/v1/admin/users/lock', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user: cleanUser, reason })
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    alert(data.message || `Đã khoá tài khoản ${cleanUser}!`);
+                    await loadRules();
+                    await fetchMetrics();
+                    await fetchAnalyticsData();
+                } else {
+                    alert(`Lỗi: ${data.message || 'Không thể khoá tài khoản'}`);
+                }
+            } catch (e) {
+                alert(`Lỗi kết nối máy chủ: ${e.message}`);
+            }
+        }
+
+        async function unlockUser(username) {
+            if (!username) return;
+            const cleanUser = decodeURIComponent(username).trim();
+            if (!confirm(`Bạn có chắc chắn muốn MỞ KHOÁ cho tài khoản '${cleanUser}' không?`)) return;
+            try {
+                const res = await fetch('/api/v1/admin/users/unlock', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user: cleanUser })
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    alert(data.message || `Đã mở khoá tài khoản ${cleanUser}!`);
+                    await loadRules();
+                    await fetchMetrics();
+                    await fetchAnalyticsData();
+                } else {
+                    alert(`Lỗi: ${data.message || 'Không thể mở khoá'}`);
+                }
+            } catch (e) {
+                alert(`Lỗi kết nối máy chủ: ${e.message}`);
+            }
+        }
+
+        function lockUserPrompt(encodedUser) {
+            const user = decodeURIComponent(encodedUser);
+            if (!confirm(`CẢNH BÁO: Bạn có chắc chắn muốn KHOÁ tài khoản '${user}' không?\n\nTài khoản này sẽ bị ngắt kết nối ngay lập tức và không thể sử dụng Proxy VAGS.`)) return;
+            lockUser(user);
+        }
+
+        function lockUserFromInput() {
+            const inp = document.getElementById('newLockUserInput');
+            const u = inp ? inp.value.trim().toLowerCase() : '';
+            if (!u) {
+                alert('Vui lòng nhập tên tài khoản cần khoá!');
+                return;
+            }
+            lockUser(u);
+            if (inp) inp.value = '';
+        }
+
+        async function forceUserProxyOff(encodedUser, encodedIp) {
+            const user = decodeURIComponent(encodedUser);
+            const ip = decodeURIComponent(encodedIp);
+            if (!confirm(`Bạn có chắc chắn muốn ép TẮT PROXY của '${user}' (${ip}) ngay lập tức không?`)) return;
+
+            try {
+                const res = await fetch('/api/v1/admin/users/force-proxy-off', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user, ip, all: false })
+                });
+                const data = await res.json();
+                alert(data.message || `Đã gửi tín hiệu ép tắt proxy tới ${user}!`);
+                await fetchMetrics();
+            } catch (e) {
+                alert(`Lỗi: ${e.message}`);
+            }
+        }
+
+        async function forceUserLogout(encodedUser, encodedIp) {
+            const user = decodeURIComponent(encodedUser);
+            const ip = decodeURIComponent(encodedIp);
+            if (!confirm(`CẢNH BÁO: Bạn có chắc chắn muốn ép ĐĂNG XUẤT phiên của '${user}' (${ip}) không?`)) return;
+
+            try {
+                const res = await fetch('/api/v1/admin/users/force-logout', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user, ip, all: false })
+                });
+                const data = await res.json();
+                alert(data.message || `Đã ép đăng xuất phiên của ${user}!`);
+                await fetchMetrics();
+            } catch (e) {
+                alert(`Lỗi: ${e.message}`);
+            }
+        }
+
+        async function forceAllProxyOff() {
+            if (!confirm("⚠️ CẢNH BÁO KHẨN CẤP:\n\nBạn có chắc chắn muốn ép TẮT PROXY TOÀN BỘ tất cả các Extension người dùng đang kết nối không?")) return;
+
+            try {
+                const res = await fetch('/api/v1/admin/users/force-proxy-off', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ all: true })
+                });
+                const data = await res.json();
+                alert(data.message || "Đã phát tín hiệu ép tắt Proxy toàn bộ thành công!");
+                await fetchMetrics();
+            } catch (e) {
+                alert(`Lỗi: ${e.message}`);
+            }
+        }
+
+        async function forceAllLogout() {
+            if (!confirm("🛑 CẢNH BÁO NGUY HIỂM:\n\nBạn có chắc chắn muốn ép ĐĂNG XUẤT và XOÁ TOÀN BỘ PHIÊN của TẤT CẢ người dùng không?\n\nMọi Extension và tab trình duyệt sẽ bị huỷ phiên ngay tức khắc!")) return;
+
+            try {
+                const res = await fetch('/api/v1/admin/users/force-logout', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ all: true })
+                });
+                const data = await res.json();
+                alert(data.message || "Đã ép đăng xuất toàn bộ người dùng thành công!");
+                await fetchMetrics();
+            } catch (e) {
+                alert(`Lỗi: ${e.message}`);
+            }
+        }
+
+        function addUserOverride() {
+            const inp = document.getElementById('newUserInput');
+            const u = inp.value.trim().toLowerCase();
+            if (!u) return;
+            if (!currentRules.userOverrides) currentRules.userOverrides = { allowed: [], denied: [], userSpecificRules: {} };
+            if (!currentRules.userOverrides.allowed) currentRules.userOverrides.allowed = [];
+            if (!currentRules.userOverrides.allowed.includes(u)) {
+                currentRules.userOverrides.allowed.push(u);
+                inp.value = '';
+                renderUserOverrides();
+                saveAndBroadcastRules();
+            }
+        }
+
+        function removeUserOverride(u) {
+            currentRules.userOverrides.allowed = currentRules.userOverrides.allowed.filter(x => x !== u);
+            renderUserOverrides();
+            saveAndBroadcastRules();
+        }
+
+        function addUserSpecificDomain() {
+            const uInp = document.getElementById('specificUserInput');
+            const dInp = document.getElementById('specificDomainInput');
+            const u = uInp.value.trim().toLowerCase();
+            const d = dInp.value.trim().toLowerCase();
+            if (!u || !d) return;
+
+            if (!currentRules.userOverrides) currentRules.userOverrides = { allowed: [], denied: [], userSpecificRules: {} };
+            if (!currentRules.userOverrides.userSpecificRules) currentRules.userOverrides.userSpecificRules = {};
+            if (!currentRules.userOverrides.userSpecificRules[u]) {
+                currentRules.userOverrides.userSpecificRules[u] = { proxyDomains: [], directDomains: [] };
+            }
+
+            const list = currentRules.userOverrides.userSpecificRules[u].proxyDomains;
+            if (!list.includes(d)) {
+                list.push(d);
+                if (!currentRules.userOverrides.allowed.includes(u)) {
+                    currentRules.userOverrides.allowed.push(u);
+                }
+                dInp.value = '';
+                renderUserOverrides();
+                saveAndBroadcastRules();
+            }
+        }
+
+        function removeUserSpecificDomain(u, d) {
+            if (currentRules.userOverrides?.userSpecificRules?.[u]) {
+                currentRules.userOverrides.userSpecificRules[u].proxyDomains =
+                    currentRules.userOverrides.userSpecificRules[u].proxyDomains.filter(x => x !== d);
+                renderUserOverrides();
+                saveAndBroadcastRules();
+            }
+        }
+
+        // 12. Kiểm thử Routing Lab
+        async function testRouting() {
+            const host = document.getElementById('testHostInput').value.trim();
+            if (!host) return;
+            try {
+                const res = await fetch('/api/v1/rules/evaluate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ host, user: 'phongnd' })
+                });
+                const d = await res.json();
+                const isProxy = d.allowedForTunnel;
+                document.getElementById('resAction').innerHTML = isProxy ? '🟢 Kết quả: PROXY (:443)' : '⚪ Kết quả: DIRECT (Trực tiếp)';
+                document.getElementById('resAction').style.color = isProxy ? '#059669' : '#64748b';
+                document.getElementById('resRule').innerText = d.matchedRule || '*';
+                document.getElementById('resCat').innerText = d.matchedCategory || 'default';
+                document.getElementById('resReason').innerText = d.reason || 'N/A';
+            } catch (e) {
+                console.error("Lỗi test routing:", e);
+            }
+        }
+
+        function quickTest(preset) {
+            document.getElementById('testHostInput').value = preset;
+            testRouting();
+        }
+
+        // 13. Fetch Dashboard Metrics & Active Sessions & Proxy Logs
+        async function fetchMetrics() {
+            try {
+                const res = await fetch('/api/v1/admin/dashboard');
+                const data = await res.json();
+
+                // 1. Thống kê Overview
+                const onlineCount = data.onlineUsersCount ?? (data.activeSessions ? data.activeSessions.filter(s => s.isOnline).length : 0);
+                const uniqueIps = data.activeSessions ? new Set(data.activeSessions.filter(s => s.isOnline).map(s => s.clientIp)).size : onlineCount;
+                document.getElementById('statSseClients').innerText = onlineCount;
+                document.getElementById('statUniqueIps').innerText = uniqueIps;
+                if (data.metrics) {
+                    document.getElementById('statProxyTraffic').innerText =
+                        `${data.metrics.allowedProxyRequests} / ${data.metrics.blockedProxyRequests}`;
+                }
+                if (data.egressIp) {
+                    document.getElementById('statEgressIp').innerText = data.egressIp;
+                }
+
+                // 2. Render Active Client Sessions Table
+                renderActiveSessions(data.activeSessions || []);
+
+                // 3. Render Proxy Logs
+                rawLogs = data.recentProxyLogs || [];
+                renderLogs(rawLogs);
+
+            } catch (e) {
+                console.error("Lỗi tải metrics dashboard:", e);
+            }
+        }
+
+        function renderActiveSessions(sessions) {
+            const tbody = document.getElementById('activeSessionsTableBody');
+            tbody.innerHTML = '';
+            if (sessions.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--muted);">Hiện không có Extension nào kết nối trực tuyến.</td></tr>`;
+                return;
+            }
+
+            // Sắp xếp: Phiên Online lên đầu tiên
+            const sortedSessions = [...sessions].sort((a, b) => {
+                if (a.isOnline === b.isOnline) {
+                    return new Date(b.lastSeen) - new Date(a.lastSeen);
+                }
+                return a.isOnline ? -1 : 1;
+            });
+
+            const onlineCount = sessions.filter(s => s.isOnline).length;
+            const headingEl = document.getElementById('activeSessionsHeading');
+            if (headingEl) {
+                headingEl.innerText = `👥 Danh Sách Phiên Cán Bộ (${onlineCount} Đang Trực Tuyến / ${sessions.length} Gần Đây)`;
+            }
+
+            sortedSessions.forEach(s => {
+                const tr = document.createElement('tr');
+                const isFirefox = (s.userAgent || '').includes('Firefox');
+                const isChrome = (s.userAgent || '').includes('Chrome');
+                const browserBadge = isFirefox
+                    ? `<span style="background:#fff7ed;color:#c2410c;border:1px solid #ffedd5;padding:2px 8px;border-radius:6px;font-weight:700;">🦊 Firefox</span>`
+                    : isChrome
+                    ? `<span style="background:#eff6ff;color:#1d4ed8;border:1px solid #dbeafe;padding:2px 8px;border-radius:6px;font-weight:700;">🌐 Chrome/Edge</span>`
+                    : `<span style="background:#f1f5f9;color:#475569;padding:2px 8px;border-radius:6px;font-weight:700;">💻 WebExtension</span>`;
+
+                const userStr = s.username || s.user || 'Cán bộ VNU';
+                const clientIp = s.clientIp || s.remoteIp || '112.137.133.14';
+                const timeStr = s.lastSeen ? new Date(s.lastSeen).toLocaleTimeString('vi-VN') : (s.connectedAt ? new Date(s.connectedAt).toLocaleTimeString('vi-VN') : 'Vừa xong');
+
+                const isOnline = s.isOnline === true;
+                const statusBadge = isOnline
+                    ? `<span style="background:#ecfdf5;color:#059669;border:1px solid #a7f3d0;padding:2px 8px;border-radius:6px;font-weight:700;">🟢 Trực tuyến</span>`
+                    : `<span style="background:#f1f5f9;color:#64748b;padding:2px 8px;border-radius:6px;font-weight:600;">⚪ Ngoại tuyến</span>`;
+
+                const safeUser = encodeURIComponent(userStr);
+                const safeIp = encodeURIComponent(clientIp);
+                const isGuest = userStr.includes('Khách') || userStr === 'Cán bộ VNU';
+                const isUserDenied = (currentRules?.userOverrides?.denied || []).map(u => (u || '').toLowerCase()).includes(userStr.toLowerCase());
+
+                tr.innerHTML = `
+                    <td><strong>${userStr}</strong> <span style="font-size:11px;color:var(--muted);">(${s.unit || 'VNU'})</span></td>
+                    <td><strong style="color:#00803d;font-family:monospace;">${clientIp}</strong></td>
+                    <td>${browserBadge}</td>
+                    <td style="color:var(--muted);">${timeStr}</td>
+                    <td>${statusBadge}</td>
+                    <td style="text-align:right;white-space:nowrap;">
+                        <button onclick="forceUserProxyOff('${safeUser}', '${safeIp}')" title="Ép Extension tắt proxy ngay lập tức" class="btn-sm" style="background:#fff7ed;color:#c2410c;border:1px solid #ffedd5;padding:3px 7px;font-size:11px;font-weight:700;margin-right:4px;cursor:pointer;">
+                            ⚡ Tắt Proxy
+                        </button>
+                        <button onclick="forceUserLogout('${safeUser}', '${safeIp}')" title="Huỷ phiên đăng nhập và ép đăng xuất" class="btn-sm" style="background:#fef2f2;color:#dc2626;border:1px solid #fee2e2;padding:3px 7px;font-size:11px;font-weight:700;margin-right:4px;cursor:pointer;">
+                            🚪 Đăng Xuất
+                        </button>
+                        ${!isGuest ? (isUserDenied ? `
+                        <button onclick="unlockUser('${safeUser}')" title="Mở khoá tài khoản cán bộ này" class="btn-sm" style="background:#059669;color:#fff;border:none;padding:3px 7px;font-size:11px;font-weight:700;cursor:pointer;">
+                            🔓 Mở Khoá
+                        </button>` : `
+                        <button onclick="lockUserPrompt('${safeUser}')" title="Khoá tài khoản cán bộ này vĩnh viễn" class="btn-sm" style="background:#450a0a;color:#fff;border:none;padding:3px 7px;font-size:11px;font-weight:700;cursor:pointer;">
+                            🔒 Khoá
+                        </button>`) : ''}
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function renderLogs(logs) {
+            const tbody = document.getElementById('proxyLogsTableBody');
+            tbody.innerHTML = '';
+            if (logs.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--muted);">Chưa ghi nhận lưu lượng HTTP CONNECT.</td></tr>`;
+                return;
+            }
+
+            logs.slice(0, 60).forEach(log => {
+                const tr = document.createElement('tr');
+                const isAllowed = log.allowed;
+                const actionBadge = isAllowed
+                    ? `<span style="color:#059669;font-weight:700;">🟢 PROXY</span>`
+                    : `<span style="color:#dc2626;font-weight:700;">🔴 BLOCKED</span>`;
+
+                const timeStr = log.timestamp ? new Date(log.timestamp).toLocaleTimeString('vi-VN') : '';
+                tr.innerHTML = `
+                    <td style="color:var(--muted);white-space:nowrap;font-size:12px;">${timeStr}</td>
+                    <td><strong style="color:#0f172a;">${log.user || 'Cán bộ VNU'}</strong></td>
+                    <td><span style="background:#f1f5f9;padding:2px 6px;border-radius:4px;font-weight:700;font-size:11px;">${(log.unit || 'VNU').toUpperCase()}</span></td>
+                    <td><code style="font-weight:600;font-size:12px;color:#0369a1;">${log.target}</code></td>
+                    <td>${actionBadge}</td>
+                    <td style="font-size:12px;color:#475569;">${log.reason}</td>
+                    <td><code style="font-size:11px;color:#64748b;">${log.clientIp}</code></td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function filterLogs() {
+            const q = document.getElementById('logSearch').value.toLowerCase().trim();
+            if (!q) {
+                renderLogs(rawLogs);
+                return;
+            }
+            const filtered = rawLogs.filter(l =>
+                (l.user && l.user.toLowerCase().includes(q)) ||
+                (l.unit && l.unit.toLowerCase().includes(q)) ||
+                (l.target && l.target.toLowerCase().includes(q)) ||
+                (l.clientIp && l.clientIp.toLowerCase().includes(q))
+            );
+            renderLogs(filtered);
+        }
+
+        // 14. Kết nối SSE Real-time Dashboard
+        let sseReconnectTimer = null;
+        function initSse() {
+            try {
+                if (sseSource) {
+                    sseSource.close();
+                    sseSource = null;
+                }
+                sseSource = new EventSource('/api/v1/rules/stream');
+
+                sseSource.onopen = () => {
+                    const txt = document.getElementById('sseStatusTxt');
+                    if (txt) txt.innerText = 'SSE Live (Đã kết nối)';
+                    const pill = document.getElementById('sseLivePill');
+                    if (pill) pill.className = 'pill-live';
+                };
+
+                sseSource.addEventListener('RULES_UPDATED', (e) => {
+                    try {
+                        const newRules = JSON.parse(e.data);
+                        currentRules = newRules;
+                        updateStats();
+                        updateModeUI();
+                        renderTable();
+                        renderOUs();
+                        renderUserOverrides();
+                    } catch (err) {}
+                });
+
+                sseSource.onerror = () => {
+                    const txt = document.getElementById('sseStatusTxt');
+                    if (txt) txt.innerText = 'SSE Mất kết nối (Đang thử lại...)';
+                    const pill = document.getElementById('sseLivePill');
+                    if (pill) pill.className = 'pill-live offline';
+                    if (sseSource && sseSource.readyState === EventSource.CLOSED) {
+                        clearTimeout(sseReconnectTimer);
+                        sseReconnectTimer = setTimeout(initSse, 5000);
+                    }
+                };
+            } catch (e) {}
+        }
+
+        // 15. Đăng xuất
+        function handleLogout() {
+            localStorage.removeItem('vags_token');
+            localStorage.removeItem('vags_user');
+            localStorage.removeItem('vags_unit');
+            localStorage.removeItem('vags_name');
+            localStorage.removeItem('vags_member_type');
+            localStorage.removeItem('vags_is_admin');
+            window.location.href = '/';
+        }
+
+        // 16. Keycloak SSO PKCE Login Handler
+        async function generatePkce() {
+            function dec2hex(dec) { return ('0' + dec.toString(16)).substr(-2); }
+            function generateRandomString() {
+                var array = new Uint32Array(56 / 2);
+                window.crypto.getRandomValues(array);
+                return Array.from(array, dec2hex).join('');
+            }
+            function sha256(plain) {
+                const encoder = new TextEncoder();
+                const data = encoder.encode(plain);
+                return window.crypto.subtle.digest('SHA-256', data);
+            }
+            function base64urlencode(a) {
+                var str = "";
+                var bytes = new Uint8Array(a);
+                var len = bytes.byteLength;
+                for (var i = 0; i < len; i++) {
+                    str += String.fromCharCode(bytes[i]);
+                }
+                return btoa(str)
+                    .replace(/\+/g, "-")
+                    .replace(/\//g, "_")
+                    .replace(/=+$/, "");
+            }
+
+            const verifier = generateRandomString();
+            const hashed = await sha256(verifier);
+            const challenge = base64urlencode(hashed);
+            return { verifier, challenge };
+        }
+
+        async function loginKeycloakSso() {
+            try {
+                const res = await fetch('/api/v1/auth/keycloak-config');
+                const cfg = await res.json();
+                const pkce = await generatePkce();
+                sessionStorage.setItem('pkce_code_verifier', pkce.verifier);
+                localStorage.setItem('pkce_code_verifier', pkce.verifier);
+                const redirectUri = window.location.origin + '/auth/callback';
+
+                const authUrl = `${cfg.authorizationEndpoint}?client_id=${encodeURIComponent(cfg.clientId)}` +
+                    `&response_type=code` +
+                    `&scope=openid%20profile%20email` +
+                    `&redirect_uri=${encodeURIComponent(redirectUri)}` +
+                    `&code_challenge=${encodeURIComponent(pkce.challenge)}` +
+                    `&code_challenge_method=S256`;
+
+                window.location.href = authUrl;
+            } catch (e) {
+                alert('Lỗi khởi tạo đăng nhập SSO: ' + e.message);
+            }
+        }
+
+        // 17. SQLite Analytics & Monitoring Engine
+        let auditSearchTimer = null;
+        let auditCurrentPage = 1;
+        const auditPageSize = 50;
+        let auditTotalRecords = 0;
+        let auditTotalPages = 1;
+
+        function onAuditSearch() {
+            clearTimeout(auditSearchTimer);
+            auditSearchTimer = setTimeout(() => {
+                fetchAuditTrace(1);
+            }, 300);
+        }
+
+        async function fetchAuditTrace(page = 1) {
+            auditCurrentPage = page;
+            try {
+                const searchEl = document.getElementById('auditSearchInput');
+                const allowedEl = document.getElementById('auditFilterAllowed');
+                const search = searchEl ? encodeURIComponent(searchEl.value.trim()) : '';
+                const allowed = allowedEl ? encodeURIComponent(allowedEl.value) : '';
+                const offset = (page - 1) * auditPageSize;
+
+                const res = await fetch(`/api/v1/admin/audit-logs?search=${search}&allowed=${allowed}&limit=${auditPageSize}&offset=${offset}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    const logs = Array.isArray(data) ? data : (data.logs || []);
+                    auditTotalRecords = data.total ?? logs.length;
+                    auditTotalPages = Math.max(1, Math.ceil(auditTotalRecords / auditPageSize));
+                    renderAuditLogs(logs);
+                    renderAuditPagination();
+                }
+            } catch (e) {
+                console.error("Lỗi nạp audit logs:", e);
+            }
+        }
+
+        function renderAuditPagination() {
+            const infoEl = document.getElementById('auditPageInfo');
+            const indEl = document.getElementById('auditPageIndicator');
+            const prevBtn = document.getElementById('auditPrevBtn');
+            const nextBtn = document.getElementById('auditNextBtn');
+
+            if (infoEl) {
+                const start = auditTotalRecords === 0 ? 0 : (auditCurrentPage - 1) * auditPageSize + 1;
+                const end = Math.min(auditTotalRecords, auditCurrentPage * auditPageSize);
+                infoEl.innerText = `Hiển thị ${start} - ${end} của ${Number(auditTotalRecords).toLocaleString()} bản ghi`;
+            }
+            if (indEl) indEl.innerText = `Trang ${auditCurrentPage} / ${auditTotalPages}`;
+            if (prevBtn) prevBtn.disabled = auditCurrentPage <= 1;
+            if (nextBtn) nextBtn.disabled = auditCurrentPage >= auditTotalPages;
+        }
+
+        function changeAuditPage(delta) {
+            const target = auditCurrentPage + delta;
+            if (target >= 1 && target <= auditTotalPages) {
+                fetchAuditTrace(target);
+            }
+        }
+
+        // --- DOMAINS BREAKDOWN (AdGuard DNS Style) ---
+        let domainSearchTimer = null;
+        let domainCurrentPage = 1;
+        const domainPageSize = 50;
+        let domainTotalRecords = 0;
+        let domainTotalPages = 1;
+
+        function onDomainSearch() {
+            clearTimeout(domainSearchTimer);
+            domainSearchTimer = setTimeout(() => {
+                fetchDomainsBreakdown(1);
+            }, 300);
+        }
+
+        async function fetchDomainsBreakdown(page = 1) {
+            domainCurrentPage = page;
+            try {
+                const searchEl = document.getElementById('domainSearchInput');
+                const search = searchEl ? encodeURIComponent(searchEl.value.trim()) : '';
+                const offset = (page - 1) * domainPageSize;
+
+                const res = await fetch(`/api/v1/admin/domains-breakdown?search=${search}&limit=${domainPageSize}&offset=${offset}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    const domains = data.domains || [];
+                    domainTotalRecords = data.total ?? domains.length;
+                    domainTotalPages = Math.max(1, Math.ceil(domainTotalRecords / domainPageSize));
+                    renderDomainsBreakdownTable(domains);
+                    renderDomainsPagination();
+                }
+            } catch (e) {
+                console.error("Lỗi nạp domains breakdown:", e);
+            }
+        }
+
+        function renderDomainsBreakdownTable(domains) {
+            const tbody = document.getElementById('domainsBreakdownTableBody');
+            if (!tbody) return;
+            tbody.innerHTML = '';
+            if (!domains || domains.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:30px;color:var(--muted);">Chưa ghi nhận tên miền nào qua cổng.</td></tr>';
+                return;
+            }
+            domains.forEach(d => {
+                const tr = document.createElement('tr');
+                const timeStr = d.lastSeen ? new Date(d.lastSeen).toLocaleString('vi-VN') : '-';
+                const isBlockedOnly = d.allowedRequests === 0 && d.blockedRequests > 0;
+                const statusPill = isBlockedOnly
+                    ? `<span style="background:#fee2e2;color:#b91c1c;padding:2px 8px;border-radius:6px;font-weight:700;font-size:11px;">✕ Chặn toàn bộ</span>`
+                    : `<span style="background:#dcfce7;color:#15803d;padding:2px 8px;border-radius:6px;font-weight:700;font-size:11px;">✓ ${Number(d.allowedRequests).toLocaleString()} / ${Number(d.blockedRequests).toLocaleString()}</span>`;
+
+                tr.innerHTML = `
+                    <td><strong style="color:#0f172a;font-family:monospace;font-size:12px;">${d.domain}</strong></td>
+                    <td style="font-weight:700;color:#0284c7;font-size:12px;">${Number(d.totalRequests).toLocaleString()}</td>
+                    <td>${statusPill}</td>
+                    <td style="font-family:monospace;font-size:11px;color:#059669;">${formatBytes(d.rxBytes)}</td>
+                    <td style="font-family:monospace;font-size:11px;color:#7c3aed;">${formatBytes(d.txBytes)}</td>
+                    <td style="font-family:monospace;font-size:12px;font-weight:700;color:#0f172a;">${formatBytes(d.totalBytes)}</td>
+                    <td><span style="background:#f1f5f9;color:#334155;padding:2px 6px;border-radius:4px;font-weight:600;font-size:11px;">${d.uniqueUsers} users</span></td>
+                    <td style="color:var(--muted);white-space:nowrap;font-size:11px;">${timeStr}</td>
+                    <td style="text-align:right;white-space:nowrap;">
+                        <button onclick="filterAuditByDomain('${d.domain}')" class="btn-sm" style="padding:3px 7px;font-size:11px;margin-right:4px;cursor:pointer;">🔍 Logs</button>
+                        <button onclick="quickAddBlacklist('${d.domain}')" class="btn-sm" style="background:#fee2e2;color:#b91c1c;border:1px solid #fca5a5;padding:3px 7px;font-size:11px;font-weight:700;cursor:pointer;">+ Chặn</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function filterAuditByDomain(domain) {
+            const inp = document.getElementById('auditSearchInput');
+            if (inp) {
+                inp.value = domain;
+                fetchAuditTrace(1);
+                inp.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }
+
+        function renderDomainsPagination() {
+            const infoEl = document.getElementById('domainPageInfo');
+            const indEl = document.getElementById('domainPageIndicator');
+            const prevBtn = document.getElementById('domainPrevBtn');
+            const nextBtn = document.getElementById('domainNextBtn');
+
+            if (infoEl) {
+                const start = domainTotalRecords === 0 ? 0 : (domainCurrentPage - 1) * domainPageSize + 1;
+                const end = Math.min(domainTotalRecords, domainCurrentPage * domainPageSize);
+                infoEl.innerText = `Hiển thị ${start} - ${end} của ${Number(domainTotalRecords).toLocaleString()} domain`;
+            }
+            if (indEl) indEl.innerText = `Trang ${domainCurrentPage} / ${domainTotalPages}`;
+            if (prevBtn) prevBtn.disabled = domainCurrentPage <= 1;
+            if (nextBtn) nextBtn.disabled = domainCurrentPage >= domainTotalPages;
+        }
+
+        function changeDomainPage(delta) {
+            const target = domainCurrentPage + delta;
+            if (target >= 1 && target <= domainTotalPages) {
+                fetchDomainsBreakdown(target);
+            }
+        }
+
+        function formatBytes(bytes) {
+            if (!bytes || bytes <= 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        async function fetchAnalyticsData() {
+            try {
+                // 1. Summary Analytics
+                const [summaryRes, urlsRes, bandwidthRes, usersRes, ipsRes] = await Promise.all([
+                    fetch('/api/v1/admin/analytics').then(r => r.ok ? r.json() : null).catch(() => null),
+                    fetch('/api/v1/admin/top-urls?limit=7').then(r => r.ok ? r.json() : []).catch(() => []),
+                    fetch('/api/v1/admin/top-bandwidth-urls?limit=7').then(r => r.ok ? r.json() : []).catch(() => []),
+                    fetch('/api/v1/admin/top-users?limit=7').then(r => r.ok ? r.json() : []).catch(() => []),
+                    fetch('/api/v1/admin/top-ips?limit=7').then(r => r.ok ? r.json() : []).catch(() => [])
+                ]);
+
+                if (summaryRes) {
+                    const onlineCount = summaryRes.onlineUsersCount ?? summaryRes.activeUsersCount ?? 1;
+                    const onlineStableEl = document.getElementById('statOnlineStable');
+                    if (onlineStableEl) onlineStableEl.innerText = onlineCount;
+                    
+                    const statSseEl = document.getElementById('statSseClients');
+                    if (statSseEl) statSseEl.innerText = onlineCount;
+                    
+                    const statUniqueIpsEl = document.getElementById('statUniqueIps');
+                    if (statUniqueIpsEl) statUniqueIpsEl.innerText = onlineCount;
+
+                    const m = summaryRes.metrics || {};
+                    const totalBytes = m.totalBytes || ((m.totalBytesSent || 0) + (m.totalBytesReceived || 0));
+                    const totalBwEl = document.getElementById('statBandwidthTotal');
+                    if (totalBwEl) totalBwEl.innerText = formatBytes(totalBytes);
+                    
+                    const rxtxEl = document.getElementById('statBandwidthRxTx');
+                    if (rxtxEl) rxtxEl.innerText = `Rx: ${formatBytes(m.totalBytesReceived || 0)} | Tx: ${formatBytes(m.totalBytesSent || 0)}`;
+
+                    const totalReqs = m.totalProxyRequests || 0;
+                    const totalTunnelsEl = document.getElementById('statTotalTunnels');
+                    if (totalTunnelsEl) totalTunnelsEl.innerText = Number(totalReqs).toLocaleString();
+                    
+                    const ratioEl = document.getElementById('statAllowedBlockedRatio');
+                    if (ratioEl) ratioEl.innerText = `${Number(m.allowedProxyRequests || 0).toLocaleString()} Cho phép | ${Number(m.blockedProxyRequests || 0).toLocaleString()} Chặn`;
+
+                    if (summaryRes.egressIp) {
+                        const egDispEl = document.getElementById('statEgressIpDisplay');
+                        if (egDispEl) egDispEl.innerText = summaryRes.egressIp;
+                        const egEl = document.getElementById('statEgressIp');
+                        if (egEl) egEl.innerText = summaryRes.egressIp;
+                    }
+                }
+
+                // 2. Render Top Lists
+                renderTopUrls(urlsRes || []);
+                renderTopBandwidth(bandwidthRes || []);
+                renderTopUsers(usersRes || []);
+                renderTopIps(ipsRes || []);
+
+                // 3. Render Audit Trace & Domains Breakdown
+                await fetchAuditTrace(auditCurrentPage);
+                await fetchDomainsBreakdown(domainCurrentPage);
+
+            } catch (err) {
+                console.error("Lỗi fetch analytics:", err);
+            }
+        }
+
+        function renderTopUrls(items) {
+            const el = document.getElementById('topUrlsContainer');
+            if (!el) return;
+            if (!items || items.length === 0) {
+                el.innerHTML = '<div style="text-align:center;padding:30px;color:var(--muted);font-size:12px;">Chưa có dữ liệu truy vấn CSDL Quốc tế.</div>';
+                return;
+            }
+            let html = '';
+            items.forEach((it, idx) => {
+                const pct = Math.min(100, Math.max(8, it.percentage || 10));
+                const domain = it.domain || it.host || '-';
+                const hits = it.requestsCount || it.hitCount || 0;
+                html += `
+                    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:10px 12px;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;">
+                            <div style="display:flex;align-items:center;gap:8px;overflow:hidden;">
+                                <span style="font-size:11px;font-weight:800;color:#00803d;background:#e8f5e9;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;">${idx + 1}</span>
+                                <strong style="font-size:12px;color:#0f172a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${domain}">${domain}</strong>
+                            </div>
+                            <div style="text-align:right;white-space:nowrap;">
+                                <span style="font-size:12px;font-weight:700;color:#0f172a;">${Number(hits).toLocaleString()} reqs</span>
+                                <span style="font-size:11px;color:#0284c7;font-family:monospace;margin-left:4px;">(${formatBytes(it.totalBytes)})</span>
+                            </div>
+                        </div>
+                        <div style="height:5px;background:#e2e8f0;border-radius:999px;overflow:hidden;margin-top:6px;">
+                            <div style="height:100%;background:#00803d;border-radius:999px;width:${pct}%;"></div>
+                        </div>
+                    </div>
+                `;
+            });
+            el.innerHTML = html;
+        }
+
+        function quickAddBlacklist(domain) {
+            if (!domain) return;
+            switchTab('routing');
+            openAddModal();
+            const patternEl = document.getElementById('addDomainPattern');
+            const catEl = document.getElementById('addDomainCategory');
+            const clean = domain.replace(/^https?:\/\//i, '').split(':')[0].trim();
+            if (patternEl) patternEl.value = clean.startsWith('*.') ? clean : (clean.includes('.') ? `*.${clean}` : clean);
+            if (catEl) catEl.value = 'blacklist';
+        }
+
+        function renderTopBandwidth(items) {
+            const el = document.getElementById('topBandwidthContainer');
+            if (!el) return;
+            if (!items || items.length === 0) {
+                el.innerHTML = '<div style="text-align:center;padding:30px;color:var(--muted);font-size:12px;">Chưa có dữ liệu tiêu thụ băng thông lớn.</div>';
+                return;
+            }
+            const maxBytes = Math.max(...items.map(it => it.totalBytes || 1), 1);
+            let html = '';
+            items.forEach((it, idx) => {
+                const totalBytes = it.totalBytes || 0;
+                const pct = Math.min(100, Math.max(10, Math.round((totalBytes / maxBytes) * 100)));
+                const host = it.host || it.targetHost || '-';
+                const hits = it.reqCount || it.requestsCount || 0;
+                const rx = it.rxBytes ? `Rx: ${formatBytes(it.rxBytes)}` : '';
+                const tx = it.txBytes ? `Tx: ${formatBytes(it.txBytes)}` : '';
+                const rxtxStr = (rx && tx) ? `${rx} | ${tx}` : '';
+
+                html += `
+                    <div style="background:#fff5f5;border:1px solid #fee2e2;border-radius:10px;padding:9px 12px;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;">
+                            <div style="display:flex;align-items:center;gap:7px;overflow:hidden;flex:1;">
+                                <span style="font-size:11px;font-weight:800;color:#b91c1c;background:#fee2e2;min-width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;">${idx + 1}</span>
+                                <div style="overflow:hidden;">
+                                    <strong style="font-size:12px;color:#991b1b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;" title="${host}">${host}</strong>
+                                    ${rxtxStr ? `<span style="font-size:10px;color:var(--muted);">${rxtxStr}</span>` : ''}
+                                </div>
+                            </div>
+                            <div style="text-align:right;white-space:nowrap;margin-left:8px;display:flex;align-items:center;gap:6px;">
+                                <div>
+                                    <strong style="font-size:12px;font-weight:800;color:#dc2626;">${formatBytes(totalBytes)}</strong>
+                                    <div style="font-size:10px;color:var(--muted);">${Number(hits).toLocaleString()} reqs</div>
+                                </div>
+                                <button onclick="quickAddBlacklist('${host}')" title="Thêm vào Blacklist đi DIRECT" style="background:#fee2e2;color:#b91c1c;border:1px solid #fca5a5;padding:3px 7px;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer;white-space:nowrap;">
+                                    + Chặn
+                                </button>
+                            </div>
+                        </div>
+                        <div style="height:5px;background:#fecaca;border-radius:999px;overflow:hidden;margin-top:6px;">
+                            <div style="height:100%;background:#ef4444;border-radius:999px;width:${pct}%;"></div>
+                        </div>
+                    </div>
+                `;
+            });
+            el.innerHTML = html;
+        }
+
+        function renderTopUsers(items) {
+            const el = document.getElementById('topUsersContainer');
+            if (!el) return;
+            if (!items || items.length === 0) {
+                el.innerHTML = '<div style="text-align:center;padding:30px;color:var(--muted);font-size:12px;">Chưa có dữ liệu người dùng xác thực.</div>';
+                return;
+            }
+            let html = '';
+            items.forEach((it, idx) => {
+                const pct = Math.min(100, Math.max(8, it.percentage || 10));
+                const uname = it.username || it.user || 'Khách';
+                const uunit = it.unit || 'VNU';
+                const hits = it.requestsCount || it.hitCount || 0;
+                html += `
+                    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:10px 12px;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;">
+                            <div style="display:flex;align-items:center;gap:8px;overflow:hidden;">
+                                <span style="font-size:11px;font-weight:800;color:#0284c7;background:#e0f2fe;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;">${idx + 1}</span>
+                                <div>
+                                    <strong style="font-size:12px;color:#0f172a;">${uname}</strong>
+                                    <span style="font-size:10px;color:var(--muted);margin-left:4px;">${uunit}</span>
+                                </div>
+                            </div>
+                            <div style="text-align:right;white-space:nowrap;">
+                                <span style="font-size:12px;font-weight:700;color:#0f172a;">${Number(hits).toLocaleString()} reqs</span>
+                                <span style="font-size:11px;color:#7c3aed;font-family:monospace;margin-left:4px;">(${formatBytes(it.totalBytes)})</span>
+                            </div>
+                        </div>
+                        <div style="height:5px;background:#e2e8f0;border-radius:999px;overflow:hidden;margin-top:6px;">
+                            <div style="height:100%;background:#0284c7;border-radius:999px;width:${pct}%;"></div>
+                        </div>
+                    </div>
+                `;
+            });
+            el.innerHTML = html;
+        }
+
+        function renderTopIps(items) {
+            const el = document.getElementById('topIpsContainer');
+            if (!el) return;
+            if (!items || items.length === 0) {
+                el.innerHTML = '<div style="text-align:center;padding:30px;color:var(--muted);font-size:12px;">Chưa có dữ liệu IP client thực tế.</div>';
+                return;
+            }
+            let html = '';
+            items.forEach((it, idx) => {
+                const pct = Math.min(100, Math.max(8, it.percentage || 10));
+                let ip = it.clientIp || 'unknown';
+                if (ip.startsWith('::ffff:')) ip = ip.substring(7);
+                if (ip.startsWith('[') && ip.includes(']')) ip = ip.substring(1, ip.indexOf(']'));
+                const hits = it.requestsCount || it.hitCount || 0;
+                const usr = it.user || it.username ? `(${it.user || it.username})` : '';
+                html += `
+                    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:10px 12px;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;">
+                            <div style="display:flex;align-items:center;gap:8px;">
+                                <span style="font-size:11px;font-weight:800;color:#7c3aed;background:#f3e8ff;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;">${idx + 1}</span>
+                                <div>
+                                    <strong style="font-size:12px;color:#00803d;font-family:monospace;">${ip}</strong>
+                                    <span style="font-size:10px;color:var(--muted);margin-left:4px;">${usr}</span>
+                                </div>
+                            </div>
+                            <div style="text-align:right;white-space:nowrap;">
+                                <span style="font-size:12px;font-weight:700;color:#0f172a;">${Number(hits).toLocaleString()} reqs</span>
+                                <span style="font-size:11px;color:#059669;font-family:monospace;margin-left:4px;">(${formatBytes(it.totalBytes)})</span>
+                            </div>
+                        </div>
+                        <div style="height:5px;background:#e2e8f0;border-radius:999px;overflow:hidden;margin-top:6px;">
+                            <div style="height:100%;background:#7c3aed;border-radius:999px;width:${pct}%;"></div>
+                        </div>
+                    </div>
+                `;
+            });
+            el.innerHTML = html;
+        }
+
+        function renderAuditLogs(data) {
+            const tbody = document.getElementById('auditLogsTableBody');
+            if (!tbody) return;
+            tbody.innerHTML = '';
+            const logs = Array.isArray(data) ? data : (data?.logs || []);
+            if (!logs || logs.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:30px;color:var(--muted);">Không có nhật ký truy vết nào phù hợp với bộ lọc.</td></tr>`;
+                return;
+            }
+            logs.forEach(l => {
+                const tr = document.createElement('tr');
+                const timeStr = l.timestamp ? new Date(l.timestamp).toLocaleString('vi-VN') : '-';
+                const statusPill = l.allowed
+                    ? `<span style="background:#dcfce7;color:#15803d;padding:2px 8px;border-radius:6px;font-weight:700;font-size:11px;">✓ Cho phép</span>`
+                    : `<span style="background:#fee2e2;color:#b91c1c;padding:2px 8px;border-radius:6px;font-weight:700;font-size:11px;">✕ Bị chặn</span>`;
+
+                const totalBytes = (l.bytesSent || 0) + (l.bytesReceived || 0);
+                const bytesStr = totalBytes > 0 ? formatBytes(totalBytes) : '-';
+                const durationStr = l.durationMs > 0 ? `${l.durationMs}ms` : '<1ms';
+
+                tr.innerHTML = `
+                    <td style="color:var(--muted);white-space:nowrap;font-size:12px;">${timeStr}</td>
+                    <td><strong style="color:#00803d;font-family:monospace;font-size:12px;">${l.clientIp}</strong></td>
+                    <td><strong style="color:#0f172a;font-size:12px;">${l.user}</strong> <span style="font-size:11px;color:var(--muted);">(${l.unit || 'VNU'})</span></td>
+                    <td><strong style="color:#0284c7;font-size:12px;">${l.targetHost || l.target || '-'}</strong></td>
+                    <td>${statusPill}</td>
+                    <td style="font-family:monospace;font-size:11px;">${bytesStr}</td>
+                    <td style="font-size:11px;color:var(--muted);">${durationStr}</td>
+                    <td><code style="font-size:11px;background:#f1f5f9;padding:2px 6px;border-radius:4px;">${l.matchedRule || 'DIRECT'}</code></td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // Khởi động
+        window.addEventListener('DOMContentLoaded', async () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.has('code') || urlParams.has('error')) {
+                window.location.href = '/auth/callback' + window.location.search;
+                return;
+            }
+
+            if (checkAdminAuth()) {
+                await loadRules();
+                await fetchMetrics();
+                await fetchAnalyticsData();
+                initSse();
+                setInterval(fetchMetrics, 5000);
+                setInterval(fetchAnalyticsData, 5000);
+            }
+        });
+    </script>
+</body>
+</html>
