@@ -1,5 +1,5 @@
 {
-  "version": "2026.11.10.023031.707",
+  "version": "2026.11.11.025051.401",
   "proxyMode": "FULL_PROXY",
   "blacklist": [
     "*.youtube.com",
@@ -7,7 +7,11 @@
     "*.facebook.com",
     "facebook.com",
     "*.tiktok.com",
-    "tiktok.com"
+    "tiktok.com",
+    "*.ieee.org",
+    "ieee.org",
+    "*.ieeexplore.ieee.org",
+    "ieeexplore.ieee.org"
   ],
   "internalWhitelist": [
     "lic.vnu.edu.vn",
@@ -16,8 +20,6 @@
   "globalAcademicWhitelist": [
     "*.sciencedirect.com",
     "sciencedirect.com",
-    "*.ieee.org",
-    "ieee.org",
     "*.springer.com",
     "springer.com",
     "*.nature.com",
@@ -48,14 +50,7 @@
       "phongnd"
     ],
     "denied": [],
-    "userSpecificRules": {
-      "phongnd": {
-        "proxyDomains": [
-          "idp.vnu.edu.vn"
-        ],
-        "directDomains": []
-      }
-    }
+    "userSpecificRules": {}
   },
-  "updatedAt": "2026-11-10T02:30:31.7077881Z"
+  "updatedAt": "2026-11-11T02:50:51.4016944Z"
 }

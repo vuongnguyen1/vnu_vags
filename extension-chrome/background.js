@@ -55,7 +55,7 @@ function updateExtensionActionUI(isEnabled, isLoggedIn) {
 }
 
 function updateLocalCache() {
-    chrome.storage.local.get(["currentRules", "vagsUser", "vagsToken", "vagsMemberType", "proxyEnabled"], (storage) => {
+    chrome.storage.local.get(["currentRules", "vagsUser", "vagsToken", "vagsMemberType", "proxyEnabled", "isLocked"], (storage) => {
         if (storage.currentRules) cachedRules = storage.currentRules;
         if (storage.vagsUser !== undefined) cachedUser = storage.vagsUser;
         if (storage.vagsToken !== undefined) cachedToken = storage.vagsToken;
@@ -64,13 +64,15 @@ function updateLocalCache() {
         const isStudent = storage.vagsMemberType === "sinhvien";
         const allowedUsers = storage.currentRules?.userOverrides?.allowed || [];
         const isOverride = storage.vagsUser && allowedUsers.includes(storage.vagsUser);
+        const deniedUsers = (storage.currentRules?.userOverrides?.denied || []).map(u => (u || '').toLowerCase());
+        const isDenied = (storage.vagsUser && deniedUsers.includes(storage.vagsUser.toLowerCase())) || storage.isLocked === true;
 
-        if (!isLoggedIn || (isStudent && !isOverride)) {
+        if (!isLoggedIn || (isStudent && !isOverride) || isDenied) {
             cachedProxyEnabled = false;
         } else {
             cachedProxyEnabled = storage.proxyEnabled === true;
         }
-        updateExtensionActionUI(cachedProxyEnabled, isLoggedIn);
+        updateExtensionActionUI(cachedProxyEnabled, isLoggedIn && !isDenied);
     });
 }
 updateLocalCache();
@@ -117,11 +119,13 @@ async function connectSSE() {
             for (const block of parts) {
                 if (!block.trim()) continue;
                 let eventType = "message";
-                let eventData = "";
+                let eventDataLines = [];
                 for (const line of block.split("\n")) {
                     if (line.startsWith("event:")) eventType = line.slice(6).trim();
-                    else if (line.startsWith("data:")) eventData = line.slice(5).trim();
+                    else if (line.startsWith("data:")) eventDataLines.push(line.slice(5).trim());
+                    else if (eventDataLines.length > 0 && line.trim()) eventDataLines.push(line.trim());
                 }
+                const eventData = eventDataLines.join("\n");
 
                 if (eventType === "CONNECTED") {
                     chrome.storage.local.set({ sseConnected: true });
@@ -466,13 +470,15 @@ async function checkVersionOnStartup() {
                 const token = storage.vagsToken || "";
                 const isLoggedIn = !!(username && token);
                 const allowedUsers = rules.userOverrides?.allowed || [];
+                const deniedUsers = (rules.userOverrides?.denied || []).map(u => (u || '').toLowerCase());
                 const isUserOverride = allowedUsers.includes(username);
+                const isUserDenied = username && deniedUsers.includes(username.toLowerCase());
                 const isStudent = storage.vagsMemberType === "sinhvien";
                 const isCanbo = (storage.vagsMemberType === "canbo" || !isStudent) && isLoggedIn;
-                const isAllowed = (isCanbo || isUserOverride) && !isStudent;
+                const isAllowed = (isCanbo || isUserOverride) && !isStudent && !isUserDenied;
                 const isEnabled = storage.proxyEnabled === true;
 
-                chrome.storage.local.set({ currentRules: rules, ruleVersion: rules.version });
+                chrome.storage.local.set({ currentRules: rules, ruleVersion: rules.version, isLocked: isUserDenied });
                 updateLocalCache();
                 if (isLoggedIn && isAllowed && isEnabled) {
                     applyProxyRules(rules, username);
@@ -497,12 +503,16 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         // Đọc trạng thái proxyEnabled hiện tại trong storage. Nếu người dùng đã bấm Tắt (proxyEnabled === false),
         // thì reload trang TUYỆT ĐỐI KHÔNG ĐƯỢC TỰ BẬT LẠI!
         chrome.storage.local.get(["proxyEnabled", "currentRules"], (st) => {
+            const deniedUsers = (st.currentRules?.userOverrides?.denied || []).map(u => (u || '').toLowerCase());
+            const isUserDenied = (d.vagsUser && deniedUsers.includes(d.vagsUser.toLowerCase()));
             let shouldEnable = st.proxyEnabled;
-            if (shouldEnable === undefined) {
+            if (isUserDenied) {
+                shouldEnable = false;
+            } else if (shouldEnable === undefined) {
                 // Chỉ mặc định bật cho phiên đăng nhập lần đầu tiên
                 shouldEnable = d.vagsMemberType === "canbo";
             }
-            cachedProxyEnabled = shouldEnable === true;
+            cachedProxyEnabled = shouldEnable === true && !isUserDenied;
 
             chrome.storage.local.set({
                 vagsToken: d.vagsToken || "",
@@ -554,14 +564,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
             updateExtensionActionUI(false, false);
             connectSSE();
 
-            // Đồng bộ lập tức: Gửi thông báo đến tất cả các tab trang chủ ĐHQGHN để xóa sạch session
+            // Đồng bộ lập tức: Gửi thông báo đến tất cả các tab để xóa sạch session
             if (chrome.tabs && chrome.tabs.query) {
-                chrome.tabs.query({ url: "*://*.vnu.edu.vn/*" }, (tabs) => {
-                    if (tabs && tabs.length > 0) {
-                        tabs.forEach(t => {
-                            try { chrome.tabs.sendMessage(t.id, { action: "FORCE_LOGOUT_PAGE" }); } catch (e) {}
-                        });
-                    }
+                chrome.tabs.query({}, (tabs) => {
+                    (tabs || []).forEach(t => {
+                        try { chrome.tabs.sendMessage(t.id, { action: "FORCE_LOGOUT_PAGE" }); } catch (e) {}
+                    });
                 });
             }
             sendResponse({ ok: true });

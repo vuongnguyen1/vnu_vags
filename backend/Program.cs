@@ -32,6 +32,12 @@ var jsonOptions = new JsonSerializerOptions
     WriteIndented = true
 };
 
+var sseJsonOptions = new JsonSerializerOptions
+{
+    PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+    WriteIndented = false
+};
+
 // Load or initialize persistent RuleStoreModel
 var ruleLock = new object();
 RuleStoreModel LoadRules()
@@ -55,7 +61,7 @@ RuleStoreModel LoadRules()
         Version = "2026.11.07.01",
         Blacklist = new List<string> { "*.youtube.com", "youtube.com", "*.facebook.com", "facebook.com", "*.tiktok.com", "tiktok.com", "*.vnu.edu.vn" },
         InternalWhitelist = new List<string> { "lic.vnu.edu.vn", "*.lic.vnu.edu.vn" },
-        GlobalAcademicWhitelist = new List<string> { "*.sciencedirect.com", "sciencedirect.com", "*.ieee.org", "ieee.org", "*.springer.com", "springer.com", "*.nature.com", "nature.com" },
+        GlobalAcademicWhitelist = new List<string> { "*.sciencedirect.com", "sciencedirect.com", "*.springer.com", "springer.com", "*.nature.com", "nature.com" },
         AuthMode = "demo",
         KeycloakAuthority = "https://idp.vnu.edu.vn/auth/realms/vnu",
         ProxyHost = "vags.vnu.edu.vn",
@@ -69,6 +75,9 @@ RuleStoreModel LoadRules()
 
 void SaveRules(RuleStoreModel model)
 {
+    var now = DateTime.UtcNow;
+    model.Version = $"{now:yyyy.MM.dd.HHmmss}.{now.Millisecond:D3}";
+    model.UpdatedAt = now.ToString("O");
     lock (ruleLock)
     {
         var tmpPath = rulesFilePath + ".tmp";
@@ -959,8 +968,8 @@ app.MapGet("/api/v1/rules/stream", async context =>
             clientId = clientId,
             version = ruleStore.Version,
             authMode = ruleStore.AuthMode
-        }, jsonOptions);
-        await context.Response.WriteAsync($"data: {initMsg}\n\n", context.RequestAborted);
+        }, sseJsonOptions);
+        await context.Response.WriteAsync($"event: CONNECTED\ndata: {initMsg}\n\n", context.RequestAborted);
         await context.Response.Body.FlushAsync(context.RequestAborted);
 
         while (!context.RequestAborted.IsCancellationRequested)
@@ -1013,7 +1022,7 @@ async Task<IResult> HandleSaveRulesAsync(RuleStoreModel newRules)
     ruleStore = newRules;
     SaveRules(ruleStore);
 
-    var serialized = JsonSerializer.Serialize(ruleStore, jsonOptions);
+    var serialized = JsonSerializer.Serialize(ruleStore, sseJsonOptions);
     var payload = $"event: RULES_UPDATED\ndata: {serialized}\n\n";
 
     int delivered = 0;
@@ -1383,8 +1392,6 @@ IResult SyncLicDatabases()
         "*.sciencedirect.com", "sciencedirect.com",
         "*.elsevier.com", "elsevier.com",
         "*.sciencedirectassets.com", "*.elsevierpure.com",
-        "*.ieee.org", "ieee.org",
-        "*.ieeexplore.ieee.org", "ieeexplore.ieee.org",
         "*.springer.com", "springer.com",
         "*.springernature.com", "springernature.com",
         "*.nature.com", "nature.com",
@@ -1464,7 +1471,7 @@ app.MapPost("/api/v1/user/proxy-key/regenerate", (HttpContext ctx, KeyRegenerate
 app.MapPost("/api/v1/admin/broadcast-update", async (BroadcastUpdateRequest? req) =>
 {
     var targetVersion = req?.Version ?? "2.1.2";
-    var payload = $"event: FORCE_UPDATE\ndata: {JsonSerializer.Serialize(new { minVersion = targetVersion, version = targetVersion, timestamp = DateTime.UtcNow })}\n\n";
+    var payload = $"event: FORCE_UPDATE\ndata: {JsonSerializer.Serialize(new { minVersion = targetVersion, version = targetVersion, timestamp = DateTime.UtcNow }, sseJsonOptions)}\n\n";
     int sent = 0;
     foreach (var kvp in sseClients.ToArray())
     {
@@ -1497,7 +1504,7 @@ app.MapPost("/api/v1/admin/users/force-proxy-off", async (ForceUserActionRequest
         timestamp = DateTime.UtcNow
     };
 
-    var payload = $"event: FORCE_PROXY_OFF\ndata: {JsonSerializer.Serialize(eventData, jsonOptions)}\n\n";
+    var payload = $"event: FORCE_PROXY_OFF\ndata: {JsonSerializer.Serialize(eventData, sseJsonOptions)}\n\n";
     int sent = 0;
     foreach (var kvp in sseClients.ToArray())
     {
@@ -1551,7 +1558,7 @@ app.MapPost("/api/v1/admin/users/force-logout", async (ForceUserActionRequest? r
         timestamp = DateTime.UtcNow
     };
 
-    var payload = $"event: FORCE_LOGOUT\ndata: {JsonSerializer.Serialize(eventData, jsonOptions)}\n\n";
+    var payload = $"event: FORCE_LOGOUT\ndata: {JsonSerializer.Serialize(eventData, sseJsonOptions)}\n\n";
     int sent = 0;
     foreach (var kvp in sseClients.ToArray())
     {
@@ -1602,8 +1609,8 @@ app.MapPost("/api/v1/admin/users/lock", async (LockUserRequest? req) =>
         timestamp = DateTime.UtcNow
     };
 
-    var lockPayload = $"event: FORCE_LOCK\ndata: {JsonSerializer.Serialize(eventData, jsonOptions)}\n\n";
-    var rulesPayload = $"event: RULES_UPDATED\ndata: {JsonSerializer.Serialize(ruleStore, jsonOptions)}\n\n";
+    var lockPayload = $"event: FORCE_LOCK\ndata: {JsonSerializer.Serialize(eventData, sseJsonOptions)}\n\n";
+    var rulesPayload = $"event: RULES_UPDATED\ndata: {JsonSerializer.Serialize(ruleStore, sseJsonOptions)}\n\n";
 
     int sent = 0;
     foreach (var kvp in sseClients.ToArray())
@@ -1646,7 +1653,7 @@ app.MapPost("/api/v1/admin/users/unlock", async (LockUserRequest? req) =>
     ruleStore.UserOverrides.Denied.RemoveAll(u => string.Equals(u, userToUnlock, StringComparison.OrdinalIgnoreCase));
     SaveRules(ruleStore);
 
-    var rulesPayload = $"event: RULES_UPDATED\ndata: {JsonSerializer.Serialize(ruleStore, jsonOptions)}\n\n";
+    var rulesPayload = $"event: RULES_UPDATED\ndata: {JsonSerializer.Serialize(ruleStore, sseJsonOptions)}\n\n";
     int sent = 0;
     foreach (var kvp in sseClients.ToArray())
     {

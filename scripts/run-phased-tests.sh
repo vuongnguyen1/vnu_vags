@@ -31,17 +31,20 @@ echo " -> GET /api/v1/rules/version: ${VER_JSON}"
 
 EVAL_LIC=$(curl -sk -X POST https://vags.vnu.edu.vn/api/v1/rules/evaluate -H "Content-Type: application/json" -d '{"host":"lic.vnu.edu.vn"}')
 EVAL_PORTAL=$(curl -sk -X POST https://vags.vnu.edu.vn/api/v1/rules/evaluate -H "Content-Type: application/json" -d '{"host":"portal.vnu.edu.vn"}')
+EVAL_SD=$(curl -sk -X POST https://vags.vnu.edu.vn/api/v1/rules/evaluate -H "Content-Type: application/json" -d '{"host":"www.sciencedirect.com"}')
 EVAL_IEEE=$(curl -sk -X POST https://vags.vnu.edu.vn/api/v1/rules/evaluate -H "Content-Type: application/json" -d '{"host":"ieeexplore.ieee.org"}')
 EVAL_YT=$(curl -sk -X POST https://vags.vnu.edu.vn/api/v1/rules/evaluate -H "Content-Type: application/json" -d '{"host":"www.youtube.com"}')
 
-echo " -> Evaluate lic.vnu.edu.vn      : ${EVAL_LIC}"
-echo " -> Evaluate portal.vnu.edu.vn   : ${EVAL_PORTAL}"
-echo " -> Evaluate ieeexplore.ieee.org : ${EVAL_IEEE}"
-echo " -> Evaluate www.youtube.com     : ${EVAL_YT}"
+echo " -> Evaluate lic.vnu.edu.vn        : ${EVAL_LIC}"
+echo " -> Evaluate portal.vnu.edu.vn     : ${EVAL_PORTAL}"
+echo " -> Evaluate www.sciencedirect.com : ${EVAL_SD}"
+echo " -> Evaluate ieeexplore.ieee.org   : ${EVAL_IEEE} (Kỳ vọng: DIRECT)"
+echo " -> Evaluate www.youtube.com       : ${EVAL_YT}"
 
 if echo "${EVAL_LIC}" | grep -q '"action": *"PROXY"' && \
    echo "${EVAL_PORTAL}" | grep -q '"action": *"DIRECT"' && \
-   echo "${EVAL_IEEE}" | grep -q '"action": *"PROXY"' && \
+   echo "${EVAL_SD}" | grep -q '"action": *"PROXY"' && \
+   echo "${EVAL_IEEE}" | grep -q '"action": *"DIRECT"' && \
    echo "${EVAL_YT}" | grep -q '"action": *"DIRECT"'; then
     echo -e " -> ${GREEN}[PASS] Giai đoạn 2: API và thứ tự ưu tiên phân loại tên miền chính xác 100%!${NC}"
 else
@@ -70,9 +73,9 @@ fi
 POST_RES=$(curl -sk -X POST https://vags.vnu.edu.vn/api/v1/admin/rules \
     -H "Content-Type: application/json" \
     -d '{
-      "globalAcademicWhitelist": ["*.sciencedirect.com", "sciencedirect.com", "*.ieee.org", "ieee.org", "*.springer.com", "springer.com", "*.nature.com", "nature.com", "*.acm.org"],
+      "globalAcademicWhitelist": ["*.sciencedirect.com", "sciencedirect.com", "*.springer.com", "springer.com", "*.nature.com", "nature.com", "*.acm.org"],
       "internalWhitelist": ["lic.vnu.edu.vn", "*.lic.vnu.edu.vn"],
-      "blacklist": ["*.youtube.com", "youtube.com", "*.facebook.com", "facebook.com", "*.tiktok.com", "tiktok.com"],
+      "blacklist": ["*.youtube.com", "youtube.com", "*.facebook.com", "facebook.com", "*.tiktok.com", "tiktok.com", "*.ieee.org", "ieee.org", "*.ieeexplore.ieee.org", "ieeexplore.ieee.org"],
       "authMode": "demo"
     }')
 echo " -> POST /api/v1/admin/rules response: ${POST_RES}"

@@ -859,6 +859,7 @@
                     <p>Bài báo nghiên cứu, tạp chí chuyên ngành Khoa học Tự nhiên, Y Dược, Kỹ thuật và Công nghệ.</p>
                     <a href="https://www.sciencedirect.com" target="_blank" rel="noopener">sciencedirect.com ↗</a>
                 </div>
+                <!-- Tạm thời dừng ủy quyền IEEE
                 <div class="db-card">
                     <span class="db-tag">ỦY QUYỀN VAGS</span>
                     <div class="db-logo">⚡</div>
@@ -866,6 +867,7 @@
                     <p>Tài nguyên học thuật chuyên sâu về Điện, Điện tử, Công nghệ thông tin và Viễn thông.</p>
                     <a href="https://ieeexplore.ieee.org" target="_blank" rel="noopener">ieeexplore.ieee.org ↗</a>
                 </div>
+                -->
                 <div class="db-card">
                     <span class="db-tag">ỦY QUYỀN VAGS</span>
                     <div class="db-logo">📚</div>
@@ -1115,7 +1117,7 @@
                             <div class="guide-step-desc">
                                 <b>Minh chứng kết nối thành công:</b>
                                 <ol>
-                                    <li>Thầy/Cô mở bất kỳ website CSDL quốc tế nào, ví dụ: <a href="https://www.sciencedirect.com" target="_blank" style="color:#00803d;font-weight:700;">ScienceDirect</a>, <a href="https://ieeexplore.ieee.org" target="_blank" style="color:#00803d;font-weight:700;">IEEE Xplore</a>, <a href="https://link.springer.com" target="_blank" style="color:#00803d;font-weight:700;">Springer</a>, Nature, Scopus...</li>
+                                    <li>Thầy/Cô mở bất kỳ website CSDL quốc tế nào, ví dụ: <a href="https://www.sciencedirect.com" target="_blank" style="color:#00803d;font-weight:700;">ScienceDirect</a>, <a href="https://link.springer.com" target="_blank" style="color:#00803d;font-weight:700;">Springer</a>, Nature, Scopus...</li>
                                     <li>Ngay trên đầu trang (như ảnh minh họa bên cạnh), hệ thống sẽ tự động hiển thị:
                                         <div style="background:#ecfdf5;border:1.5px solid #10b981;padding:8px 12px;border-radius:8px;margin:8px 0;font-size:12px;color:#065f46;">
                                             🏛️ <b>Brought to you by: Vietnam National University Library</b><br>
@@ -1179,7 +1181,7 @@
                                 <ol>
                                     <li>Bấm biểu tượng mảnh ghép <b>🧩</b> trên trình duyệt &rarr; Bấm ghim <b>📌</b> VAGS ra ngoài.</li>
                                     <li>Mở VAGS &rarr; Bấm <b>🔑 Đăng nhập VNU SSO</b> bằng email <code>@vnu.edu.vn</code>.</li>
-                                    <li><b>(Bắt buộc)</b>: Gạt công tắc <b>"Đường truyền Proxy" sang BẬT</b>. Khi biểu tượng chuyển từ <b>OFF (đỏ)</b> sang <b>ON (xanh)</b> là hoàn tất, bạn có thể vào <i>sciencedirect.com, ieee.org...</i> để tải tài liệu.</li>
+                                    <li><b>(Bắt buộc)</b>: Gạt công tắc <b>"Đường truyền Proxy" sang BẬT</b>. Khi biểu tượng chuyển từ <b>OFF (đỏ)</b> sang <b>ON (xanh)</b> là hoàn tất, bạn có thể vào <i>sciencedirect.com, springer.com...</i> để tải tài liệu.</li>
                                 </ol>
                             </div>
                         </div>
@@ -1485,7 +1487,7 @@
             isExtensionDetected = true;
             document.getElementById('statusIcon').textContent = '🟢';
             document.getElementById('statusTitle').textContent = `Tiện Ích VAGS Đang Hoạt Động (Extension v${ver || '2.1.4'})`;
-            document.getElementById('statusMsg').textContent = 'Trình duyệt của bạn đã sẵn sàng truy cập ScienceDirect, IEEE, Springer qua mạng ĐHQGHN.';
+            document.getElementById('statusMsg').textContent = 'Trình duyệt của bạn đã sẵn sàng truy cập ScienceDirect, Springer, Nature qua mạng ĐHQGHN.';
             const badge = document.getElementById('statusBadge');
             badge.className = 'badge-status-pill connected';
             badge.textContent = '● Đã kết nối Tiện ích';
@@ -1541,7 +1543,7 @@
             try {
                 const res = await fetch('/api/v1/health', { cache: 'no-store' });
                 const d = await res.json();
-                alert(`[VAGS Connection Test]\n\n• Địa chỉ IP Egress VNU: 112.137.133.14\n• Cổng Học Thuật: ${d.status === 'healthy' ? 'Đang hoạt động (OK)' : 'Lỗi'}\n• Tập luật Version: ${d.version || '2.0.0'}\n\nKhi mở ScienceDirect hoặc IEEE, hệ thống tự động định tuyến qua máy chủ trường.`);
+                alert(`[VAGS Connection Test]\n\n• Địa chỉ IP Egress VNU: 112.137.133.14\n• Cổng Học Thuật: ${d.status === 'healthy' ? 'Đang hoạt động (OK)' : 'Lỗi'}\n• Tập luật Version: ${d.version || '2.0.0'}\n\nKhi mở ScienceDirect hoặc Springer, hệ thống tự động định tuyến qua máy chủ trường.`);
             } catch (err) {
                 alert('Không thể kết nối tới dịch vụ VAGS Gateway: ' + err.message);
             } finally {

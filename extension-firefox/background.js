@@ -63,7 +63,7 @@ function updateExtensionActionUI(isEnabled, isLoggedIn) {
 }
 
 function updateLocalCache() {
-    chrome.storage.local.get(["currentRules", "vagsUser", "vagsToken", "vagsMemberType", "proxyEnabled"], (storage) => {
+    chrome.storage.local.get(["currentRules", "vagsUser", "vagsToken", "vagsMemberType", "proxyEnabled", "isLocked"], (storage) => {
         if (storage.currentRules) cachedRules = storage.currentRules;
         if (storage.vagsUser !== undefined) cachedUser = storage.vagsUser;
         if (storage.vagsToken !== undefined) cachedToken = storage.vagsToken;
@@ -73,13 +73,15 @@ function updateLocalCache() {
         const isStudent = storage.vagsMemberType === "sinhvien";
         const allowedUsers = storage.currentRules?.userOverrides?.allowed || [];
         const isOverride = storage.vagsUser && allowedUsers.includes(storage.vagsUser);
+        const deniedUsers = (storage.currentRules?.userOverrides?.denied || []).map(u => (u || '').toLowerCase());
+        const isDenied = (storage.vagsUser && deniedUsers.includes(storage.vagsUser.toLowerCase())) || storage.isLocked === true;
 
-        if (!isLoggedIn || (isStudent && !isOverride)) {
+        if (!isLoggedIn || (isStudent && !isOverride) || isDenied) {
             cachedProxyEnabled = false;
         } else {
             cachedProxyEnabled = storage.proxyEnabled === true;
         }
-        updateExtensionActionUI(cachedProxyEnabled, isLoggedIn);
+        updateExtensionActionUI(cachedProxyEnabled, isLoggedIn && !isDenied);
     });
 }
 updateLocalCache();
@@ -335,6 +337,7 @@ function handleForceLock(payload) {
 
         if (isMatch) {
             console.warn("[VAGS Firefox] 🔒 Tài khoản đã bị Quản trị viên KHOÁ quyền sử dụng Proxy VAGS!");
+            if (sseSource) { try { sseSource.close(); } catch (e) {} }
             chrome.storage.local.remove([
                 "vagsUser", "vags_user", "vagsToken", "vags_access_token",
                 "vagsMemberType", "vagsUnit", "vagsEmail", "vagsName",
@@ -347,6 +350,7 @@ function handleForceLock(payload) {
                 chrome.storage.local.set({ isLocked: true });
                 updateLocalCache();
                 updateExtensionActionUI(false, false);
+                connectSSE();
 
                 chrome.tabs.query({}, (tabs) => {
                     (tabs || []).forEach(t => {
@@ -381,12 +385,16 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
         // TÔN TRỌNG TUYỆT ĐỐI Ý CHÍ NGƯỜI DÙNG:
         // Đọc proxyEnabled trong storage. Nếu người dùng đã bấm Tắt, reload trang không tự động bật lại!
-        chrome.storage.local.get(["proxyEnabled"], (st) => {
+        chrome.storage.local.get(["proxyEnabled", "currentRules"], (st) => {
+            const deniedUsers = (st.currentRules?.userOverrides?.denied || []).map(u => (u || '').toLowerCase());
+            const isUserDenied = (d.vagsUser && deniedUsers.includes(d.vagsUser.toLowerCase()));
             let shouldEnable = st.proxyEnabled;
-            if (shouldEnable === undefined) {
+            if (isUserDenied) {
+                shouldEnable = false;
+            } else if (shouldEnable === undefined) {
                 shouldEnable = d.vagsMemberType === "canbo";
             }
-            cachedProxyEnabled = shouldEnable === true;
+            cachedProxyEnabled = shouldEnable === true && !isUserDenied;
 
             chrome.storage.local.set({
                 vagsToken: d.vagsToken || "",
@@ -428,10 +436,10 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
             updateExtensionActionUI(false, false);
             connectSSE();
 
-            // Đồng bộ lập tức tới các tab vnu.edu.vn
+            // Đồng bộ lập tức tới các tab
             const tabsApi = (typeof browser !== "undefined" && browser.tabs) ? browser.tabs : ((typeof chrome !== "undefined" && chrome.tabs) ? chrome.tabs : null);
             if (tabsApi && tabsApi.query) {
-                tabsApi.query({ url: "*://*.vnu.edu.vn/*" }, (tabs) => {
+                tabsApi.query({}, (tabs) => {
                     if (tabs && tabs.length > 0) {
                         tabs.forEach(t => {
                             try { tabsApi.sendMessage(t.id, { action: "FORCE_LOGOUT_PAGE" }); } catch (e) {}

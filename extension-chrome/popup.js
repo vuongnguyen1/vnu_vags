@@ -194,7 +194,7 @@ function renderUI() {
 
             const roleTag = document.getElementById("roleTag");
             const deniedUsers = (data.currentRules?.userOverrides?.denied || []).map(u => (u || '').toLowerCase());
-            const isDenied = data.vagsUser && deniedUsers.includes(data.vagsUser.toLowerCase());
+            const isDenied = (data.vagsUser && deniedUsers.includes(data.vagsUser.toLowerCase())) || data.isLocked === true;
             const isOverride = (data.currentRules?.userOverrides?.allowed || []).includes(data.vagsUser);
 
             if (isDenied) {
