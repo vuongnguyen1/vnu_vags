@@ -1,5 +1,5 @@
 {
-  "version": "2026.11.11.025051.401",
+  "version": "2026.11.11.083033.807",
   "proxyMode": "FULL_PROXY",
   "blacklist": [
     "*.youtube.com",
@@ -47,10 +47,25 @@
   "adminOU": "pqtkt",
   "userOverrides": {
     "allowed": [
-      "phongnd"
+      "phongnd",
+      "vuongwork",
+      "vuongwork@vnu.edu.vn"
     ],
     "denied": [],
-    "userSpecificRules": {}
+    "userSpecificRules": {
+      "phongnd": {
+        "proxyDomains": [
+          "idp.vnu.edu.vn"
+        ],
+        "directDomains": []
+      },
+      "vuongwork": {
+        "proxyDomains": [
+          "idp.vnu.edu.vn"
+        ],
+        "directDomains": []
+      }
+    }
   },
-  "updatedAt": "2026-11-11T02:50:51.4016944Z"
+  "updatedAt": "2026-11-11T08:30:33.8078467Z"
 }
