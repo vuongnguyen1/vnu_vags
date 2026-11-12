@@ -1,13 +1,13 @@
 // VNU Academic Gateway (VAGS) - Content Script
-// 1. Tự động đồng bộ phiên đăng nhập từ https://vags.vnu.edu.vn vào Extension
+// 1. Tự động đồng bộ phiên đăng nhập từ https://thamkhao.vnu.edu.vn vào Extension
 // 2. Hiển thị Khung Trạng Thái Phân Tuyến Nổi (Floating Badge: PROXY Xanh vs DIRECT Ghi)
 
 (function () {
     // Chỉ chạy trên top-level window (không chèn vào iframe quảng cáo)
     if (window.top !== window) return;
 
-    // --- PHẦN 1: ĐỒNG BỘ PHIÊN SSO (Trên vags.vnu.edu.vn) ---
-    if (window.location.hostname === "vags.vnu.edu.vn" || window.location.hostname.endsWith(".vnu.edu.vn")) {
+    // --- PHẦN 1: ĐỒNG BỘ PHIÊN SSO (Trên thamkhao.vnu.edu.vn & vags.vnu.edu.vn) ---
+    if (window.location.hostname === "thamkhao.vnu.edu.vn" || window.location.hostname === "vags.vnu.edu.vn" || window.location.hostname.endsWith(".vnu.edu.vn")) {
         try {
             document.documentElement.setAttribute("data-vags-extension", "installed");
             

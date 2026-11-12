@@ -124,7 +124,9 @@ if (typeof browser !== "undefined" && browser.proxy && browser.proxy.onRequest) 
                 shExpMatch(host, "10.*") || shExpMatch(host, "172.16.*") || shExpMatch(host, "172.17.*") ||
                 shExpMatch(host, "172.18.*") || shExpMatch(host, "172.19.*") || shExpMatch(host, "172.2*.*") ||
                 shExpMatch(host, "172.30.*") || shExpMatch(host, "172.31.*") || shExpMatch(host, "192.168.*") ||
-                host === "vags.vnu.edu.vn" || host.endsWith(".vags.vnu.edu.vn") || host === "112.137.133.14") {
+                host === "thamkhao.vnu.edu.vn" || host.endsWith(".thamkhao.vnu.edu.vn") || host === "112.137.142.30" ||
+                host === "thamkhao.vnu.edu.vn" || host.endsWith(".thamkhao.vnu.edu.vn") || host === "112.137.142.30" ||
+            host === "vags.vnu.edu.vn" || host.endsWith(".vags.vnu.edu.vn") || host === "112.137.133.14") {
                 return { type: "direct" };
             }
 
@@ -146,7 +148,7 @@ if (typeof browser !== "undefined" && browser.proxy && browser.proxy.onRequest) 
                 if (uConfig && Array.isArray(uConfig.proxyDomains)) {
                     for (const ud of uConfig.proxyDomains) {
                         if (shExpMatch(host, ud)) {
-                            return { type: "https", host: "vags.vnu.edu.vn", port: 443 };
+                            return { type: "https", host: "thamkhao.vnu.edu.vn", port: 443 };
                         }
                     }
                 }
@@ -156,7 +158,7 @@ if (typeof browser !== "undefined" && browser.proxy && browser.proxy.onRequest) 
             const internalWL = cachedRules?.internalWhitelist || [];
             for (const iw of internalWL) {
                 if (shExpMatch(host, iw)) {
-                    return { type: "https", host: "vags.vnu.edu.vn", port: 443 };
+                    return { type: "https", host: "thamkhao.vnu.edu.vn", port: 443 };
                 }
             }
 
@@ -169,13 +171,13 @@ if (typeof browser !== "undefined" && browser.proxy && browser.proxy.onRequest) 
             const academicWL = cachedRules?.globalAcademicWhitelist || [];
             for (const aw of academicWL) {
                 if (shExpMatch(host, aw)) {
-                    return { type: "https", host: "vags.vnu.edu.vn", port: 443 };
+                    return { type: "https", host: "thamkhao.vnu.edu.vn", port: 443 };
                 }
             }
 
             // 6. Chế độ Định tuyến Toàn phần (Full Proxy Mode)
             if ((cachedRules?.proxyMode || "FULL_PROXY") === "FULL_PROXY") {
-                return { type: "https", host: "vags.vnu.edu.vn", port: 443 };
+                return { type: "https", host: "thamkhao.vnu.edu.vn", port: 443 };
             }
 
             return { type: "direct" };
@@ -537,6 +539,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
             shExpMatch(host, "10.*") || shExpMatch(host, "172.16.*") || shExpMatch(host, "172.17.*") ||
             shExpMatch(host, "172.18.*") || shExpMatch(host, "172.19.*") || shExpMatch(host, "172.2*.*") ||
             shExpMatch(host, "172.30.*") || shExpMatch(host, "172.31.*") || shExpMatch(host, "192.168.*") ||
+            host === "thamkhao.vnu.edu.vn" || host.endsWith(".thamkhao.vnu.edu.vn") || host === "112.137.142.30" ||
             host === "vags.vnu.edu.vn" || host.endsWith(".vags.vnu.edu.vn") || host === "112.137.133.14") {
             sendResponse({ enabled: true, isLoggedIn: true, action: "DIRECT", category: "internalBypass", label: "Địa chỉ nội bộ / Docker", reason: "Kết nối trực tiếp không qua proxy" });
             return true;

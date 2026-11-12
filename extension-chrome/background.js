@@ -310,6 +310,9 @@ function applyProxyRules(rules, username) {
     // QUAN TRỌNG: Máy chủ VAGS & IP cổng & Địa chỉ Loopback, Docker, Mạng nội bộ PHẢI LUÔN trong bypassList để không bao giờ bị lỗi hoặc rò rỉ tunnel
     let bypassList = [
         "<local>",
+        "thamkhao.vnu.edu.vn",
+        "*.thamkhao.vnu.edu.vn",
+        "112.137.142.30",
         "vags.vnu.edu.vn",
         "*.vags.vnu.edu.vn",
         "112.137.133.14",
@@ -352,7 +355,7 @@ function applyProxyRules(rules, username) {
                 rules: {
                     singleProxy: {
                         scheme: "https",
-                        host: "vags.vnu.edu.vn",
+                        host: "thamkhao.vnu.edu.vn",
                         port: 443
                     },
                     bypassList: bypassList
@@ -373,7 +376,7 @@ function applyProxyRules(rules, username) {
     chrome.storage.local.set({
         currentRules: rules,
         ruleVersion: rules.version,
-        proxyEndpoint: "HTTPS vags.vnu.edu.vn:443",
+        proxyEndpoint: "HTTPS thamkhao.vnu.edu.vn:443",
         proxyEnabled: true,
         lastSyncedAt: new Date().toISOString()
     });
@@ -390,11 +393,11 @@ function applyPacScript(rules, username) {
         "function FindProxyForURL(url, host) {",
         "    var lHost = host.toLowerCase();",
         "    if (lHost === 'localhost' || lHost === '127.0.0.1' || lHost === '::1' || shExpMatch(lHost, '*.docker.internal') || lHost === 'host.docker.internal' || shExpMatch(lHost, '10.*') || shExpMatch(lHost, '172.16.*') || shExpMatch(lHost, '172.17.*') || shExpMatch(lHost, '172.18.*') || shExpMatch(lHost, '172.19.*') || shExpMatch(lHost, '172.2*.*') || shExpMatch(lHost, '172.30.*') || shExpMatch(lHost, '172.31.*') || shExpMatch(lHost, '192.168.*')) return 'DIRECT';",
-        "    if (lHost === 'vags.vnu.edu.vn' || shExpMatch(lHost, '*.vags.vnu.edu.vn') || lHost === '112.137.133.14') return 'DIRECT';",
+        "    if (lHost === 'thamkhao.vnu.edu.vn' || shExpMatch(lHost, '*.thamkhao.vnu.edu.vn') || lHost === '112.137.142.30' || lHost === 'vags.vnu.edu.vn' || shExpMatch(lHost, '*.vags.vnu.edu.vn') || lHost === '112.137.133.14') return 'DIRECT';",
         "    if (shExpMatch(lHost, '*.google.com') || lHost === 'google.com' || shExpMatch(lHost, '*.googleapis.com') || shExpMatch(lHost, '*.gstatic.com') || shExpMatch(lHost, '*.googleusercontent.com')) return 'DIRECT';",
         "    var userWL = " + JSON.stringify(userSpecificProxy) + ";",
         "    for (var u = 0; u < userWL.length; u++) {",
-        "        if (shExpMatch(lHost, userWL[u])) return 'HTTPS vags.vnu.edu.vn:443';",
+        "        if (shExpMatch(lHost, userWL[u])) return 'HTTPS thamkhao.vnu.edu.vn:443';",
         "    }",
         "    var blacklist = " + JSON.stringify(rules.blacklist || []) + ";",
         "    for (var i = 0; i < blacklist.length; i++) {",
@@ -402,14 +405,14 @@ function applyPacScript(rules, username) {
         "    }",
         "    var internalWL = " + JSON.stringify(rules.internalWhitelist || []) + ";",
         "    for (var j = 0; j < internalWL.length; j++) {",
-        "        if (shExpMatch(lHost, internalWL[j])) return 'HTTPS vags.vnu.edu.vn:443';",
+        "        if (shExpMatch(lHost, internalWL[j])) return 'HTTPS thamkhao.vnu.edu.vn:443';",
         "    }",
         "    if (shExpMatch(lHost, '*.vnu.edu.vn') || lHost === 'vnu.edu.vn') {",
         "        return 'DIRECT';",
         "    }",
         "    var academicWL = " + JSON.stringify(rules.globalAcademicWhitelist || []) + ";",
         "    for (var k = 0; k < academicWL.length; k++) {",
-        "        if (shExpMatch(lHost, academicWL[k])) return 'HTTPS vags.vnu.edu.vn:443';",
+        "        if (shExpMatch(lHost, academicWL[k])) return 'HTTPS thamkhao.vnu.edu.vn:443';",
         "    }",
         "    return 'DIRECT';",
         "}"
@@ -682,6 +685,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
             shExpMatch(host, "10.*") || shExpMatch(host, "172.16.*") || shExpMatch(host, "172.17.*") ||
             shExpMatch(host, "172.18.*") || shExpMatch(host, "172.19.*") || shExpMatch(host, "172.2*.*") ||
             shExpMatch(host, "172.30.*") || shExpMatch(host, "172.31.*") || shExpMatch(host, "192.168.*") ||
+            host === "thamkhao.vnu.edu.vn" || host.endsWith(".thamkhao.vnu.edu.vn") || host === "112.137.142.30" ||
             host === "vags.vnu.edu.vn" || host.endsWith(".vags.vnu.edu.vn") || host === "112.137.133.14") {
             sendResponse({ enabled: true, isLoggedIn: true, action: "DIRECT", category: "internalBypass", label: "Địa chỉ nội bộ / Docker", reason: "Kết nối trực tiếp không qua proxy" });
             return true;
