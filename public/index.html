@@ -397,7 +397,7 @@
             border: 1px solid #fca5a5;
         }
 
-        /* 4. Nút Trạng Thái Nổi Góc Dưới Trái (Floating Bottom-Left Button - Đúng chuẩn thiết kế pill trắng) */
+        /* 4. Nút Trạng Thái Nổi Góc (Di chuyển tự do xung quanh màn hình, đúng chuẩn pill trắng) */
         .fsw-corner-btn {
             position: fixed;
             bottom: 20px;
@@ -415,14 +415,18 @@
             font-size: 13px;
             font-weight: 600;
             font-family: inherit;
-            cursor: pointer;
-            transition: all 0.2s ease;
+            cursor: grab;
             user-select: none;
+            touch-action: none;
             color: #0f172a;
+            transition: box-shadow 0.2s ease, border-color 0.2s ease;
+        }
+
+        .fsw-corner-btn:active {
+            cursor: grabbing;
         }
 
         .fsw-corner-btn:hover {
-            transform: translateY(-1px);
             box-shadow: 0 6px 18px rgba(15, 23, 42, 0.14);
             border-color: #94a3b8;
         }
@@ -635,11 +639,11 @@
         }
 
         footer {
-            background: #ffffff;
-            border-top: 1px solid var(--border);
-            padding: 32px 20px;
-            font-size: 13px;
-            color: var(--muted);
+            background: linear-gradient(135deg, #004d24 0%, #007537 60%, #008740 100%);
+            border-top: 1px solid rgba(255, 255, 255, 0.15);
+            padding: 36px 20px;
+            font-size: 13.5px;
+            color: #ffffff;
         }
 
         .footer-inner {
@@ -647,8 +651,21 @@
             margin: 0 auto;
             display: flex;
             justify-content: space-between;
+            align-items: center;
             flex-wrap: wrap;
             gap: 18px;
+        }
+
+        footer strong {
+            color: #ffffff !important;
+            font-size: 14.5px;
+            letter-spacing: 0.02em;
+        }
+
+        footer p {
+            color: rgba(255, 255, 255, 0.9);
+            margin-top: 5px;
+            line-height: 1.6;
         }
 
         /* 2.5. Thanh Cảnh Báo Chưa Đăng Nhập SSO (Alert Banner) */
@@ -1728,10 +1745,8 @@
     <footer>
         <div class="footer-inner">
             <div>
-                <strong style="color:var(--text);font-size:14px;">ĐẠI HỌC QUỐC GIA HÀ NỘI — VIETNAM NATIONAL UNIVERSITY,
-                    HANOI</strong>
-                <p style="margin-top:4px;">Cổng Truy nhập Tài liệu Tham khảo Điện tử (VAGS) • Địa chỉ: 144 Xuân Thủy,
-                    Cầu Giấy, Hà Nội</p>
+                <strong>ĐẠI HỌC QUỐC GIA HÀ NỘI — VIETNAM NATIONAL UNIVERSITY, HANOI</strong>
+                <p>Cổng Truy nhập Tài liệu Tham khảo Điện tử (VAGS) • Địa chỉ: 144 Xuân Thủy, Cầu Giấy, Hà Nội</p>
                 <p>Đơn vị quản lý: Phòng Quản trị & Kế hoạch (PQTKT) • Trung tâm Thư viện & Tri thức số (LIC)</p>
             </div>
         </div>
@@ -2083,6 +2098,123 @@
                 window.location.href = `https://idp.vnu.edu.vn/auth/realms/vnu/protocol/openid-connect/logout?client_id=vags-gateway&post_logout_redirect_uri=${redirectUri}`;
             }
         }
+
+        // Cho phép kéo thả nút trạng thái di chuyển tự do khắp màn hình (Draggable Floating Widget)
+        (function initDraggableWidget() {
+            const widget = document.getElementById('floatingStatusWidget');
+            if (!widget) return;
+
+            let isDragging = false;
+            let hasMoved = false;
+            let startX = 0, startY = 0;
+            let initialLeft = 0, initialTop = 0;
+
+            function clampPosition(left, top) {
+                const w = widget.offsetWidth || 135;
+                const h = widget.offsetHeight || 36;
+                const maxLeft = Math.max(10, window.innerWidth - w - 10);
+                const maxTop = Math.max(10, window.innerHeight - h - 10);
+                return {
+                    left: Math.min(Math.max(10, left), maxLeft),
+                    top: Math.min(Math.max(10, top), maxTop)
+                };
+            }
+
+            // Khôi phục vị trí người dùng đã từng kéo thả
+            try {
+                const savedPos = localStorage.getItem('vags_widget_pos');
+                if (savedPos) {
+                    const pos = JSON.parse(savedPos);
+                    const clamped = clampPosition(pos.left, pos.top);
+                    widget.style.left = clamped.left + 'px';
+                    widget.style.top = clamped.top + 'px';
+                    widget.style.bottom = 'auto';
+                    widget.style.right = 'auto';
+                }
+            } catch (e) { }
+
+            function onPointerDown(e) {
+                if (e.button !== undefined && e.button !== 0) return; // Chỉ nhận chuột trái
+                isDragging = true;
+                hasMoved = false;
+
+                const clientX = e.clientX !== undefined ? e.clientX : (e.touches && e.touches[0].clientX);
+                const clientY = e.clientY !== undefined ? e.clientY : (e.touches && e.touches[0].clientY);
+
+                startX = clientX;
+                startY = clientY;
+
+                const rect = widget.getBoundingClientRect();
+                initialLeft = rect.left;
+                initialTop = rect.top;
+
+                window.addEventListener('mousemove', onPointerMove, { passive: false });
+                window.addEventListener('mouseup', onPointerUp);
+                window.addEventListener('touchmove', onPointerMove, { passive: false });
+                window.addEventListener('touchend', onPointerUp);
+            }
+
+            function onPointerMove(e) {
+                if (!isDragging) return;
+                const clientX = e.clientX !== undefined ? e.clientX : (e.touches && e.touches[0].clientX);
+                const clientY = e.clientY !== undefined ? e.clientY : (e.touches && e.touches[0].clientY);
+
+                const dx = clientX - startX;
+                const dy = clientY - startY;
+
+                if (!hasMoved && (Math.abs(dx) > 4 || Math.abs(dy) > 4)) {
+                    hasMoved = true;
+                }
+
+                if (hasMoved) {
+                    if (e.cancelable) e.preventDefault();
+                    const clamped = clampPosition(initialLeft + dx, initialTop + dy);
+                    widget.style.left = clamped.left + 'px';
+                    widget.style.top = clamped.top + 'px';
+                    widget.style.bottom = 'auto';
+                    widget.style.right = 'auto';
+                }
+            }
+
+            function onPointerUp() {
+                if (!isDragging) return;
+                isDragging = false;
+
+                window.removeEventListener('mousemove', onPointerMove);
+                window.removeEventListener('mouseup', onPointerUp);
+                window.removeEventListener('touchmove', onPointerMove);
+                window.removeEventListener('touchend', onPointerUp);
+
+                if (hasMoved) {
+                    try {
+                        const rect = widget.getBoundingClientRect();
+                        localStorage.setItem('vags_widget_pos', JSON.stringify({
+                            left: Math.round(rect.left),
+                            top: Math.round(rect.top)
+                        }));
+                    } catch (e) { }
+                }
+            }
+
+            widget.addEventListener('mousedown', onPointerDown);
+            widget.addEventListener('touchstart', onPointerDown, { passive: true });
+
+            // Ngăn chặn sự kiện click khi vừa kéo thả
+            widget.addEventListener('click', function (e) {
+                if (hasMoved) {
+                    e.stopImmediatePropagation();
+                    e.preventDefault();
+                    hasMoved = false;
+                }
+            }, true);
+
+            window.addEventListener('resize', function () {
+                const rect = widget.getBoundingClientRect();
+                const clamped = clampPosition(rect.left, rect.top);
+                widget.style.left = clamped.left + 'px';
+                widget.style.top = clamped.top + 'px';
+            });
+        })();
 
         checkSession();
         detectExtension();
