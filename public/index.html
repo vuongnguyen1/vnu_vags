@@ -397,111 +397,85 @@
             border: 1px solid #fca5a5;
         }
 
-        /* 4. Thẻ Trạng Thái Nổi Góc Dưới Trái (Floating Bottom-Left Widget) */
-        .floating-status-widget {
+        /* 4. Nút Trạng Thái Nổi Góc Dưới Trái (Floating Bottom-Left Button - Gọn Nhẹ, Không lấn body) */
+        .fsw-corner-btn {
             position: fixed;
-            bottom: 24px;
-            left: 24px;
-            right: auto;
+            bottom: 20px;
+            left: 20px;
             z-index: 9999;
-            background: rgba(255, 255, 255, 0.96);
-            backdrop-filter: blur(12px);
-            border: 1px solid #cbd5e1;
-            border-left: 4px solid var(--vnu-green);
+            height: 34px;
+            padding: 0 12px;
             border-radius: 999px;
-            padding: 8px 16px;
-            box-shadow: 0 10px 30px rgba(15, 23, 42, 0.18);
+            background: rgba(255, 255, 255, 0.96);
+            backdrop-filter: blur(10px);
+            border: 1px solid #cbd5e1;
+            box-shadow: 0 4px 16px rgba(15, 23, 42, 0.12);
             display: inline-flex;
             align-items: center;
-            gap: 10px;
-            font-size: 12px;
-            transition: all 0.25s ease;
+            gap: 7px;
+            font-size: 11.5px;
+            font-family: inherit;
+            cursor: pointer;
+            transition: all 0.2s ease;
             user-select: none;
-            max-width: calc(100vw - 32px);
+            color: #0f172a;
         }
 
-        .floating-status-widget:hover {
+        .fsw-corner-btn:hover {
             transform: translateY(-2px);
-            box-shadow: 0 14px 36px rgba(15, 23, 42, 0.24);
+            box-shadow: 0 8px 22px rgba(15, 23, 42, 0.2);
+            border-color: #00803d;
+            background: #ffffff;
         }
 
-        .floating-status-widget.disconnected {
-            border-left-color: #ef4444;
+        .fsw-corner-btn.disconnected {
+            border-color: #fca5a5;
         }
 
-        .floating-status-widget.unconnected {
-            border-left-color: #94a3b8;
-        }
-
-        .fsw-content {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
+        .fsw-corner-btn.disconnected:hover {
+            border-color: #ef4444;
         }
 
         .fsw-dot {
-            font-size: 13px;
-            line-height: 1;
-        }
-
-        .fsw-title {
-            font-weight: 700;
-            color: #0f172a;
-            white-space: nowrap;
-        }
-
-        .fsw-badge {
-            font-size: 10.5px;
-            font-weight: 700;
-            padding: 2px 8px;
-            border-radius: 999px;
-            white-space: nowrap;
-        }
-
-        .fsw-btn-test {
-            background: #00803d;
-            color: #ffffff;
-            border: none;
-            padding: 4px 10px;
-            border-radius: 999px;
             font-size: 11px;
-            font-weight: 700;
-            cursor: pointer;
-            transition: background 0.15s, transform 0.15s;
-            white-space: nowrap;
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
-        }
-
-        .fsw-btn-test:hover {
-            background: #006832;
-            transform: scale(1.02);
-        }
-
-        .fsw-close {
-            background: transparent;
-            border: none;
-            color: #94a3b8;
-            font-size: 14px;
-            font-weight: 700;
-            cursor: pointer;
-            padding: 2px 4px;
-            border-radius: 50%;
             line-height: 1;
-            transition: color 0.15s;
         }
 
-        .fsw-close:hover {
+        .fsw-btn-label {
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        .fsw-btn-ver {
+            font-size: 10px;
+            font-weight: 700;
+            padding: 1px 6px;
+            border-radius: 999px;
+            background: #ecfdf5;
+            color: #00803d;
+            border: 1px solid #a7f3d0;
+            white-space: nowrap;
+        }
+
+        .fsw-btn-ver.disconnected {
+            background: #fee2e2;
             color: #dc2626;
+            border-color: #fca5a5;
+        }
+
+        .fsw-btn-ver.unconnected {
+            background: #f1f5f9;
+            color: #64748b;
+            border-color: #cbd5e1;
         }
 
         @media (max-width: 600px) {
-            .floating-status-widget {
+            .fsw-corner-btn {
                 bottom: 12px;
                 left: 12px;
-                right: auto;
-                padding: 6px 12px;
+                height: 30px;
+                padding: 0 10px;
+                font-size: 11px;
             }
         }
 
@@ -1770,25 +1744,15 @@
         </div>
     </footer>
 
-    <!-- 4. Thẻ Trạng Thái Nổi Góc Dưới Phải (Floating Bottom-Right Status Widget) -->
-    <div id="floatingStatusWidget" class="floating-status-widget">
-        <div class="fsw-content">
-            <span class="fsw-dot" id="statusIcon">🟢</span>
-            <span id="statusTitle" class="fsw-title">Tiện Ích VAGS Đang Hoạt Động</span>
-            <span id="statusBadge" class="fsw-badge badge-status-pill connected">● v2.1.4</span>
-        </div>
-        <button type="button" class="fsw-btn-test" onclick="checkConnectionIP(event)">🔍 Kiểm tra IP</button>
-        <button type="button" class="fsw-close" onclick="closeFloatingWidget(event)" title="Đóng thông báo">✕</button>
-    </div>
+    <!-- 4. Nút Trạng Thái Nổi Góc Trái (Gọn Nhẹ, Không lấn body) -->
+    <button id="floatingStatusWidget" class="fsw-corner-btn" onclick="checkConnectionIP(event)" title="Trạng thái kết nối VAGS - Bấm để kiểm tra IP">
+        <span class="fsw-dot" id="statusIcon">🟢</span>
+        <span id="statusTitle" class="fsw-btn-label">VAGS</span>
+        <span id="statusBadge" class="fsw-btn-ver">v2.1.4</span>
+    </button>
 
     <script>
         let isExtensionDetected = false;
-
-        function closeFloatingWidget(e) {
-            if (e) e.stopPropagation();
-            const w = document.getElementById('floatingStatusWidget');
-            if (w) w.style.display = 'none';
-        }
 
         function scrollToDatabases() {
             const el = document.getElementById('databases');
@@ -1976,36 +1940,52 @@
         function setExtensionActive(ver) {
             isExtensionDetected = true;
             const w = document.getElementById('floatingStatusWidget');
-            if (w) { w.style.display = 'inline-flex'; w.className = 'floating-status-widget'; }
+            if (w) {
+                w.style.display = 'inline-flex';
+                w.className = 'fsw-corner-btn';
+                w.title = `Tiện ích VAGS Đang Bật (v${ver || '2.1.4'}) - Bấm để kiểm tra IP VNU`;
+            }
             const icon = document.getElementById('statusIcon'); if (icon) icon.textContent = '🟢';
-            const title = document.getElementById('statusTitle'); if (title) title.textContent = 'Tiện Ích VAGS Đang Hoạt Động';
-            const badge = document.getElementById('statusBadge'); if (badge) { badge.className = 'fsw-badge badge-status-pill connected'; badge.textContent = `● v${ver || '2.1.4'}`; }
+            const title = document.getElementById('statusTitle'); if (title) title.textContent = 'VAGS';
+            const badge = document.getElementById('statusBadge'); if (badge) { badge.className = 'fsw-btn-ver'; badge.textContent = `v${ver || '2.1.4'}`; }
         }
 
         function setExtensionDisabled() {
             isExtensionDetected = true;
             const w = document.getElementById('floatingStatusWidget');
-            if (w) { w.style.display = 'inline-flex'; w.className = 'floating-status-widget disconnected'; }
+            if (w) {
+                w.style.display = 'inline-flex';
+                w.className = 'fsw-corner-btn disconnected';
+                w.title = 'Tiện ích VAGS: Đã Tắt Proxy - Bấm biểu tượng tiện ích để BẬT lại';
+            }
             const icon = document.getElementById('statusIcon'); if (icon) icon.textContent = '🔴';
-            const title = document.getElementById('statusTitle'); if (title) title.textContent = 'Tiện Ích: Đã Tắt Proxy';
-            const badge = document.getElementById('statusBadge'); if (badge) { badge.className = 'fsw-badge badge-status-pill disconnected'; badge.textContent = '✕ Đã Tắt'; }
+            const title = document.getElementById('statusTitle'); if (title) title.textContent = 'Tắt Proxy';
+            const badge = document.getElementById('statusBadge'); if (badge) { badge.className = 'fsw-btn-ver disconnected'; badge.textContent = 'OFF'; }
         }
 
         function setExtensionNotLoggedIn() {
             isExtensionDetected = true;
             const w = document.getElementById('floatingStatusWidget');
-            if (w) { w.style.display = 'inline-flex'; w.className = 'floating-status-widget disconnected'; }
+            if (w) {
+                w.style.display = 'inline-flex';
+                w.className = 'fsw-corner-btn disconnected';
+                w.title = 'Tiện ích VAGS: Chưa Đăng Nhập SSO';
+            }
             const icon = document.getElementById('statusIcon'); if (icon) icon.textContent = '🔴';
-            const title = document.getElementById('statusTitle'); if (title) title.textContent = 'Tiện Ích: Chưa Đăng Nhập SSO';
-            const badge = document.getElementById('statusBadge'); if (badge) { badge.className = 'fsw-badge badge-status-pill disconnected'; badge.textContent = '✕ Chưa Đăng Nhập'; }
+            const title = document.getElementById('statusTitle'); if (title) title.textContent = 'Chưa Đăng Nhập';
+            const badge = document.getElementById('statusBadge'); if (badge) { badge.className = 'fsw-btn-ver disconnected'; badge.textContent = 'SSO'; }
         }
 
         function setExtensionInactive() {
             const w = document.getElementById('floatingStatusWidget');
-            if (w) { w.style.display = 'inline-flex'; w.className = 'floating-status-widget unconnected'; }
+            if (w) {
+                w.style.display = 'inline-flex';
+                w.className = 'fsw-corner-btn';
+                w.title = 'Chưa cài đặt tiện ích - Bấm để kiểm tra IP hoặc xem hướng dẫn';
+            }
             const icon = document.getElementById('statusIcon'); if (icon) icon.textContent = 'ℹ️';
-            const title = document.getElementById('statusTitle'); if (title) title.textContent = 'Chưa Cài Đặt Tiện Ích';
-            const badge = document.getElementById('statusBadge'); if (badge) { badge.className = 'fsw-badge badge-status-pill unconnected'; badge.textContent = '○ Chưa cài'; }
+            const title = document.getElementById('statusTitle'); if (title) title.textContent = 'Tiện ích';
+            const badge = document.getElementById('statusBadge'); if (badge) { badge.className = 'fsw-btn-ver unconnected'; badge.textContent = 'Chưa cài'; }
         }
 
         window.addEventListener('message', (event) => {
