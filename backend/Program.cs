@@ -24,6 +24,11 @@ var keycloakAuthority = Environment.GetEnvironmentVariable("VAGS_KEYCLOAK_AUTHOR
 var keycloakClientId = Environment.GetEnvironmentVariable("VAGS_KEYCLOAK_CLIENT_ID") ?? "vags-gateway";
 var keycloakClientSecret = Environment.GetEnvironmentVariable("VAGS_KEYCLOAK_CLIENT_SECRET") ?? "6m1VxNOdAaiN9Jsz1lrnQ006OvDFOnbk";
 
+var serverIp = Environment.GetEnvironmentVariable("VAGS_SERVER_IP") ?? "112.137.142.30";
+var primaryDomain = Environment.GetEnvironmentVariable("VAGS_PRIMARY_DOMAIN") ?? "vags.vnu.edu.vn";
+var domainAliasesRaw = Environment.GetEnvironmentVariable("VAGS_DOMAIN_ALIASES") ?? "";
+var domainAliases = domainAliasesRaw.Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+
 Directory.CreateDirectory(dataDir);
 
 var jsonOptions = new JsonSerializerOptions
@@ -87,6 +92,42 @@ void SaveRules(RuleStoreModel model)
 }
 
 var ruleStore = LoadRules();
+
+bool CheckMaintenanceMode(RuleStoreModel rStore)
+{
+    var envMaintenance = string.Equals(Environment.GetEnvironmentVariable("VAGS_MAINTENANCE_MODE"), "true", StringComparison.OrdinalIgnoreCase);
+    var flagMaintenance = File.Exists(Path.Combine(dataDir, "maintenance.flag"));
+    return envMaintenance || flagMaintenance || rStore.MaintenanceMode;
+}
+
+bool IsVagsSelfHost(string h, RuleStoreModel rStore)
+{
+    if (string.IsNullOrWhiteSpace(h)) return false;
+    var cleanHost = h.Split(':')[0].Trim().ToLowerInvariant();
+    if (cleanHost == serverIp.ToLowerInvariant() || cleanHost == "112.137.142.30" || cleanHost == "112.137.133.14" || cleanHost == "127.0.0.1" || cleanHost == "localhost")
+        return true;
+    if (cleanHost == primaryDomain.ToLowerInvariant() || cleanHost.EndsWith("." + primaryDomain.ToLowerInvariant()))
+        return true;
+    var hostFromRules = (rStore?.ProxyHost ?? "").ToLowerInvariant();
+    if (!string.IsNullOrEmpty(hostFromRules) && (cleanHost == hostFromRules || cleanHost.EndsWith("." + hostFromRules)))
+        return true;
+    foreach (var alias in domainAliases)
+    {
+        if (cleanHost == alias.ToLowerInvariant() || cleanHost.EndsWith("." + alias.ToLowerInvariant()))
+            return true;
+    }
+    if (rStore?.DomainAliases != null)
+    {
+        foreach (var alias in rStore.DomainAliases)
+        {
+            var cleanAlias = alias.ToLowerInvariant();
+            if (cleanHost == cleanAlias || cleanHost.EndsWith("." + cleanAlias))
+                return true;
+        }
+    }
+    return false;
+}
+
 var monitorDb = new MonitorDbService(Path.Combine(dataDir, "vags_monitor.db"));
 var sseClients = new ConcurrentDictionary<Guid, SseClientInfo>();
 var proxyLogs = new ConcurrentQueue<ProxyLogEntry>();
@@ -187,10 +228,10 @@ RouteDecision EvaluateHost(string rawHost, RuleStoreModel currentRules, string? 
     var host = (rawHost ?? "").Split(':')[0].Trim().ToLowerInvariant();
     var proxyDirective = $"{currentRules.ProxyScheme} {currentRules.ProxyHost}:{currentRules.ProxyPort}";
 
-    // -1. Máy chủ VAGS & IP Cổng (vags.vnu.edu.vn:443): Luôn cho phép chuyển tiếp nội bộ để truy cập /admin và tài nguyên cổng
-    if (host.Equals("vags.vnu.edu.vn", StringComparison.OrdinalIgnoreCase) || host.Equals("112.137.133.14") || host.EndsWith(".vags.vnu.edu.vn", StringComparison.OrdinalIgnoreCase))
+    // -1. Máy chủ VAGS & IP Cổng: Luôn cho phép chuyển tiếp nội bộ để truy cập /admin và tài nguyên cổng
+    if (IsVagsSelfHost(host, currentRules))
     {
-        return new RouteDecision(host, "PROXY", proxyDirective, "vags.vnu.edu.vn", "vagsServer", true, "Máy chủ Cổng VAGS nội bộ (Admin & Portal)");
+        return new RouteDecision(host, "PROXY", proxyDirective, primaryDomain, "vagsServer", true, "Máy chủ Cổng VAGS nội bộ (Admin & Portal)");
     }
 
     // 0. High-Bandwidth Blacklist (YouTube, Facebook, TikTok, etc.) -> ALWAYS DIRECT
@@ -491,7 +532,22 @@ async Task HandleConnectionAsync(ConnectionContext connectionContext, Connection
     var (resolvedUser, resolvedUnit, resolvedMemberType) = monitorDb.ResolveUser(clientIp, authUser, authUnit, authMemberType);
     var isUserAuthenticated = !string.IsNullOrEmpty(resolvedUser) && resolvedUser != "Khách (Chưa xác thực)";
     var isOverrideUser = isUserAuthenticated && (ruleStore.UserOverrides?.Allowed?.Contains(resolvedUser) == true);
-    var isTargetVagsPortal = targetHost.Equals("vags.vnu.edu.vn", StringComparison.OrdinalIgnoreCase) || targetHost == "112.137.133.14" || targetHost.EndsWith(".vags.vnu.edu.vn", StringComparison.OrdinalIgnoreCase);
+    var isTargetVagsPortal = IsVagsSelfHost(targetHost, ruleStore);
+
+    // Kiểm tra Chế độ Bảo trì (Maintenance Mode / Đóng cổng VAGS)
+    if (CheckMaintenanceMode(ruleStore) && !isTargetVagsPortal)
+    {
+        AddProxyLog(clientIp, targetHost, targetPort, false, "Hệ thống đang bảo trì", "maintenance_mode", resolvedUser, resolvedUnit);
+        var msg503 = "HTTP/1.1 503 Service Unavailable\r\n" +
+            "Proxy-Agent: VAGS-Gateway/2.2\r\n" +
+            "Content-Type: text/plain; charset=utf-8\r\n" +
+            "Connection: close\r\n\r\n" +
+            "Blocked by VAGS Gateway: Hệ thống Cổng VAGS đang tạm thời bảo trì để nâng cấp hạ tầng 1Gbps. Trình duyệt vui lòng chuyển sang kết nối trực tiếp (DIRECT).\r\n";
+        var resp503 = Encoding.ASCII.GetBytes(msg503);
+        await output.WriteAsync(resp503, connectionContext.ConnectionClosed);
+        await output.FlushAsync(connectionContext.ConnectionClosed);
+        return;
+    }
 
     // BẢO VỆ AN TOÀN: Chặn tuyệt đối tunnel vào Loopback, Docker và Mạng nội bộ cụm máy chủ
     var isLocalOrInternal = targetHost.Equals("localhost", StringComparison.OrdinalIgnoreCase) ||
@@ -501,7 +557,7 @@ async Task HandleConnectionAsync(ConnectionContext connectionContext, Connection
                             targetHost.Equals("host.docker.internal", StringComparison.OrdinalIgnoreCase) ||
                             targetHost.StartsWith("10.") ||
                             targetHost.StartsWith("192.168.") ||
-                            (targetHost.StartsWith("172.") && !targetHost.Equals("112.137.133.14"));
+                            (targetHost.StartsWith("172.") && !IsVagsSelfHost(targetHost, ruleStore));
     if (isLocalOrInternal)
     {
         AddProxyLog(clientIp, targetHost, targetPort, false, "Từ chối Proxy tới địa chỉ Loopback / Nội bộ / Docker (Bắt buộc Bypass)", "internal_loopback_bypass", resolvedUser, resolvedUnit);
@@ -624,9 +680,9 @@ async Task HandleConnectionAsync(ConnectionContext connectionContext, Connection
         cts.CancelAfter(TimeSpan.FromSeconds(10));
         var connectHost = targetHost;
         var connectPort = targetPort;
-        if (targetHost.Equals("vags.vnu.edu.vn", StringComparison.OrdinalIgnoreCase) || targetHost == "112.137.133.14" || targetHost.EndsWith(".vags.vnu.edu.vn", StringComparison.OrdinalIgnoreCase))
+        if (IsVagsSelfHost(targetHost, ruleStore))
         {
-            connectHost = "172.23.0.1";
+            connectHost = serverIp;
             connectPort = 443;
         }
         await tcpClient.ConnectAsync(connectHost, connectPort, cts.Token);
@@ -811,6 +867,51 @@ if (Directory.Exists(webRootPath))
     contentTypeProvider.Mappings[".json"] = "application/json";
 
     var provider = new PhysicalFileProvider(webRootPath);
+
+    app.Use(async (context, next) =>
+    {
+        var path = context.Request.Path.Value ?? "";
+        if (CheckMaintenanceMode(ruleStore))
+        {
+            if (!path.StartsWith("/admin", StringComparison.OrdinalIgnoreCase) &&
+                !path.StartsWith("/api/", StringComparison.OrdinalIgnoreCase) &&
+                !path.StartsWith("/auth/", StringComparison.OrdinalIgnoreCase) &&
+                !path.EndsWith(".pac", StringComparison.OrdinalIgnoreCase) &&
+                !path.EndsWith(".css") && !path.EndsWith(".js") && !path.EndsWith(".png") && !path.EndsWith(".svg") && !path.EndsWith(".ico"))
+            {
+                context.Response.StatusCode = 503;
+                context.Response.ContentType = "text/html; charset=utf-8";
+                await context.Response.WriteAsync(@"<!DOCTYPE html>
+<html lang='vi'>
+<head>
+    <meta charset='UTF-8'>
+    <meta name='viewport' content='width=device-width, initial-scale=1.0'>
+    <title>Hệ Thống Đang Bảo Trì - VAGS Gateway</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0b1120; color: #f8fafc; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box; }
+        .card { max-width: 540px; background: #1e293b; border: 1px solid #334155; border-radius: 16px; padding: 40px; text-align: center; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5); }
+        .icon { font-size: 56px; margin-bottom: 20px; }
+        h1 { font-size: 22px; color: #f59e0b; margin-bottom: 12px; }
+        p { color: #94a3b8; font-size: 15px; line-height: 1.6; margin-bottom: 24px; }
+        .badge { display: inline-block; background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); padding: 6px 16px; border-radius: 9999px; font-size: 13px; font-weight: 600; margin-bottom: 16px; }
+    </style>
+</head>
+<body>
+    <div class='card'>
+        <div class='icon'>🛠️</div>
+        <span class='badge'>HỆ THỐNG ĐANG TẠM DỪNG BẢO TRÌ</span>
+        <h1>Cổng VAGS Đang Nâng Cấp Hạ Tầng 1Gbps</h1>
+        <p>Hệ thống Cổng truy cập Cơ sở dữ liệu khoa học VNU Academic Gateway (VAGS) đang được bảo trì định kỳ và tối ưu băng thông máy chủ chuyên dụng.<br>Quý Thầy/Cô và Nhà khoa học vui lòng quay lại sau ít phút.</p>
+        <div style='font-size: 12px; color: #64748b;'>Đại học Quốc gia Hà Nội • Trung tâm Quản trị Đại học số</div>
+    </div>
+</body>
+</html>");
+                return;
+            }
+        }
+        await next();
+    });
+
     app.UseDefaultFiles(new DefaultFilesOptions { FileProvider = provider });
     app.UseStaticFiles(new StaticFileOptions
     {
@@ -830,6 +931,10 @@ if (Directory.Exists(webRootPath))
 
 // Phục vụ giao diện Quản trị viên (/admin -> admin.html)
 app.MapMethods("/admin", new[] { "GET", "HEAD" }, () => Results.File(Path.Combine(webRootPath, "admin.html"), "text/html"));
+
+// Phục vụ trang Chính sách quyền riêng tư (/privacy -> privacy.html)
+app.MapMethods("/privacy", new[] { "GET", "HEAD" }, () => Results.File(Path.Combine(webRootPath, "privacy.html"), "text/html"));
+app.MapMethods("/privacy/", new[] { "GET", "HEAD" }, () => Results.File(Path.Combine(webRootPath, "privacy.html"), "text/html"));
 
 // Phục vụ trực tiếp CRX & XML với đúng chuẩn MIME Type cho Chrome Enterprise Policy
 app.MapMethods("/updates/vags-extension.xml", new[] { "GET", "HEAD" }, () =>
@@ -864,6 +969,12 @@ app.MapMethods("/vags.pac", new[] { "GET", "HEAD" }, (HttpContext ctx) =>
     var proxyServer = $"{ruleStore.ProxyScheme} {ruleStore.ProxyHost}:{ruleStore.ProxyPort}";
     var user = ctx.Request.Query["user"].ToString();
 
+    // Nếu đang ở Chế độ Bảo trì (Maintenance Mode), trả về PAC toàn bộ DIRECT
+    if (CheckMaintenanceMode(ruleStore))
+    {
+        return Results.Text("function FindProxyForURL(url, host) {\n    // VAGS Maintenance Mode Active -> Bypass All Direct\n    return 'DIRECT';\n}", "application/x-ns-proxy-autoconfig; charset=utf-8");
+    }
+
     // Nếu tài khoản bị khoá, trả về PAC toàn bộ DIRECT
     var isUserDenied = !string.IsNullOrWhiteSpace(user) && (ruleStore.UserOverrides?.Denied?.Contains(user, StringComparer.OrdinalIgnoreCase) == true);
     if (isUserDenied)
@@ -881,9 +992,24 @@ app.MapMethods("/vags.pac", new[] { "GET", "HEAD" }, (HttpContext ctx) =>
     var isFullProxy = string.Equals(ruleStore.ProxyMode, "FULL_PROXY", StringComparison.OrdinalIgnoreCase);
     var defaultDirective = (isFullProxy && isUserAuth) ? proxyServer : "DIRECT";
 
+    var pacBypasses = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    {
+        primaryDomain,
+        serverIp,
+        "112.137.142.30",
+        "112.137.133.14",
+        "127.0.0.1",
+        "localhost"
+    };
+    if (!string.IsNullOrWhiteSpace(ruleStore.ProxyHost)) pacBypasses.Add(ruleStore.ProxyHost);
+    foreach (var a in domainAliases) pacBypasses.Add(a);
+    if (ruleStore.DomainAliases != null) foreach (var a in ruleStore.DomainAliases) pacBypasses.Add(a);
+
+    var pacBypassChecks = string.Join(" || ", pacBypasses.Select(b => $"lHost === '{b.ToLowerInvariant()}' || shExpMatch(lHost, '*.{b.ToLowerInvariant()}')"));
+
     var pac = $@"function FindProxyForURL(url, host) {{
     var lHost = host.toLowerCase();
-    if (lHost === 'vags.vnu.edu.vn' || shExpMatch(lHost, '*.vags.vnu.edu.vn') || lHost === '112.137.133.14') return 'DIRECT';
+    if ({pacBypassChecks}) return 'DIRECT';
     if (shExpMatch(lHost, '*.google.com') || lHost === 'google.com' || shExpMatch(lHost, '*.googleapis.com') || shExpMatch(lHost, '*.gstatic.com') || shExpMatch(lHost, '*.googleusercontent.com')) return 'DIRECT';
     var userWL = {JsonSerializer.Serialize(userProxyDomains)};
     for (var u = 0; u < userWL.length; u++) {{
@@ -1243,15 +1369,15 @@ app.MapGet("/api/v1/ip-check", (HttpContext http) =>
     var remoteIp = http.Connection.RemoteIpAddress?.ToString() ?? "unknown";
     var forwardedFor = http.Request.Headers["X-Forwarded-For"].FirstOrDefault();
     var clientIp = !string.IsNullOrEmpty(forwardedFor) ? forwardedFor.Split(',')[0].Trim() : remoteIp;
-    var isVnu = clientIp.StartsWith("112.137.") || clientIp.StartsWith("10.241.") || clientIp.StartsWith("172.16.") || clientIp == "112.137.133.14";
+    var isVnu = clientIp.StartsWith("112.137.") || clientIp.StartsWith("10.241.") || clientIp.StartsWith("172.16.") || clientIp == serverIp || clientIp == "112.137.142.30" || clientIp == "112.137.133.14";
 
     return Results.Json(new
     {
         clientIp = clientIp,
         isVnuNetwork = isVnu,
-        vnuEgressIp = "112.137.133.14",
+        vnuEgressIp = serverIp,
         status = isVnu ? "VNU Internal / Tunneled Network" : "External Direct Network",
-        gateway = "vags.vnu.edu.vn:443",
+        gateway = $"{primaryDomain}:443",
         timestamp = DateTime.UtcNow.ToString("O")
     }, jsonOptions);
 });
@@ -1259,13 +1385,13 @@ app.MapGet("/api/v1/ip-check", (HttpContext http) =>
 // 8. API Báo cáo Tổng quan Admin Dashboard & Phân tích Lưu lượng SQLite
 app.MapGet("/api/v1/admin/dashboard", async () =>
 {
-    var data = await monitorDb.GetAnalyticsSummaryAsync(ruleStore.Version, ruleStore.ProxyMode, "112.137.133.14");
+    var data = await monitorDb.GetAnalyticsSummaryAsync(ruleStore.Version, ruleStore.ProxyMode, serverIp);
     return Results.Json(data, jsonOptions);
 });
 
 app.MapGet("/api/v1/admin/analytics", async () =>
 {
-    var data = await monitorDb.GetAnalyticsSummaryAsync(ruleStore.Version, ruleStore.ProxyMode, "112.137.133.14");
+    var data = await monitorDb.GetAnalyticsSummaryAsync(ruleStore.Version, ruleStore.ProxyMode, serverIp);
     return Results.Json(data, jsonOptions);
 });
 
@@ -1354,13 +1480,25 @@ app.MapGet("/api/v1/user/heartbeat", (HttpContext ctx) =>
 });
 
 // 9. API Trạng thái Hệ thống & Giám sát Real-time
-app.MapGet("/api/v1/health", () => Results.Json(new { status = "healthy", version = ruleStore.Version, proxyMode = ruleStore.ProxyMode, egressIp = "112.137.133.14" }, jsonOptions));
+app.MapGet("/api/v1/health", () => Results.Json(new
+{
+    status = CheckMaintenanceMode(ruleStore) ? "maintenance" : "healthy",
+    version = ruleStore.Version,
+    proxyMode = ruleStore.ProxyMode,
+    egressIp = serverIp,
+    primaryDomain = primaryDomain,
+    maintenanceMode = CheckMaintenanceMode(ruleStore)
+}, jsonOptions));
+
 app.MapGet("/api/v1/status", () =>
 {
     return Results.Json(new
     {
         service = "VNU Academic Gateway (VAGS)",
-        domain = "vags.vnu.edu.vn",
+        domain = primaryDomain,
+        serverIp = serverIp,
+        domainAliases = domainAliases,
+        maintenanceMode = CheckMaintenanceMode(ruleStore),
         version = ruleStore.Version,
         authMode = ruleStore.AuthMode,
         keycloakAuthority = ruleStore.KeycloakAuthority,
@@ -1686,12 +1824,58 @@ app.MapGet("/api/v1/admin/users/locked", () =>
     return Results.Json(new { ok = true, deniedUsers = denied }, jsonOptions);
 });
 
+// 18. API Admin Đóng/Mở Cổng VAGS (Maintenance Mode Controller)
+app.MapPost("/api/v1/admin/maintenance", async (HttpContext ctx) =>
+{
+    var enabledStr = ctx.Request.Query["enabled"].FirstOrDefault();
+    bool enable = string.Equals(enabledStr, "true", StringComparison.OrdinalIgnoreCase) ||
+                  string.Equals(enabledStr, "1", StringComparison.OrdinalIgnoreCase);
+    ruleStore.MaintenanceMode = enable;
+    var flagPath = Path.Combine(dataDir, "maintenance.flag");
+    if (enable) File.WriteAllText(flagPath, DateTime.UtcNow.ToString("O"));
+    else if (File.Exists(flagPath)) File.Delete(flagPath);
+    SaveRules(ruleStore);
+
+    var rulesPayload = $"event: RULES_UPDATED\ndata: {JsonSerializer.Serialize(ruleStore, sseJsonOptions)}\n\n";
+    foreach (var kvp in sseClients.ToArray())
+    {
+        try { await kvp.Value.Response.WriteAsync(rulesPayload); await kvp.Value.Response.Body.FlushAsync(); } catch { sseClients.TryRemove(kvp.Key, out _); }
+    }
+    return Results.Json(new { ok = true, maintenanceMode = enable, version = ruleStore.Version, message = enable ? "Cổng VAGS đã ĐÓNG để bảo trì." : "Cổng VAGS đã MỞ hoạt động bình thường." }, jsonOptions);
+});
+
+// 19. API Admin Cấu hình Tên miền động (Domain Switcher)
+app.MapPost("/api/v1/admin/domains", async (HttpContext ctx) =>
+{
+    using var reader = new StreamReader(ctx.Request.Body);
+    var body = await reader.ReadToEndAsync();
+    var doc = JsonDocument.Parse(string.IsNullOrWhiteSpace(body) ? "{}" : body);
+    if (doc.RootElement.TryGetProperty("primaryDomain", out var pd))
+    {
+        var newPrimary = pd.GetString();
+        if (!string.IsNullOrWhiteSpace(newPrimary)) ruleStore.ProxyHost = newPrimary.Trim();
+    }
+    if (doc.RootElement.TryGetProperty("domainAliases", out var da) && da.ValueKind == JsonValueKind.Array)
+    {
+        ruleStore.DomainAliases = da.EnumerateArray().Select(x => x.GetString() ?? "").Where(x => !string.IsNullOrWhiteSpace(x)).ToList();
+    }
+    SaveRules(ruleStore);
+
+    var rulesPayload = $"event: RULES_UPDATED\ndata: {JsonSerializer.Serialize(ruleStore, sseJsonOptions)}\n\n";
+    foreach (var kvp in sseClients.ToArray())
+    {
+        try { await kvp.Value.Response.WriteAsync(rulesPayload); await kvp.Value.Response.Body.FlushAsync(); } catch { sseClients.TryRemove(kvp.Key, out _); }
+    }
+    return Results.Json(new { ok = true, primaryDomain = ruleStore.ProxyHost, domainAliases = ruleStore.DomainAliases, version = ruleStore.Version }, jsonOptions);
+});
+
 app.Run();
 
 public class RuleStoreModel
 {
     public string Version { get; set; } = "1.0";
     public string ProxyMode { get; set; } = "FULL_PROXY";
+    public bool MaintenanceMode { get; set; } = false;
     public List<string> Blacklist { get; set; } = new();
     public List<string> InternalWhitelist { get; set; } = new();
     public List<string> GlobalAcademicWhitelist { get; set; } = new();
@@ -1700,6 +1884,7 @@ public class RuleStoreModel
     public string ProxyHost { get; set; } = "vags.vnu.edu.vn";
     public int ProxyPort { get; set; } = 443;
     public string ProxyScheme { get; set; } = "HTTPS";
+    public List<string> DomainAliases { get; set; } = new();
     public List<string> AllowedOUs { get; set; } = new() { "canbo", "pqtkt" };
     public List<string> DisallowedOUs { get; set; } = new() { "sinhvien" };
     public List<string> AllowedMemberTypes { get; set; } = new() { "canbo" };

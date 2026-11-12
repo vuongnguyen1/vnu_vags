@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chính Sách Bảo Mật & Quyền Riêng Tư • VNU Academic Gateway (VAGS)</title>
+    <meta name="description" content="Chính sách bảo vệ dữ liệu và quyền riêng tư của Cổng Truy nhập Tài liệu Tham khảo Điện tử và Tiện ích VAGS - Đại học Quốc gia Hà Nội.">
+    <link rel="icon" href="/logo-vnu.svg" type="image/svg+xml">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --vnu-green: #00803d;
+            --vnu-green-dark: #004d24;
+            --vnu-green-light: #00a850;
+            --vnu-gold: #fcba12;
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+            --border-color: #e2e8f0;
+            --bg-body: #f8fafc;
+            --bg-card: #ffffff;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-body);
+            color: var(--text-main);
+            line-height: 1.65;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* Top Header */
+        header.site-header {
+            background: #ffffff;
+            border-bottom: 1px solid var(--border-color);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-inner {
+            max-width: 1080px;
+            margin: 0 auto;
+            padding: 14px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+        }
+
+        .brand-link {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            text-decoration: none;
+            color: inherit;
+        }
+
+        .brand-link img {
+            height: 38px;
+            width: auto;
+        }
+
+        .brand-text h1 {
+            font-size: 15px;
+            font-weight: 800;
+            color: var(--vnu-green-dark);
+            letter-spacing: -0.01em;
+            line-height: 1.2;
+        }
+
+        .brand-text p {
+            font-size: 11.5px;
+            color: var(--text-muted);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .btn-back-home {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 16px;
+            border-radius: 999px;
+            background: #f1f5f9;
+            color: var(--text-main);
+            text-decoration: none;
+            font-size: 13px;
+            font-weight: 600;
+            border: 1px solid #cbd5e1;
+            transition: all 0.2s ease;
+        }
+
+        .btn-back-home:hover {
+            background: var(--vnu-green);
+            color: #ffffff;
+            border-color: var(--vnu-green);
+        }
+
+        /* Hero Banner */
+        .hero-banner {
+            background: linear-gradient(135deg, #004d24 0%, #007537 60%, #008740 100%);
+            color: #ffffff;
+            padding: 48px 20px 42px;
+            text-align: center;
+        }
+
+        .hero-content {
+            max-width: 840px;
+            margin: 0 auto;
+        }
+
+        .badge-internal {
+            display: inline-block;
+            background: rgba(252, 186, 18, 0.2);
+            border: 1px solid var(--vnu-gold);
+            color: #fef08a;
+            padding: 4px 14px;
+            border-radius: 999px;
+            font-size: 11.5px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            margin-bottom: 14px;
+        }
+
+        .hero-banner h2 {
+            font-size: 28px;
+            font-weight: 800;
+            margin-bottom: 12px;
+            letter-spacing: -0.02em;
+        }
+
+        .hero-banner p {
+            font-size: 14.5px;
+            color: #f1f5f9;
+            max-width: 680px;
+            margin: 0 auto;
+            line-height: 1.6;
+        }
+
+        /* Main Content Container */
+        .content-container {
+            max-width: 920px;
+            margin: -24px auto 48px;
+            padding: 0 20px;
+            position: relative;
+            z-index: 10;
+        }
+
+        .policy-card {
+            background: var(--bg-card);
+            border-radius: 16px;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 4px 20px rgba(15, 23, 42, 0.04);
+            padding: 32px 36px;
+            margin-bottom: 24px;
+        }
+
+        @media (max-width: 640px) {
+            .policy-card {
+                padding: 24px 20px;
+            }
+            .hero-banner h2 {
+                font-size: 22px;
+            }
+        }
+
+        .policy-section-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        .section-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            background: #ecfdf5;
+            color: var(--vnu-green);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            flex-shrink: 0;
+        }
+
+        .policy-section-header h3 {
+            font-size: 17px;
+            font-weight: 800;
+            color: var(--text-main);
+            letter-spacing: -0.01em;
+        }
+
+        .policy-card p {
+            font-size: 14px;
+            color: #334155;
+            margin-bottom: 12px;
+            text-align: justify;
+        }
+
+        .policy-card ul, .policy-card ol {
+            padding-left: 22px;
+            margin-bottom: 14px;
+            font-size: 14px;
+            color: #334155;
+        }
+
+        .policy-card li {
+            margin-bottom: 8px;
+        }
+
+        .highlight-box {
+            background: #f0fdf4;
+            border-left: 4px solid var(--vnu-green);
+            padding: 14px 18px;
+            border-radius: 8px;
+            margin: 16px 0;
+            font-size: 13.5px;
+            color: #14532d;
+        }
+
+        .highlight-box b {
+            color: #052e16;
+        }
+
+        .warning-box {
+            background: #fffbeb;
+            border-left: 4px solid #f59e0b;
+            padding: 14px 18px;
+            border-radius: 8px;
+            margin: 16px 0;
+            font-size: 13.5px;
+            color: #92400e;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 16px;
+            margin-top: 14px;
+        }
+
+        .info-item {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 14px 16px;
+        }
+
+        .info-item-label {
+            font-size: 11.5px;
+            color: var(--text-muted);
+            font-weight: 700;
+            text-transform: uppercase;
+            margin-bottom: 4px;
+        }
+
+        .info-item-val {
+            font-size: 13.5px;
+            font-weight: 700;
+            color: var(--text-main);
+        }
+
+        /* Footer */
+        footer {
+            background: linear-gradient(135deg, #004d24 0%, #007537 60%, #008740 100%);
+            border-top: 1px solid rgba(255, 255, 255, 0.15);
+            padding: 36px 20px;
+            font-size: 13.5px;
+            color: #ffffff;
+            margin-top: 40px;
+        }
+
+        .footer-inner {
+            max-width: 1080px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 18px;
+        }
+
+        footer strong {
+            color: #ffffff !important;
+            font-size: 14.5px;
+            letter-spacing: 0.02em;
+        }
+
+        footer p {
+            color: rgba(255, 255, 255, 0.9);
+            margin-top: 5px;
+            line-height: 1.6;
+        }
+
+        footer a {
+            color: #fef08a;
+            text-decoration: none;
+        }
+
+        footer a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 1. Header -->
+    <header class="site-header">
+        <div class="header-inner">
+            <a href="/" class="brand-link">
+                <img src="/logo-vnu.svg" alt="VNU Logo">
+                <div class="brand-text">
+                    <h1>VNU ACADEMIC GATEWAY</h1>
+                    <p>Đại học Quốc gia Hà Nội</p>
+                </div>
+            </a>
+            <a href="/" class="btn-back-home">
+                <span>← Về Trang Chủ</span>
+            </a>
+        </div>
+    </header>
+
+    <!-- 2. Hero Banner -->
+    <section class="hero-banner">
+        <div class="hero-content">
+            <span class="badge-internal">HỆ THỐNG NỘI BỘ • ĐHQGHN</span>
+            <h2>Chính Sách Bảo Mật & Quyền Riêng Tư</h2>
+            <p>Cam kết minh bạch về việc thu thập, xử lý và bảo vệ an toàn thông tin của Cán bộ, Giảng viên và Nhà nghiên cứu khi sử dụng Tiện ích VAGS ĐHQGHN.</p>
+        </div>
+    </section>
+
+    <!-- 3. Policy Content -->
+    <main class="content-container">
+        <!-- Section 1 -->
+        <div class="policy-card">
+            <div class="policy-section-header">
+                <div class="section-icon">🏛️</div>
+                <h3>1. Đơn Vị Chủ Quản & Phạm Vi Ứng Dụng Nội Bộ</h3>
+            </div>
+            <p>Cổng Truy nhập Tài liệu Tham khảo Điện tử (VAGS) và Tiện ích mở rộng trình duyệt (VAGS Browser Extension) là hệ thống ứng dụng <b>nội bộ chuyên biệt</b> do <b>Đại học Quốc gia Hà Nội (ĐHQGHN)</b> xây dựng và vận hành độc quyền:</p>
+            <ul>
+                <li><b>Đơn vị chỉ đạo và quản lý:</b> Phòng Quản trị & Kế hoạch (PQTKT) phối hợp cùng Trung tâm Thư viện & Tri thức số (LIC).</li>
+                <li><b>Đối tượng phục vụ:</b> Cán bộ, giảng viên, nghiên cứu viên, học viên cao học và sinh viên có tài khoản định danh hợp lệ của ĐHQGHN.</li>
+                <li><b>Mục đích chính:</b> Cung cấp đường truyền phân tuyến ủy quyền mạng an toàn để khai thác các cơ sở dữ liệu học thuật quốc tế có bản quyền (ScienceDirect, SpringerLink, Nature, LIC VNU...) phục vụ giảng dạy, học tập và nghiên cứu khoa học.</li>
+            </ul>
+        </div>
+
+        <!-- Section 2 -->
+        <div class="policy-card">
+            <div class="policy-section-header">
+                <div class="section-icon">🛡️</div>
+                <h3>2. Dữ Liệu Được Thu Thập & Cam Kết Bảo Mật</h3>
+            </div>
+            <p>Để đảm bảo tiện ích hoạt động chính xác và tuân thủ các quy định về bản quyền học thuật, hệ thống chỉ xử lý các thông tin kỹ thuật cần thiết:</p>
+            <ul>
+                <li><b>Thông tin tài khoản VNU SSO:</b> Khi đăng nhập qua cổng VNU Keycloak SSO, hệ thống ghi nhận tên email công vụ (<code>...@vnu.edu.vn</code>), họ tên cán bộ và đơn vị công tác để xác định quyền hạn sử dụng.</li>
+                <li><b>Tên miền tài nguyên được phân tuyến:</b> Khi trình duyệt gửi yêu cầu, tiện ích đối chiếu tên miền (domain) với danh mục cơ sở dữ liệu khoa học được ủy quyền để điều hướng kết nối qua địa chỉ IP của trường.</li>
+            </ul>
+
+            <div class="highlight-box">
+                <b>✅ CAM KẾT TUYỆT ĐỐI VỀ QUYỀN RIÊNG TƯ CÁ NHÂN:</b><br>
+                Tiện ích <b>KHÔNG THEO DÕI, KHÔNG LƯU TRỮ VÀ KHÔNG CAN THIỆP</b> vào lịch sử duyệt web cá nhân của người dùng trên toàn bộ các trang web ngoài danh mục học thuật (Google, YouTube, Facebook, báo chí, mạng xã hội, ngân hàng trực tuyến, cổng dịch vụ công...). Tất cả các truy cập này đều kết nối trực tiếp (DIRECT) và hoàn toàn độc lập với hệ thống VAGS.
+            </div>
+
+            <div class="warning-box">
+                <b>🔒 BẢO VỆ MẬT KHẨU & DỮ LIỆU NHẠY CẢM:</b><br>
+                Tiện ích tuyệt đối không thu thập mật khẩu, cookie trang cá nhân, thông tin tài chính hay dữ liệu biểu mẫu nhập liệu của người dùng.
+            </div>
+        </div>
+
+        <!-- Section 3 -->
+        <div class="policy-card">
+            <div class="policy-section-header">
+                <div class="section-icon">🎯</div>
+                <h3>3. Mục Đích Sử Dụng Thông Tin</h3>
+            </div>
+            <p>Dữ liệu kỹ thuật được thu thập chỉ được sử dụng cho các mục đích hợp pháp sau đây:</p>
+            <ol>
+                <li>Xác thực quyền sử dụng của cán bộ/nhà nghiên cứu khi truy cập các tạp chí và sách chuyên khảo có bản quyền của ĐHQGHN.</li>
+                <li>Thống kê tổng hợp tần suất và lưu lượng khai thác cơ sở dữ liệu để phục vụ công tác quy hoạch, duy trì bản quyền và báo cáo khoa học của trường.</li>
+                <li>Bảo đảm an ninh, an toàn mạng hạ tầng máy chủ, phát hiện và ngăn chặn các hành vi tải dữ liệu tự động số lượng lớn (cào dữ liệu) vi phạm điều khoản với nhà xuất bản.</li>
+            </ol>
+        </div>
+
+        <!-- Section 4 -->
+        <div class="policy-card">
+            <div class="policy-section-header">
+                <div class="section-icon">💾</div>
+                <h3>4. Lưu Trữ & Thời Hạn Nhật Ký Kỹ Thuật (Retention Policy)</h3>
+            </div>
+            <p>Dữ liệu kết nối kỹ thuật được bảo vệ nghiêm ngặt trên hạ tầng chuyên dụng của ĐHQGHN:</p>
+            <div class="info-grid">
+                <div class="info-item">
+                    <div class="info-item-label">Vị trí lưu trữ</div>
+                    <div class="info-item-val">Trung tâm Dữ liệu ĐHQGHN (144 Xuân Thủy, Hà Nội)</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-item-label">Thời gian lưu trữ log</div>
+                    <div class="info-item-val">90 ngày (Tự động xóa sau chu kỳ)</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-item-label">Chia sẻ bên thứ ba</div>
+                    <div class="info-item-val">Không bao giờ chia sẻ thương mại</div>
+                </div>
+            </div>
+            <p style="margin-top:14px;">Nhật ký truy cập kỹ thuật (access logs) được lưu trữ tối đa trong thời gian <b>90 ngày</b> nhằm phục vụ mục đích bảo đảm an toàn hệ thống và kiểm toán kỹ thuật theo quy định, sau đó sẽ được tự động xóa hoặc ẩn danh hóa vĩnh viễn.</p>
+        </div>
+
+        <!-- Section 5 -->
+        <div class="policy-card">
+            <div class="policy-section-header">
+                <div class="section-icon">⚙️</div>
+                <h3>5. Quyền Lợi & Kiểm Soát Của Người Dùng</h3>
+            </div>
+            <p>Người dùng luôn nắm quyền kiểm soát hoàn toàn việc kích hoạt tiện ích trên trình duyệt cá nhân:</p>
+            <ul>
+                <li><b>Bật/Tắt tức thì:</b> Có thể tắt đường truyền ủy quyền bất kỳ lúc nào chỉ bằng một thao tác gạt công tắc trên tiện ích.</li>
+                <li><b>Đăng xuất:</b> Bấm nút Đăng xuất trên tiện ích để hủy phiên làm việc và xóa toàn bộ token lưu trữ tạm thời trên máy tính.</li>
+                <li><b>Gỡ cài đặt:</b> Có thể gỡ tiện ích khỏi trình duyệt bất cứ khi nào không còn nhu cầu sử dụng mà không ảnh hưởng đến bất kỳ dữ liệu nào khác trên máy.</li>
+            </ul>
+        </div>
+
+        <!-- Section 6 -->
+        <div class="policy-card">
+            <div class="policy-section-header">
+                <div class="section-icon">📞</div>
+                <h3>6. Thông Tin Liên Hệ & Hỗ Trợ Kỹ Thuật</h3>
+            </div>
+            <p>Mọi câu hỏi, phản hồi về chính sách bảo mật hoặc yêu cầu trợ giúp kỹ thuật xin vui lòng liên hệ:</p>
+            <div class="info-grid">
+                <div class="info-item">
+                    <div class="info-item-label">Đơn vị phụ trách</div>
+                    <div class="info-item-val">Trung tâm Thư viện & Tri thức số (LIC) — ĐHQGHN</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-item-label">Email hỗ trợ</div>
+                    <div class="info-item-val"><a href="mailto:lic@vnu.edu.vn" style="color:var(--vnu-green);text-decoration:none;">lic@vnu.edu.vn</a></div>
+                </div>
+                <div class="info-item">
+                    <div class="info-item-label">Địa chỉ cơ quan</div>
+                    <div class="info-item-val">Số 144 Xuân Thủy, Cầu Giấy, Hà Nội</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-item-label">Cổng dịch vụ</div>
+                    <div class="info-item-val"><a href="https://thamkhao.vnu.edu.vn" style="color:var(--vnu-green);text-decoration:none;">https://thamkhao.vnu.edu.vn</a></div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- 4. Footer -->
+    <footer>
+        <div class="footer-inner">
+            <div>
+                <strong>ĐẠI HỌC QUỐC GIA HÀ NỘI — VIETNAM NATIONAL UNIVERSITY, HANOI</strong>
+                <p>Cổng Truy nhập Tài liệu Tham khảo Điện tử (VAGS) • Địa chỉ: 144 Xuân Thủy, Cầu Giấy, Hà Nội</p>
+                <p>Đơn vị quản lý: Phòng Quản trị & Kế hoạch (PQTKT) • Trung tâm Thư viện & Tri thức số (LIC)</p>
+            </div>
+            <div>
+                <a href="/privacy" style="color:#fef08a;margin-right:16px;">Chính sách quyền riêng tư</a>
+                <a href="/" style="color:#ffffff;">Trang chủ ↗</a>
+            </div>
+        </div>
+    </footer>
+
+</body>
+</html>
