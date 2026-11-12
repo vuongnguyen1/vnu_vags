@@ -397,23 +397,23 @@
             border: 1px solid #fca5a5;
         }
 
-        /* 4. Nút Trạng Thái Nổi Góc Dưới Trái (Floating Bottom-Left Button - Gọn Nhẹ, Không lấn body) */
+        /* 4. Nút Trạng Thái Nổi Góc Dưới Trái (Floating Bottom-Left Button - Đúng chuẩn thiết kế pill trắng) */
         .fsw-corner-btn {
             position: fixed;
             bottom: 20px;
             left: 20px;
             z-index: 9999;
-            height: 34px;
-            padding: 0 12px;
+            height: 36px;
+            padding: 0 16px;
             border-radius: 999px;
-            background: rgba(255, 255, 255, 0.96);
-            backdrop-filter: blur(10px);
+            background: #ffffff;
             border: 1px solid #cbd5e1;
-            box-shadow: 0 4px 16px rgba(15, 23, 42, 0.12);
+            box-shadow: 0 4px 14px rgba(15, 23, 42, 0.08);
             display: inline-flex;
             align-items: center;
-            gap: 7px;
-            font-size: 11.5px;
+            gap: 9px;
+            font-size: 13px;
+            font-weight: 600;
             font-family: inherit;
             cursor: pointer;
             transition: all 0.2s ease;
@@ -422,60 +422,53 @@
         }
 
         .fsw-corner-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 22px rgba(15, 23, 42, 0.2);
-            border-color: #00803d;
-            background: #ffffff;
+            transform: translateY(-1px);
+            box-shadow: 0 6px 18px rgba(15, 23, 42, 0.14);
+            border-color: #94a3b8;
         }
 
-        .fsw-corner-btn.disconnected {
-            border-color: #fca5a5;
-        }
-
-        .fsw-corner-btn.disconnected:hover {
-            border-color: #ef4444;
-        }
-
+        /* Chấm tròn đổi trạng thái: Bật thì Xanh, Tắt thì Đỏ, KHÔNG đổi màu nút cha */
         .fsw-dot {
-            font-size: 11px;
-            line-height: 1;
+            width: 13px;
+            height: 13px;
+            border-radius: 50%;
+            background: #00c800;
+            border: 1.5px solid #000000;
+            display: inline-block;
+            flex-shrink: 0;
+            transition: background 0.25s ease;
         }
 
-        .fsw-btn-label {
-            font-weight: 700;
+        .fsw-dot.active {
+            background: #00c800; /* Xanh lá tươi rực chuẩn ảnh */
+        }
+
+        .fsw-dot.disabled {
+            background: #ef4444; /* Đỏ khi tắt tiện ích */
+        }
+
+        .fsw-dot.unconnected {
+            background: #94a3b8; /* Xám khi chưa phát hiện */
+        }
+
+        .fsw-label {
+            font-weight: 600;
+            color: #0f172a;
+            letter-spacing: -0.01em;
             white-space: nowrap;
-        }
-
-        .fsw-btn-ver {
-            font-size: 10px;
-            font-weight: 700;
-            padding: 1px 6px;
-            border-radius: 999px;
-            background: #ecfdf5;
-            color: #00803d;
-            border: 1px solid #a7f3d0;
-            white-space: nowrap;
-        }
-
-        .fsw-btn-ver.disconnected {
-            background: #fee2e2;
-            color: #dc2626;
-            border-color: #fca5a5;
-        }
-
-        .fsw-btn-ver.unconnected {
-            background: #f1f5f9;
-            color: #64748b;
-            border-color: #cbd5e1;
         }
 
         @media (max-width: 600px) {
             .fsw-corner-btn {
                 bottom: 12px;
                 left: 12px;
-                height: 30px;
-                padding: 0 10px;
-                font-size: 11px;
+                height: 32px;
+                padding: 0 12px;
+                font-size: 12px;
+            }
+            .fsw-dot {
+                width: 11px;
+                height: 11px;
             }
         }
 
@@ -1744,11 +1737,10 @@
         </div>
     </footer>
 
-    <!-- 4. Nút Trạng Thái Nổi Góc Trái (Gọn Nhẹ, Không lấn body) -->
+    <!-- 4. Nút Trạng Thái Nổi Góc Trái (Chuẩn thiết kế pill trắng, chỉ đổi màu chấm tròn) -->
     <button id="floatingStatusWidget" class="fsw-corner-btn" onclick="checkConnectionIP(event)" title="Trạng thái kết nối VAGS - Bấm để kiểm tra IP">
-        <span class="fsw-dot" id="statusIcon">🟢</span>
-        <span id="statusTitle" class="fsw-btn-label">VAGS</span>
-        <span id="statusBadge" class="fsw-btn-ver">v2.1.4</span>
+        <span class="fsw-dot active" id="statusDot"></span>
+        <span id="statusText" class="fsw-label">VAGS v2.1.4</span>
     </button>
 
     <script>
@@ -1945,9 +1937,10 @@
                 w.className = 'fsw-corner-btn';
                 w.title = `Tiện ích VAGS Đang Bật (v${ver || '2.1.4'}) - Bấm để kiểm tra IP VNU`;
             }
-            const icon = document.getElementById('statusIcon'); if (icon) icon.textContent = '🟢';
-            const title = document.getElementById('statusTitle'); if (title) title.textContent = 'VAGS';
-            const badge = document.getElementById('statusBadge'); if (badge) { badge.className = 'fsw-btn-ver'; badge.textContent = `v${ver || '2.1.4'}`; }
+            const dot = document.getElementById('statusDot');
+            if (dot) dot.className = 'fsw-dot active';
+            const txt = document.getElementById('statusText');
+            if (txt) txt.textContent = `VAGS v${ver || '2.1.4'}`;
         }
 
         function setExtensionDisabled() {
@@ -1955,12 +1948,13 @@
             const w = document.getElementById('floatingStatusWidget');
             if (w) {
                 w.style.display = 'inline-flex';
-                w.className = 'fsw-corner-btn disconnected';
-                w.title = 'Tiện ích VAGS: Đã Tắt Proxy - Bấm biểu tượng tiện ích để BẬT lại';
+                w.className = 'fsw-corner-btn'; // Nút cha luôn giữ nguyên nền trắng, không đổi đỏ
+                w.title = 'Tiện ích VAGS: Đã Tắt - Bấm để kiểm tra IP hoặc bật lại tiện ích';
             }
-            const icon = document.getElementById('statusIcon'); if (icon) icon.textContent = '🔴';
-            const title = document.getElementById('statusTitle'); if (title) title.textContent = 'Tắt Proxy';
-            const badge = document.getElementById('statusBadge'); if (badge) { badge.className = 'fsw-btn-ver disconnected'; badge.textContent = 'OFF'; }
+            const dot = document.getElementById('statusDot');
+            if (dot) dot.className = 'fsw-dot disabled'; // Chỉ chấm tròn bên trong chuyển sang ĐỎ
+            const txt = document.getElementById('statusText');
+            if (txt) txt.textContent = 'VAGS v2.1.4';
         }
 
         function setExtensionNotLoggedIn() {
@@ -1968,12 +1962,13 @@
             const w = document.getElementById('floatingStatusWidget');
             if (w) {
                 w.style.display = 'inline-flex';
-                w.className = 'fsw-corner-btn disconnected';
+                w.className = 'fsw-corner-btn'; // Nút cha luôn giữ nguyên nền trắng
                 w.title = 'Tiện ích VAGS: Chưa Đăng Nhập SSO';
             }
-            const icon = document.getElementById('statusIcon'); if (icon) icon.textContent = '🔴';
-            const title = document.getElementById('statusTitle'); if (title) title.textContent = 'Chưa Đăng Nhập';
-            const badge = document.getElementById('statusBadge'); if (badge) { badge.className = 'fsw-btn-ver disconnected'; badge.textContent = 'SSO'; }
+            const dot = document.getElementById('statusDot');
+            if (dot) dot.className = 'fsw-dot disabled'; // Chấm tròn màu ĐỎ khi chưa sẵn sàng
+            const txt = document.getElementById('statusText');
+            if (txt) txt.textContent = 'VAGS v2.1.4';
         }
 
         function setExtensionInactive() {
@@ -1981,11 +1976,12 @@
             if (w) {
                 w.style.display = 'inline-flex';
                 w.className = 'fsw-corner-btn';
-                w.title = 'Chưa cài đặt tiện ích - Bấm để kiểm tra IP hoặc xem hướng dẫn';
+                w.title = 'Chưa phát hiện tiện ích VAGS - Bấm để kiểm tra IP hoặc xem hướng dẫn';
             }
-            const icon = document.getElementById('statusIcon'); if (icon) icon.textContent = 'ℹ️';
-            const title = document.getElementById('statusTitle'); if (title) title.textContent = 'Tiện ích';
-            const badge = document.getElementById('statusBadge'); if (badge) { badge.className = 'fsw-btn-ver unconnected'; badge.textContent = 'Chưa cài'; }
+            const dot = document.getElementById('statusDot');
+            if (dot) dot.className = 'fsw-dot unconnected'; // Chấm tròn màu XÁM
+            const txt = document.getElementById('statusText');
+            if (txt) txt.textContent = 'VAGS v2.1.4';
         }
 
         window.addEventListener('message', (event) => {
@@ -2003,9 +1999,9 @@
 
         // Kiểm tra nhanh IP nhận diện
         async function checkConnectionIP(e) {
-            const btn = (e && e.target) || (typeof event !== 'undefined' ? event?.target : null) || document.getElementById('navStatusPill');
-            const originalText = btn ? btn.textContent : '';
-            if (btn) btn.textContent = 'Đang kiểm tra...';
+            const txt = document.getElementById('statusText');
+            const originalText = txt ? txt.textContent : 'VAGS v2.1.4';
+            if (txt) txt.textContent = 'Kiểm tra...';
             try {
                 const res = await fetch('/api/v1/health', { cache: 'no-store' });
                 const d = await res.json();
@@ -2013,7 +2009,7 @@
             } catch (err) {
                 alert('Không thể kết nối tới dịch vụ VAGS Gateway: ' + err.message);
             } finally {
-                if (btn) btn.textContent = originalText;
+                if (txt) txt.textContent = originalText;
             }
         }
 
