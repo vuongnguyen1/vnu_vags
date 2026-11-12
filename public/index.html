@@ -208,14 +208,13 @@
             border-color: #fca5a5;
         }
 
-        /* 3. Hero Section (Phong cách Nền Sáng Tối Giản PA3) */
+        /* 3. Hero Section (Gradient xếp lớp) */
         .hero {
-            background: linear-gradient(180deg, #ecfdf5 0%, #f0fdf4 50%, #f8fafc 100%);
-            color: var(--text);
-            padding: 56px 20px 84px;
+            background: linear-gradient(135deg, #004d24 0%, #007537 60%, #008740 100%);
+            color: white;
+            padding: 52px 20px 72px;
             text-align: center;
             position: relative;
-            border-bottom: 1px solid #d1fae5;
         }
 
         .hero::after {
@@ -256,12 +255,11 @@
             line-height: 1.3;
             margin-bottom: 14px;
             letter-spacing: -0.01em;
-            color: #064e3b;
         }
 
         .hero p {
             font-size: 15px;
-            color: #334155;
+            color: #f1f5f9;
             line-height: 1.6;
             margin-bottom: 24px;
             max-width: 780px;
@@ -277,8 +275,8 @@
         }
 
         .btn-primary {
-            background: #00803d;
-            color: #ffffff;
+            background: var(--vnu-gold);
+            color: #0f172a;
             padding: 11px 22px;
             border-radius: 8px;
             font-weight: 700;
@@ -290,19 +288,18 @@
             border: none;
             cursor: pointer;
             transition: all 0.15s;
-            box-shadow: 0 4px 12px rgba(0, 128, 61, 0.25);
         }
 
         .btn-primary:hover {
             transform: translateY(-1px);
-            background: #006d33;
-            box-shadow: 0 6px 16px rgba(0, 128, 61, 0.35);
+            background: #f59e0b;
+            box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
         }
 
         .btn-secondary {
-            background: #ffffff;
-            color: #1e293b;
-            border: 1px solid #cbd5e1;
+            background: rgba(255, 255, 255, 0.14);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.35);
             padding: 11px 20px;
             border-radius: 8px;
             font-weight: 600;
@@ -312,13 +309,10 @@
             align-items: center;
             gap: 8px;
             transition: all 0.15s;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
         }
 
         .btn-secondary:hover {
-            background: #f8fafc;
-            border-color: #94a3b8;
-            color: #0f172a;
+            background: rgba(255, 255, 255, 0.25);
         }
 
         /* 4. Thẻ Trạng Thái Kết Nối Xếp Chồng (Layered Status Card) */
