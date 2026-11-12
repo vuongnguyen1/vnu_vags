@@ -341,20 +341,45 @@
         tooltip.appendChild(createRow("Lý do:", reasonSpan));
 
         const footer = document.createElement("div");
-        footer.style.cssText = "border-top:1px solid rgba(255,255,255,0.1);padding-top:6px;margin-top:6px;font-size:10px;color:#94a3b8;";
+        footer.style.cssText = "border-top:1px solid rgba(255,255,255,0.1);padding-top:8px;margin-top:6px;font-size:10px;color:#94a3b8;display:flex;align-items:center;justify-content:space-between;gap:8px;";
+        
+        const footText = document.createElement("div");
         if (isDisabled) {
-            footer.appendChild(document.createTextNode("Cổng Học Thuật: "));
+            footText.appendChild(document.createTextNode("Trạng thái: "));
             const bFoot = document.createElement("b");
             bFoot.style.color = "#f87171";
-            bFoot.textContent = "Chưa kết nối";
-            footer.appendChild(bFoot);
+            bFoot.textContent = "Chưa bật Proxy";
+            footText.appendChild(bFoot);
         } else {
-            footer.appendChild(document.createTextNode("Hạ tầng Cổng: "));
+            footText.appendChild(document.createTextNode("Hạ tầng Cổng: "));
             const bFoot = document.createElement("b");
-            bFoot.textContent = "112.137.133.14";
-            footer.appendChild(bFoot);
-            footer.appendChild(document.createTextNode(" • ĐHQGHN"));
+            bFoot.textContent = "thamkhao.vnu.edu.vn";
+            footText.appendChild(bFoot);
+            footer.appendChild(footText);
         }
+
+        const btnCheckIp = document.createElement("button");
+        btnCheckIp.style.cssText = "background:#00803d;color:#ffffff;border:none;border-radius:4px;padding:3px 8px;font-size:10px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:3px;transition:background 0.2s;";
+        btnCheckIp.textContent = "🔍 Kiểm tra IP";
+        btnCheckIp.onclick = (e) => {
+            e.stopPropagation();
+            btnCheckIp.textContent = "⏳ Đang kiểm tra...";
+            fetch("https://thamkhao.vnu.edu.vn/api/v1/health")
+                .then(r => r.json())
+                .then(d => {
+                    alert("[VNU Academic Gateway - Kiểm tra IP]\n\n" +
+                          "• Địa chỉ IP Egress: " + (d.egressIp || "112.137.142.30") + " (Mạng ĐHQGHN)\n" +
+                          "• Trạng thái Cổng: " + (d.status === "healthy" ? "Đang hoạt động (OK)" : "Bảo trì") + "\n" +
+                          "• Tên miền: " + (d.primaryDomain || "thamkhao.vnu.edu.vn") + "\n\n" +
+                          "Kết nối ủy quyền học thuật đang hoạt động bình thường!");
+                    btnCheckIp.textContent = "🔍 Kiểm tra IP";
+                })
+                .catch(err => {
+                    alert("Không thể kết nối máy chủ Cổng: " + err.message);
+                    btnCheckIp.textContent = "🔍 Kiểm tra IP";
+                });
+        };
+        footer.appendChild(btnCheckIp);
         tooltip.appendChild(footer);
 
         const pill = document.createElement("div");

@@ -1,7 +1,7 @@
 // VNU Academic Gateway (VAGS) - Background Engine (Mozilla Firefox MV3)
 // Dung native WebExtension API: browser.proxy.onRequest de dinh tuyen 100% truc tiep vao Firefox Network Stack
 
-const VAGS_BASE_URL = "https://vags.vnu.edu.vn";
+const VAGS_BASE_URL = "https://thamkhao.vnu.edu.vn";
 let sseSource = null;
 let reconnectTimer = null;
 

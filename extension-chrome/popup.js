@@ -1,5 +1,5 @@
 // VNU Academic Gateway (VAGS) - Popup Controller
-const VAGS_BASE_URL = "https://vags.vnu.edu.vn";
+const VAGS_BASE_URL = "https://thamkhao.vnu.edu.vn";
 
 function setSafeContent(el, parts) {
     if (!el) return;
