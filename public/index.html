@@ -1449,7 +1449,7 @@
                                 <div class="guide-step-title" style="color:#0369a1;">Xác thực phiên Cán bộ trên Cổng
                                     VAGS & Tiện ích tự động kích hoạt Proxy</div>
                                 <div class="guide-step-subtitle">Hệ thống đồng bộ danh tính Cán bộ ĐHQGHN và tự động bật
-                                    đường truyền 112.137.133.14</div>
+                                    đường truyền 112.137.142.30</div>
                             </div>
                         </div>
 
@@ -1474,7 +1474,7 @@
                                                     bộ ✓</b>.</li>
                                             <li>Công tắc: Chuyển sang <b>"Đường truyền Proxy: Đang Bật"</b> (màu xanh).
                                             </li>
-                                            <li>Dòng trạng thái: <b>🟢 KẾT NỐI PROXY THÀNH CÔNG ✓ (IP 112.137.133.14 -
+                                            <li>Dòng trạng thái: <b>🟢 KẾT NỐI PROXY THÀNH CÔNG ✓ (IP 112.137.142.30 -
                                                     Mạng ĐHQGHN)</b>.</li>
                                         </ul>
                                     </li>
@@ -2014,6 +2014,74 @@
                 }
             }
         });
+
+        // Hỗ trợ kéo thả Widget xung quanh màn hình (Draggable Floating Widget)
+        (function initDraggableWidget() {
+            const el = document.getElementById('floatingStatusWidget');
+            if (!el) return;
+            let isDragging = false;
+            let startX = 0, startY = 0;
+            let initialLeft = 0, initialTop = 0;
+            let hasMoved = false;
+
+            el.addEventListener('pointerdown', (e) => {
+                // Chỉ bắt chuột trái hoặc touch
+                if (e.button && e.button !== 0) return;
+                isDragging = true;
+                hasMoved = false;
+                startX = e.clientX;
+                startY = e.clientY;
+                const rect = el.getBoundingClientRect();
+                initialLeft = rect.left;
+                initialTop = rect.top;
+                el.setPointerCapture(e.pointerId);
+                el.style.transition = 'none';
+                el.style.cursor = 'grabbing';
+            });
+
+            el.addEventListener('pointermove', (e) => {
+                if (!isDragging) return;
+                const dx = e.clientX - startX;
+                const dy = e.clientY - startY;
+                if (Math.hypot(dx, dy) > 4) {
+                    hasMoved = true;
+                }
+                if (!hasMoved) return;
+
+                let nextX = initialLeft + dx;
+                let nextY = initialTop + dy;
+                const pad = 8;
+                const maxW = window.innerWidth - el.offsetWidth - pad;
+                const maxH = window.innerHeight - el.offsetHeight - pad;
+                nextX = Math.max(pad, Math.min(nextX, maxW));
+                nextY = Math.max(pad, Math.min(nextY, maxH));
+
+                el.style.left = nextX + 'px';
+                el.style.top = nextY + 'px';
+                el.style.bottom = 'auto';
+                el.style.right = 'auto';
+            });
+
+            function endDrag(e) {
+                if (!isDragging) return;
+                isDragging = false;
+                try { el.releasePointerCapture(e.pointerId); } catch (_) {}
+                el.style.cursor = 'grab';
+                el.style.transition = 'box-shadow 0.2s ease, border-color 0.2s ease';
+            }
+
+            el.addEventListener('pointerup', endDrag);
+            el.addEventListener('pointercancel', endDrag);
+
+            // Bỏ qua sự kiện click nếu vừa kéo thả
+            el.addEventListener('click', (e) => {
+                if (hasMoved) {
+                    e.stopImmediatePropagation();
+                    e.preventDefault();
+                    hasMoved = false;
+                }
+            }, true);
+        })();
 
         // Kiểm tra nhanh IP nhận diện
         async function checkConnectionIP(e) {

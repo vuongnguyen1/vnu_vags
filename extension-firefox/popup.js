@@ -106,7 +106,8 @@ async function verifyRealConnection() {
         if (res.ok) {
             const data = await res.json();
             const ip = data.ip || "";
-            if (ip === "112.137.133.14") {
+            const isVnuEgress = ip === "112.137.142.30" || ip === "112.137.133.14" || ip.startsWith("112.137.");
+            if (isVnuEgress) {
                 card.className = "live-conn-card success";
                 icon.textContent = "🟢";
                 title.textContent = "KẾT NỐI PROXY THÀNH CÔNG ✓";
@@ -126,16 +127,18 @@ async function verifyRealConnection() {
         const res2 = await fetch(`${VAGS_BASE_URL}/api/v1/ip-check`, { cache: "no-store" });
         if (res2.ok) {
             const d2 = await res2.json();
-            if (d2.clientIp === "112.137.133.14" || d2.isVnuNetwork) {
+            const cIp = d2.clientIp || "";
+            const isVnu = cIp === "112.137.142.30" || cIp === "112.137.133.14" || cIp.startsWith("112.137.") || d2.isVnuNetwork;
+            if (isVnu) {
                 card.className = "live-conn-card success";
                 icon.textContent = "🟢";
                 title.textContent = "KẾT NỐI PROXY THÀNH CÔNG ✓";
-                setSafeContent(detail, ["IP nhận diện: ", { tag: "b", text: "112.137.133.14", style: { color: "#34d399" } }, " (Mạng ĐHQGHN)"]);
+                setSafeContent(detail, ["IP nhận diện: ", { tag: "b", text: cIp || "112.137.142.30", style: { color: "#34d399" } }, " (Mạng ĐHQGHN)"]);
             } else {
                 card.className = "live-conn-card failed";
                 icon.textContent = "🔴";
                 title.textContent = "CHƯA QUA PROXY ĐHQGHN";
-                setSafeContent(detail, ["IP hiện tại: ", { tag: "b", text: d2.clientIp || "Không rõ", style: { color: "#f87171" } }, " (Mạng nhà)"]);
+                setSafeContent(detail, ["IP hiện tại: ", { tag: "b", text: cIp || "Không rõ", style: { color: "#f87171" } }, " (Mạng nhà)"]);
             }
             return;
         }

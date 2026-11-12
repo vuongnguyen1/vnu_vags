@@ -105,6 +105,13 @@ update_extensions_domain() {
         cp -f "$BASE_DIR/public/downloads/vnu-academic-gateway.zip" "$BASE_DIR/public/vags-extension-chrome.zip"
         cp -f "$BASE_DIR/public/downloads/vnu-academic-gateway.zip" "$BASE_DIR/public/vags-extension.zip"
         log_success "Đã đóng gói lại Chrome Extension (.zip) với tên miền $new_domain"
+
+        # Đóng gói và ký số file .CRX3 cho Chrome Enterprise
+        if command -v crx3 >/dev/null 2>&1 && [ -f "$BASE_DIR/keys/extension.pem" ]; then
+            crx3 create -pk "$BASE_DIR/keys/extension.pem" -o "$BASE_DIR/public/downloads/vnu-academic-gateway.crx" "$BASE_DIR/extension-chrome"
+            cp -f "$BASE_DIR/public/downloads/vnu-academic-gateway.crx" "$BASE_DIR/public/vags-extension.crx"
+            log_success "Đã đóng gói và ký số CRX3 Chrome Extension với tên miền $new_domain"
+        fi
     fi
 
     # 2. Cập nhật trong extension-firefox

@@ -1,7 +1,11 @@
 # VNU Academic Gateway (VAGS) 🎓🚀
 
 > **Hệ thống Cổng Kết nối & Định tuyến CSDL Khoa học Quốc tế Đại học Quốc gia Hà Nội (ĐHQGHN)**  
-> Cung cấp giải pháp truy cập từ xa an toàn, thông minh và tập trung vào các cơ sở dữ liệu học thuật quốc tế (ScienceDirect, IEEE Xplore, SpringerLink, Scopus, Nature,...) và Thư viện số ĐHQGHN (LIC).
+> Cung cấp giải pháp truy cập từ xa an toàn, thông minh và tập trung vào các cơ sở dữ liệu học thuật quốc tế (ScienceDirect, IEEE Xplore, SpringerLink, Scopus, Nature,...) và Thư viện số ĐHQGHN (LIC).  
+> 
+> 📚 **HỒ SƠ TÀI LIỆU KỸ THUẬT & VẬN HÀNH:** Xem toàn bộ tại thư mục [`docs/`](./docs/README.md)  
+> 🖥️ **Máy Chủ Vận Hành Chuyên Dụng:** `112.137.142.30` (1Gbps BBR, Ubuntu 24.04 LTS)  
+> ⚡ **Công Cụ Quản Trị & Đổi Tên Miền:** [`scripts/switch-domain.sh`](./scripts/switch-domain.sh)
 
 ---
 

@@ -1,5 +1,5 @@
 {
-  "version": "2026.11.11.083033.807",
+  "version": "2026.11.12.020718.469",
   "proxyMode": "FULL_PROXY",
   "blacklist": [
     "*.youtube.com",
@@ -28,7 +28,7 @@
   ],
   "authMode": "demo",
   "keycloakAuthority": "https://idp.vnu.edu.vn/auth/realms/vnu",
-  "proxyHost": "vags.vnu.edu.vn",
+  "proxyHost": "thamkhao.vnu.edu.vn",
   "proxyPort": 443,
   "proxyScheme": "HTTPS",
   "allowedOUs": [
@@ -47,25 +47,10 @@
   "adminOU": "pqtkt",
   "userOverrides": {
     "allowed": [
-      "phongnd",
-      "vuongwork",
-      "vuongwork@vnu.edu.vn"
+      "phongnd"
     ],
     "denied": [],
-    "userSpecificRules": {
-      "phongnd": {
-        "proxyDomains": [
-          "idp.vnu.edu.vn"
-        ],
-        "directDomains": []
-      },
-      "vuongwork": {
-        "proxyDomains": [
-          "idp.vnu.edu.vn"
-        ],
-        "directDomains": []
-      }
-    }
+    "userSpecificRules": {}
   },
-  "updatedAt": "2026-11-11T08:30:33.8078467Z"
+  "updatedAt": "2026-11-12T02:07:18.4692422Z"
 }

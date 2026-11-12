@@ -188,7 +188,7 @@
         let statusDotColor = isDisabled ? "#f87171" : (isProxy ? "#10b981" : (isBlacklist ? "#f87171" : "#94a3b8"));
         let badgeIcon = isDisabled ? "🔴" : (isProxy ? "🟢" : (isBlacklist ? "⚪" : "🏛️"));
         let titleTxt = isDisabled ? "VAGS: ĐÃ TẮT" : (isProxy ? "VAGS PROXY" : (isBlacklist ? "VAGS DIRECT" : "VNU DIRECT"));
-        let subTxt = isDisabled ? "Không qua mạng ĐHQGHN (Chưa bật Proxy)" : (isProxy ? "Mạng ĐHQGHN (112.137.133.14)" : (isBlacklist ? "Mạng ngoài • Băng thông cao" : "Mạng Nội bộ ĐHQGHN"));
+        let subTxt = isDisabled ? "Không qua mạng ĐHQGHN (Chưa bật Proxy)" : (isProxy ? "Mạng ĐHQGHN (112.137.142.30)" : (isBlacklist ? "Mạng ngoài • Băng thông cao" : "Mạng Nội bộ ĐHQGHN"));
         let pillColor = isDisabled ? "#fecaca" : (isProxy ? "#a7f3d0" : (isBlacklist ? "#fecaca" : "#e2e8f0"));
 
         const style = document.createElement("style");

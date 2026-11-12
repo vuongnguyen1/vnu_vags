@@ -496,7 +496,7 @@
                 </div>
                 <div class="stat-card gold">
                     <div class="stat-label">Hạ Tầng Egress IP VNU</div>
-                    <div class="stat-value" id="statEgressIp" style="font-size:20px;color:#00803d;">112.137.133.14</div>
+                    <div class="stat-value" id="statEgressIp" style="font-size:20px;color:#00803d;">112.137.142.30</div>
                     <div class="stat-sub" style="color:#059669;font-weight:700;">IP Leak Shield: Đang Bảo Vệ ✓</div>
                 </div>
             </div>
@@ -576,7 +576,7 @@
                 </div>
                 <div class="stat-card" style="border-top:3px solid #059669;">
                     <div class="stat-label">🌐 IP Egress ĐHQGHN & SQLite WAL</div>
-                    <div class="stat-value" id="statEgressIpDisplay" style="color:#059669;font-family:monospace;font-size:19px;">112.137.133.14</div>
+                    <div class="stat-value" id="statEgressIpDisplay" style="color:#059669;font-family:monospace;font-size:19px;">112.137.142.30</div>
                     <div class="stat-sub">PROXY Protocol v1: Đã bật • IP thật client</div>
                 </div>
             </div>
@@ -749,7 +749,7 @@
                 <div class="mode-info">
                     <h4 id="modeStatusTitle">🛡️ Chế độ Định tuyến: FULL PROXY (Toàn Phần)</h4>
                     <p id="modeStatusDesc">
-                        Tất cả các website trên Internet đều được phân tuyến qua Proxy VAGS (Egress IP: 112.137.133.14). Chỉ duy nhất các tên miền nằm trong Blacklist (băng thông cao) và mạng nội bộ *.vnu.edu.vn là đi trực tiếp (DIRECT).
+                        Tất cả các website trên Internet đều được phân tuyến qua Proxy VAGS (Egress IP: 112.137.142.30). Chỉ duy nhất các tên miền nằm trong Blacklist (băng thông cao) và mạng nội bộ *.vnu.edu.vn là đi trực tiếp (DIRECT).
                     </p>
                 </div>
                 <div class="mode-btn-group">
@@ -1024,7 +1024,7 @@
                     <div style="background:#0f172a;color:#f8fafc;padding:18px 20px;border-radius:12px;font-size:13px;box-shadow:inset 0 2px 4px rgba(0,0,0,0.2);">
                         <div style="display:flex;justify-content:space-between;margin-bottom:10px;">
                             <span style="color:#94a3b8;">Địa chỉ IP Egress Nhận Diện:</span>
-                            <strong style="color:#34d399;font-size:14px;">112.137.133.14 (Mạng ĐHQGHN)</strong>
+                            <strong style="color:#34d399;font-size:14px;">112.137.142.30 (Mạng ĐHQGHN)</strong>
                         </div>
                         <div style="display:flex;justify-content:space-between;margin-bottom:10px;">
                             <span style="color:#94a3b8;">Header X-Forwarded-For:</span>
@@ -1707,7 +1707,7 @@
                     : `<span style="background:#f1f5f9;color:#475569;padding:2px 8px;border-radius:6px;font-weight:700;">💻 WebExtension</span>`;
 
                 const userStr = s.username || s.user || 'Cán bộ VNU';
-                const clientIp = s.clientIp || s.remoteIp || '112.137.133.14';
+                const clientIp = s.clientIp || s.remoteIp || '112.137.142.30';
                 const timeStr = s.lastSeen ? new Date(s.lastSeen).toLocaleTimeString('vi-VN') : (s.connectedAt ? new Date(s.connectedAt).toLocaleTimeString('vi-VN') : 'Vừa xong');
 
                 const isOnline = s.isOnline === true;
