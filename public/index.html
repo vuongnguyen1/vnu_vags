@@ -397,6 +397,112 @@
             border: 1px solid #fca5a5;
         }
 
+        /* 4. Thẻ Trạng Thái Nổi Góc Dưới Phải (Floating Bottom-Right Widget) */
+        .floating-status-widget {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            z-index: 9999;
+            background: rgba(255, 255, 255, 0.96);
+            backdrop-filter: blur(12px);
+            border: 1px solid #cbd5e1;
+            border-left: 4px solid var(--vnu-green);
+            border-radius: 999px;
+            padding: 8px 16px;
+            box-shadow: 0 10px 30px rgba(15, 23, 42, 0.18);
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 12px;
+            transition: all 0.25s ease;
+            user-select: none;
+            max-width: calc(100vw - 32px);
+        }
+
+        .floating-status-widget:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 14px 36px rgba(15, 23, 42, 0.24);
+        }
+
+        .floating-status-widget.disconnected {
+            border-left-color: #ef4444;
+        }
+
+        .floating-status-widget.unconnected {
+            border-left-color: #94a3b8;
+        }
+
+        .fsw-content {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .fsw-dot {
+            font-size: 13px;
+            line-height: 1;
+        }
+
+        .fsw-title {
+            font-weight: 700;
+            color: #0f172a;
+            white-space: nowrap;
+        }
+
+        .fsw-badge {
+            font-size: 10.5px;
+            font-weight: 700;
+            padding: 2px 8px;
+            border-radius: 999px;
+            white-space: nowrap;
+        }
+
+        .fsw-btn-test {
+            background: #00803d;
+            color: #ffffff;
+            border: none;
+            padding: 4px 10px;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: background 0.15s, transform 0.15s;
+            white-space: nowrap;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .fsw-btn-test:hover {
+            background: #006832;
+            transform: scale(1.02);
+        }
+
+        .fsw-close {
+            background: transparent;
+            border: none;
+            color: #94a3b8;
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            padding: 2px 4px;
+            border-radius: 50%;
+            line-height: 1;
+            transition: color 0.15s;
+        }
+
+        .fsw-close:hover {
+            color: #dc2626;
+        }
+
+        @media (max-width: 600px) {
+            .floating-status-widget {
+                bottom: 12px;
+                right: 12px;
+                padding: 6px 12px;
+            }
+        }
+
         .container {
             max-width: 1200px;
             margin: 0 auto;
@@ -1662,8 +1768,25 @@
         </div>
     </footer>
 
+    <!-- 4. Thẻ Trạng Thái Nổi Góc Dưới Phải (Floating Bottom-Right Status Widget) -->
+    <div id="floatingStatusWidget" class="floating-status-widget">
+        <div class="fsw-content">
+            <span class="fsw-dot" id="statusIcon">🟢</span>
+            <span id="statusTitle" class="fsw-title">Tiện Ích VAGS Đang Hoạt Động</span>
+            <span id="statusBadge" class="fsw-badge badge-status-pill connected">● v2.1.4</span>
+        </div>
+        <button type="button" class="fsw-btn-test" onclick="checkConnectionIP(event)">🔍 Kiểm tra IP</button>
+        <button type="button" class="fsw-close" onclick="closeFloatingWidget(event)" title="Đóng thông báo">✕</button>
+    </div>
+
     <script>
         let isExtensionDetected = false;
+
+        function closeFloatingWidget(e) {
+            if (e) e.stopPropagation();
+            const w = document.getElementById('floatingStatusWidget');
+            if (w) w.style.display = 'none';
+        }
 
         function scrollToDatabases() {
             const el = document.getElementById('databases');
@@ -1850,53 +1973,37 @@
 
         function setExtensionActive(ver) {
             isExtensionDetected = true;
+            const w = document.getElementById('floatingStatusWidget');
+            if (w) { w.style.display = 'inline-flex'; w.className = 'floating-status-widget'; }
             const icon = document.getElementById('statusIcon'); if (icon) icon.textContent = '🟢';
-            const title = document.getElementById('statusTitle'); if (title) title.textContent = `Tiện Ích VAGS Đang Hoạt Động (Extension v${ver || '2.1.4'})`;
-            const msg = document.getElementById('statusMsg'); if (msg) msg.textContent = 'Trình duyệt của bạn đã sẵn sàng truy cập ScienceDirect, Springer, Nature qua mạng ĐHQGHN.';
-            const badge = document.getElementById('statusBadge'); if (badge) { badge.className = 'badge-status-pill connected'; badge.textContent = '● Đã kết nối Tiện ích'; }
-            const navPill = document.getElementById('navStatusPill');
-            if (navPill) {
-                navPill.style.display = 'inline-flex';
-                navPill.className = 'badge-status-pill connected';
-                navPill.textContent = `● Tiện ích Đang Bật (v${ver || '2.1.4'})`;
-            }
+            const title = document.getElementById('statusTitle'); if (title) title.textContent = 'Tiện Ích VAGS Đang Hoạt Động';
+            const badge = document.getElementById('statusBadge'); if (badge) { badge.className = 'fsw-badge badge-status-pill connected'; badge.textContent = `● v${ver || '2.1.4'}`; }
         }
 
         function setExtensionDisabled() {
             isExtensionDetected = true;
+            const w = document.getElementById('floatingStatusWidget');
+            if (w) { w.style.display = 'inline-flex'; w.className = 'floating-status-widget disconnected'; }
             const icon = document.getElementById('statusIcon'); if (icon) icon.textContent = '🔴';
-            const title = document.getElementById('statusTitle'); if (title) title.textContent = 'Tiện Ích VAGS Đã Bị Tắt (Proxy Disabled)';
-            const msg = document.getElementById('statusMsg'); if (msg) msg.textContent = 'Công tắc định tuyến proxy đang bị TẮT trong Extension. Bấm biểu tượng VAGS trên trình duyệt và BẬT lại để tra cứu CSDL.';
-            const badge = document.getElementById('statusBadge'); if (badge) { badge.className = 'badge-status-pill disconnected'; badge.textContent = '✕ Đã Tắt Proxy'; }
-            const navPill = document.getElementById('navStatusPill');
-            if (navPill) {
-                navPill.style.display = 'inline-flex';
-                navPill.className = 'badge-status-pill disconnected';
-                navPill.textContent = '✕ Đã Tắt Proxy';
-            }
+            const title = document.getElementById('statusTitle'); if (title) title.textContent = 'Tiện Ích: Đã Tắt Proxy';
+            const badge = document.getElementById('statusBadge'); if (badge) { badge.className = 'fsw-badge badge-status-pill disconnected'; badge.textContent = '✕ Đã Tắt'; }
         }
 
         function setExtensionNotLoggedIn() {
             isExtensionDetected = true;
+            const w = document.getElementById('floatingStatusWidget');
+            if (w) { w.style.display = 'inline-flex'; w.className = 'floating-status-widget disconnected'; }
             const icon = document.getElementById('statusIcon'); if (icon) icon.textContent = '🔴';
-            const title = document.getElementById('statusTitle'); if (title) title.textContent = 'Tiện Ích Chưa Đăng Nhập Tài Khoản VNU';
-            const msg = document.getElementById('statusMsg'); if (msg) msg.textContent = 'Tiện ích đã cài đặt nhưng chưa được đăng nhập SSO. Bấm nút [🔑 Đăng nhập VNU SSO] để mở cổng.';
-            const badge = document.getElementById('statusBadge'); if (badge) { badge.className = 'badge-status-pill disconnected'; badge.textContent = '✕ Chưa Đăng Nhập'; }
-            const navPill = document.getElementById('navStatusPill');
-            if (navPill) {
-                navPill.style.display = 'inline-flex';
-                navPill.className = 'badge-status-pill disconnected';
-                navPill.textContent = '✕ Chưa Đăng Nhập';
-            }
+            const title = document.getElementById('statusTitle'); if (title) title.textContent = 'Tiện Ích: Chưa Đăng Nhập SSO';
+            const badge = document.getElementById('statusBadge'); if (badge) { badge.className = 'fsw-badge badge-status-pill disconnected'; badge.textContent = '✕ Chưa Đăng Nhập'; }
         }
 
         function setExtensionInactive() {
+            const w = document.getElementById('floatingStatusWidget');
+            if (w) { w.style.display = 'inline-flex'; w.className = 'floating-status-widget unconnected'; }
             const icon = document.getElementById('statusIcon'); if (icon) icon.textContent = 'ℹ️';
-            const title = document.getElementById('statusTitle'); if (title) title.textContent = 'Chưa Phát Hiện Tiện Ích Mở Rộng Trên Trình Duyệt';
-            const msg = document.getElementById('statusMsg'); if (msg) msg.textContent = 'Bạn có thể tải cài đặt Extension ở trên hoặc cấu hình tự động PAC script: https://thamkhao.vnu.edu.vn/vags.pac';
-            const badge = document.getElementById('statusBadge'); if (badge) { badge.className = 'badge-status-pill unconnected'; badge.textContent = '○ Chưa cài Extension'; }
-            const navPill = document.getElementById('navStatusPill');
-            if (navPill) navPill.style.display = 'none';
+            const title = document.getElementById('statusTitle'); if (title) title.textContent = 'Chưa Cài Đặt Tiện Ích';
+            const badge = document.getElementById('statusBadge'); if (badge) { badge.className = 'fsw-badge badge-status-pill unconnected'; badge.textContent = '○ Chưa cài'; }
         }
 
         window.addEventListener('message', (event) => {
