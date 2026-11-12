@@ -397,11 +397,12 @@
             border: 1px solid #fca5a5;
         }
 
-        /* 4. Thẻ Trạng Thái Nổi Góc Dưới Phải (Floating Bottom-Right Widget) */
+        /* 4. Thẻ Trạng Thái Nổi Góc Dưới Trái (Floating Bottom-Left Widget) */
         .floating-status-widget {
             position: fixed;
             bottom: 24px;
-            right: 24px;
+            left: 24px;
+            right: auto;
             z-index: 9999;
             background: rgba(255, 255, 255, 0.96);
             backdrop-filter: blur(12px);
@@ -498,7 +499,8 @@
         @media (max-width: 600px) {
             .floating-status-widget {
                 bottom: 12px;
-                right: 12px;
+                left: 12px;
+                right: auto;
                 padding: 6px 12px;
             }
         }
