@@ -1083,6 +1083,320 @@
         .unzip-instruction-box li {
             margin-bottom: 6px;
         }
+
+        /* ==========================================================================
+           RESPONSIVE DESIGN (TABLET & MOBILE SCREEN OPTIMIZATIONS)
+           ========================================================================== */
+        html, body {
+            max-width: 100vw;
+            overflow-x: hidden;
+        }
+
+        /* Tablet & Mobile (<= 860px) */
+        @media (max-width: 860px) {
+            .nav-inner {
+                padding: 10px 16px;
+                gap: 12px;
+            }
+            .nav-links {
+                display: none !important;
+            }
+            .brand img {
+                height: 36px;
+            }
+            .brand-text h1 {
+                font-size: 14px;
+            }
+            .brand-text p {
+                font-size: 11px;
+            }
+            .btn-sso {
+                padding: 6px 12px;
+                font-size: 11px;
+                gap: 6px;
+            }
+            .btn-sso img {
+                height: 14px;
+            }
+            .hero {
+                padding: 38px 16px 60px;
+            }
+            .hero h2 {
+                font-size: 24px;
+            }
+            .hero p {
+                font-size: 14px;
+                margin-bottom: 20px;
+            }
+            .status-overlap-card {
+                margin: -28px 12px 28px;
+                padding: 16px;
+            }
+            .profile-guide-container {
+                padding: 20px 16px;
+                margin-bottom: 24px;
+                border-radius: 12px;
+            }
+            .profile-guide-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 12px;
+                padding-bottom: 14px;
+                margin-bottom: 20px;
+            }
+            .guide-step-card {
+                padding: 18px 16px;
+                border-radius: 12px;
+            }
+            .guide-step-body {
+                grid-template-columns: 1fr;
+                gap: 18px;
+            }
+            .manual-cards-grid {
+                grid-template-columns: 1fr;
+                gap: 16px;
+            }
+        }
+
+        /* Mobile Phones (<= 600px) */
+        @media (max-width: 600px) {
+            .container {
+                padding: 0 12px 32px;
+            }
+            .nav-inner {
+                padding: 8px 12px;
+            }
+            .brand {
+                gap: 8px;
+            }
+            .brand img {
+                height: 32px;
+            }
+            .brand-text h1 {
+                font-size: 13px;
+                letter-spacing: -0.02em;
+            }
+            .brand-text p {
+                font-size: 10px;
+            }
+            .user-action-area {
+                gap: 6px;
+            }
+            .btn-sso {
+                padding: 5px 10px;
+                font-size: 11px;
+                border-radius: 6px;
+            }
+            .user-pill {
+                padding: 4px 8px;
+                font-size: 11px;
+                max-width: 130px;
+            }
+            .user-pill span:last-child {
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+            .btn-admin {
+                padding: 4px 8px;
+                font-size: 11px;
+            }
+            .btn-logout {
+                padding: 4px 8px;
+                font-size: 10.5px;
+            }
+            .auth-alert-banner {
+                padding: 10px 12px;
+            }
+            .auth-alert-inner {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 10px;
+            }
+            .auth-alert-left {
+                gap: 10px;
+            }
+            .btn-alert-login {
+                width: 100%;
+                justify-content: center;
+                padding: 8px 14px;
+            }
+            .hero {
+                padding: 30px 14px 50px;
+            }
+            .hero-badge {
+                font-size: 10.5px;
+                padding: 3px 10px;
+                margin-bottom: 10px;
+            }
+            .hero h2 {
+                font-size: 20px;
+                line-height: 1.35;
+                margin-bottom: 10px;
+            }
+            .hero p {
+                font-size: 13px;
+                line-height: 1.5;
+                margin-bottom: 18px;
+            }
+            .hero-btns {
+                flex-direction: column;
+                width: 100%;
+                gap: 8px;
+            }
+            .btn-primary, .btn-secondary {
+                width: 100%;
+                justify-content: center;
+                padding: 10px 16px;
+                font-size: 12.5px;
+            }
+            .status-overlap-card {
+                margin: -24px 8px 24px;
+                padding: 14px;
+                border-radius: 10px;
+                flex-direction: column;
+                align-items: stretch;
+                gap: 12px;
+            }
+            .status-left {
+                gap: 10px;
+            }
+            .status-icon {
+                width: 40px;
+                height: 40px;
+                font-size: 20px;
+            }
+            .status-text h4 {
+                font-size: 13px;
+            }
+            .status-text p {
+                font-size: 11.5px;
+            }
+            .status-right {
+                width: 100%;
+            }
+            .badge-status-pill {
+                width: 100%;
+                justify-content: center;
+                padding: 6px 10px;
+                font-size: 11px;
+            }
+            .section-title {
+                margin-bottom: 20px;
+            }
+            .section-title h3 {
+                font-size: 17px;
+                line-height: 1.35;
+            }
+            .section-title p {
+                font-size: 12px;
+            }
+            .db-grid {
+                grid-template-columns: 1fr;
+                gap: 14px;
+                margin-bottom: 32px;
+            }
+            .db-card {
+                padding: 16px 14px;
+                border-radius: 10px;
+            }
+            .db-card h4 {
+                font-size: 15px;
+            }
+            .db-card p {
+                font-size: 12px;
+                margin-bottom: 10px;
+            }
+            .profile-guide-container {
+                padding: 16px 12px;
+                border-radius: 10px;
+                margin-bottom: 20px;
+            }
+            .guide-step-card {
+                padding: 14px 12px;
+                border-left-width: 4px;
+                border-radius: 10px;
+            }
+            .guide-step-header {
+                gap: 10px;
+                margin-bottom: 12px;
+            }
+            .step-badge-circle {
+                width: 32px;
+                height: 32px;
+                font-size: 14px;
+            }
+            .guide-step-title {
+                font-size: 14.5px;
+                line-height: 1.35;
+            }
+            .guide-step-subtitle {
+                font-size: 11.5px;
+            }
+            .guide-image-container {
+                border-radius: 8px;
+            }
+            .guide-real-screenshot {
+                border-radius: 8px;
+            }
+            .guide-image-grid-2 {
+                grid-template-columns: 1fr;
+                gap: 10px;
+            }
+            .guide-step-desc {
+                font-size: 12.5px;
+                line-height: 1.6;
+            }
+            .guide-step-desc ol {
+                padding-left: 16px;
+                margin-top: 6px;
+            }
+            .guide-step-desc li {
+                margin-bottom: 6px;
+            }
+            .tip-box {
+                padding: 8px 10px;
+                font-size: 11.5px;
+                margin-top: 10px;
+            }
+            .manual-guide-box {
+                padding: 18px 12px;
+                border-radius: 10px;
+                margin-top: 24px;
+            }
+            .manual-card {
+                padding: 16px 12px;
+                border-radius: 10px;
+            }
+            .btn-direct-download {
+                width: 100%;
+                padding: 10px 14px;
+                font-size: 12px;
+            }
+            .unzip-instruction-box {
+                padding: 10px 12px;
+                font-size: 12px;
+            }
+            .admin-banner {
+                padding: 18px 14px;
+                border-radius: 10px;
+                flex-direction: column;
+                align-items: stretch;
+                gap: 12px;
+            }
+            .admin-banner a.btn-primary {
+                width: 100%;
+                justify-content: center;
+            }
+            footer {
+                padding: 24px 14px;
+            }
+            .footer-inner {
+                flex-direction: column;
+                text-align: center;
+                gap: 10px;
+            }
+        }
     </style>
 </head>
 
@@ -1219,11 +1533,206 @@
                 <span class="hero-badge" style="background:rgba(0,128,61,0.1);border-color:#00803d;color:#00803d;">CÁCH
                     DÙNG TIỆN LỢI NHẤT</span>
                 <h3 style="font-size:24px;margin-top:6px;">Hướng Dẫn Cài Đặt & Sử Dụng Tiện Ích CSDL VAGS</h3>
-                <p>Quý Thầy/Cô thực hiện theo quy trình trực quan liên tục dưới đây (ưu tiên Cách 1 để hệ thống tự động
-                    cài đặt ngầm):</p>
+                <p>Quý Thầy/Cô thực hiện theo quy trình trực quan liên tục dưới đây (ưu tiên Cách 1 để cài đặt nhanh bằng tệp .zip hoặc Cách 2 để đồng bộ qua Google Chrome):</p>
             </div>
 
-            <!-- ================= PHẦN 1: TÂM ĐIỂM GOOGLE CHROME PROFILE (KHUYẾN NGHỊ 100%) ================= -->
+            <!-- ================= PHẦN 1: CÁCH 1 - CÀI ĐẶT TRỰC TIẾP BẰNG TỆP MỞ RỘNG (.ZIP) ================= -->
+            <div class="manual-guide-box" style="border-top:4px solid #00803d;margin-top:0;margin-bottom:36px;">
+                <div
+                    style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;border-bottom:1px solid #e2e8f0;padding-bottom:14px;margin-bottom:18px;">
+                    <div>
+                        <h4
+                            style="font-size:16px;font-weight:800;color:#0f172a;display:flex;align-items:center;gap:8px;">
+                            <span>📁</span> Cách 1: Hướng Dẫn Cài Đặt Trực Tiếp Bằng Tệp Mở Rộng (.zip)
+                        <span class="badge-method"
+                            style="background:#dcfce7;color:#15803d;border:1px solid #86efac;font-size:11px;">Khuyến
+                            nghị • Tiện lợi & Nhanh chóng</span>
+                        </h4>
+                        <p style="font-size:12.5px;color:var(--muted);margin-top:2px;">
+                            Dành cho Thầy/Cô muốn cài đặt nhanh trực tiếp trên máy tính cá nhân hoặc cơ quan (hỗ trợ Google Chrome, Edge, Firefox...):
+                        </p>
+                    </div>
+                    <span
+                        style="font-size:11px;background:#f1f5f9;color:#475569;padding:4px 10px;border-radius:6px;font-weight:700;border:1px solid #cbd5e1;">Khuyên dùng • v2.1.4</span>
+                </div>
+
+                <div class="manual-cards-grid">
+                    <!-- CỘT 1: GOOGLE CHROME & MICROSOFT EDGE (.ZIP THỦ CÔNG) -->
+                    <div class="manual-card">
+                        <div>
+                            <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+                                <span style="font-size:24px;">🌐</span>
+                                <div>
+                                    <h5 style="font-size:15px;font-weight:800;color:#1d4ed8;">Google Chrome & Microsoft
+                                        Edge</h5>
+                                    <span style="font-size:11px;color:var(--muted);">Cài đặt gói giải nén (Unpacked
+                                        Extension)</span>
+                                </div>
+                            </div>
+
+                            <!-- Link tải trực tiếp Chrome zip -->
+                            <a href="/thamkhao-extension-chrome.zip" class="btn-direct-download" download>
+                                <span>⬇️ Tải Gói Cài Đặt Chrome (.zip)</span>
+                            </a>
+
+                            <div class="unzip-instruction-box">
+                                <div style="font-weight:700;color:#1e293b;margin-bottom:6px;font-size:13.5px;">📦 Phần
+                                    1: Cài đặt tiện ích</div>
+                                <ol>
+                                    <li>Bấm nút xanh ở trên để tải file <code>thamkhao-extension-chrome.zip</code> về máy
+                                        tính.</li>
+                                    <li>Tìm đến file vừa tải, <b>chuột phải</b> &rarr; Chọn <b>"Extract All..." (hoặc
+                                            "Giải nén vào...")</b> để tạo một thư mục.</li>
+                                    <li>Mở tab mới trên Chrome, gõ vào thanh địa chỉ: <code
+                                            style="background:#f1f5f9;padding:2px 6px;border-radius:4px;color:#1d4ed8;font-weight:700;">chrome://extensions</code>
+                                        (nếu dùng Edge: <code
+                                            style="background:#f1f5f9;padding:2px 6px;border-radius:4px;color:#1d4ed8;font-weight:700;">edge://extensions</code>).
+                                    </li>
+                                    <li>Nhìn lên góc trên bên phải, gạt <b>BẬT</b> công tắc <b>"Developer mode" (Chế độ
+                                            cho nhà phát triển)</b>.</li>
+                                    <li>Nhìn sang góc trên bên trái, bấm nút <b>"Load unpacked" (Tải tiện ích đã giải
+                                            nén)</b>.</li>
+                                    <li>Chọn đúng thư mục vừa giải nén ở Bước 2 &rarr; Bấm <b>Select Folder</b>. Tiện
+                                        ích <b>VNU Academic Gateway (VAGS)</b> sẽ xuất hiện ngay lập tức trên thanh công
+                                        cụ của Chrome.</li>
+                                </ol>
+
+                                <div
+                                    style="font-weight:700;color:#059669;margin-top:12px;margin-bottom:6px;font-size:13.5px;border-top:1px dashed #cbd5e1;padding-top:10px;">
+                                    🚀 Phần 2: Đăng nhập và kích hoạt
+                                </div>
+                                <ol>
+                                    <li>Bấm biểu tượng mảnh ghép <b>🧩</b> trên trình duyệt &rarr; Bấm ghim <b>📌</b>
+                                        VAGS ra ngoài.</li>
+                                    <li>Mở VAGS &rarr; Bấm <b>🔑 Đăng nhập VNU SSO</b> bằng email
+                                        <code>@vnu.edu.vn</code>.
+                                    </li>
+                                    <li><b>(Bắt buộc)</b>: Gạt công tắc <b>"Đường truyền Proxy" sang BẬT</b>. Khi biểu
+                                        tượng chuyển từ <b>OFF (đỏ)</b> sang <b>ON (xanh)</b> là hoàn tất, bạn có thể
+                                        vào <i>sciencedirect.com, springer.com...</i> để tải tài liệu.</li>
+                                </ol>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- CỘT 2: MOZILLA FIREFOX (.ZIP / .XPI THỦ CÔNG) -->
+                    <div class="manual-card">
+                        <div>
+                            <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+                                <span style="font-size:24px;">🦊</span>
+                                <div>
+                                    <h5 style="font-size:15px;font-weight:800;color:#ea580c;">Mozilla Firefox</h5>
+                                    <span style="font-size:11px;color:var(--muted);">Cài đặt phần bổ trợ Firefox (Gecko
+                                        Add-on)</span>
+                                </div>
+                            </div>
+
+                            <!-- Link tải trực tiếp Firefox zip -->
+                            <a href="/thamkhao-extension-firefox.zip" class="btn-direct-download firefox" download>
+                                <span>🦊 Tải Add-on Mozilla Firefox (.zip)</span>
+                            </a>
+
+                            <div class="unzip-instruction-box">
+                                <b>Hướng dẫn giải nén và nạp phần bổ trợ Firefox:</b>
+                                <ol>
+                                    <li>Bấm nút cam ở trên để tải file <code>thamkhao-extension-firefox.zip</code> về máy
+                                        tính $\rightarrow$ Giải nén ra thư mục.</li>
+                                    <li>Mở tab mới trên Firefox, gõ vào thanh địa chỉ: <code
+                                            style="background:#f1f5f9;padding:2px 6px;border-radius:4px;color:#ea580c;font-weight:700;">about:debugging#/runtime/this-firefox</code>.
+                                    </li>
+                                    <li>Bấm nút <b>"Load Temporary Add-on..." (Tải phần bổ trợ tạm thời...)</b>.</li>
+                                    <li>Dẫn tới thư mục vừa giải nén và chọn file <code>manifest.json</code>.</li>
+                                    <li>Tiện ích VAGS sẽ được nạp ngay lập tức vào trình duyệt Firefox.</li>
+                                    <li>Bấm vào biểu tượng VAGS trên thanh công cụ và đăng nhập VNU SSO để bắt đầu tra
+                                        cứu.</li>
+                                </ol>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- CỘT 3: CẤU HÌNH TỰ ĐỘNG BẰNG PAC SCRIPT & MẬT KHẨU ỨNG DỤNG CHO THIẾT BỊ DI ĐỘNG -->
+                <div
+                    style="margin-top:20px;padding:18px 20px;background:#f8fafc;border:1px solid #cbd5e1;border-radius:12px;">
+                    <div
+                        style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px;">
+                        <div>
+                            <strong style="font-size:14px;color:#0f172a;display:flex;align-items:center;gap:6px;">
+                                <span>📱</span> Phương án 3: Cấu hình PAC Script & Mật Khẩu Ứng Dụng (iOS, Android,
+                                macOS)
+                            </strong>
+                            <p style="font-size:12px;color:var(--muted);margin-top:2px;">
+                                Dành cho thiết bị di động hoặc Thầy/Cô cấu hình trực tiếp vào cài đặt Proxy của hệ
+                                thống:
+                            </p>
+                        </div>
+                        <div>
+                            <a href="/vags.pac" target="_blank"
+                                style="font-family:monospace;font-size:12px;background:#0f172a;color:#38bdf8;padding:6px 12px;border-radius:6px;text-decoration:none;display:inline-block;font-weight:700;">PAC
+                                URL: https://thamkhao.vnu.edu.vn/vags.pac ↗</a>
+                        </div>
+                    </div>
+
+                    <!-- Hộp Mật khẩu ứng dụng (Proxy Access Key) -->
+                    <div id="proxyKeySection"
+                        style="background:#ffffff;border:1px solid #e2e8f0;border-radius:8px;padding:14px 16px;">
+                        <div id="proxyKeyUnauth"
+                            style="font-size:12px;color:#64748b;display:flex;align-items:center;gap:8px;">
+                            <span>🔒</span>
+                            <span>Vui lòng đăng nhập <b>VNU SSO</b> ở góc trên bên phải để nhận <b>Mật khẩu ứng dụng
+                                    (Proxy Access Key)</b> định danh bảo mật cho thiết bị.</span>
+                        </div>
+                        <div id="proxyKeyAuth" style="display:none;">
+                            <div
+                                style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
+                                <span style="font-size:12px;font-weight:700;color:#0f172a;">Thông tin xác thực Proxy
+                                    định danh (App Password):</span>
+                                <button type="button" onclick="regenerateUserProxyKey()"
+                                    style="padding:4px 10px;font-size:11px;background:#f1f5f9;color:#0f172a;border:1px solid #cbd5e1;cursor:pointer;border-radius:6px;font-weight:600;">
+                                    🔄 Tạo Mới Mã Truy Cập
+                                </button>
+                            </div>
+                            <div
+                                style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:12px;font-size:12px;">
+                                <div
+                                    style="background:#f8fafc;padding:10px 12px;border-radius:6px;border:1px solid #e2e8f0;">
+                                    <div style="color:#64748b;font-size:11px;margin-bottom:2px;">Máy chủ Proxy (Host &
+                                        Port):</div>
+                                    <code
+                                        style="font-weight:700;color:#0f172a;font-size:13px;">thamkhao.vnu.edu.vn : 443</code>
+                                </div>
+                                <div
+                                    style="background:#f8fafc;padding:10px 12px;border-radius:6px;border:1px solid #e2e8f0;">
+                                    <div style="color:#64748b;font-size:11px;margin-bottom:2px;">Tên đăng nhập
+                                        (Username):</div>
+                                    <code id="displayProxyUser"
+                                        style="font-weight:700;color:#0369a1;font-size:13px;">canbo@vnu.edu.vn</code>
+                                </div>
+                                <div
+                                    style="background:#f8fafc;padding:10px 12px;border-radius:6px;border:1px solid #e2e8f0;display:flex;align-items:center;justify-content:space-between;">
+                                    <div>
+                                        <div style="color:#64748b;font-size:11px;margin-bottom:2px;">Mật khẩu ứng dụng
+                                            (Access Key):</div>
+                                        <code id="displayProxyKey"
+                                            style="font-weight:800;color:#059669;font-size:13px;letter-spacing:0.5px;">vags_k_...</code>
+                                    </div>
+                                    <button type="button" onclick="copyProxyKey()"
+                                        style="background:#e0f2fe;color:#0369a1;border:none;padding:5px 10px;border-radius:4px;cursor:pointer;font-size:11px;font-weight:700;">📋
+                                        Chép</button>
+                                </div>
+                            </div>
+                            <div style="font-size:11px;color:#64748b;margin-top:10px;">
+                                💡 <b>Lưu ý an toàn:</b> Dùng cặp Username/Access Key trên khi thiết bị di động
+                                (iPhone/iPad/Android) hoặc trình duyệt yêu cầu xác thực Proxy. Proxy sẽ chặn hoàn toàn
+                                các truy cập từ khách lạ không có tài khoản.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        
+
+            <!-- ================= PHẦN 2: CÁCH 2 - ĐỒNG BỘ HỒ SƠ GOOGLE CHROME ================= -->
             <div class="profile-guide-container">
                 <div class="profile-guide-header">
                     <div style="display:flex;align-items:center;gap:14px;">
@@ -1234,10 +1743,9 @@
                         <div>
                             <h4
                                 style="font-size:18px;font-weight:800;color:#0f172a;display:flex;align-items:center;gap:10px;">
-                                Cách 1: Đồng Bộ Hồ Sơ Google Chrome Bằng Tài Khoản ĐHQGHN
+                                Cách 2: Đồng Bộ Hồ Sơ Google Chrome Bằng Tài Khoản ĐHQGHN
                                 <span class="badge-method"
-                                    style="background:#dcfce7;color:#15803d;border:1px solid #86efac;font-size:11px;">Khuyến
-                                    nghị 100% • Tự động cài đặt</span>
+                                    style="background:#f1f5f9;color:#475569;border:1px solid #cbd5e1;font-size:11px;">Tự động cài đặt ngầm qua Google Workspace</span>
                             </h4>
                             <p style="font-size:13px;color:var(--muted);margin-top:3px;">
                                 Hệ thống đã được quản trị tập trung qua Google Workspace ĐHQGHN (OU: <b>canbo</b>). Cán
@@ -1533,198 +2041,6 @@
             </div>
 
             <!-- ================= PHẦN 2: HƯỚNG DẪN CÀI ĐẶT THỦ CÔNG (LUÔN MỞ RỘNG 100%, KHÔNG THU GỌN) ================= -->
-            <div class="manual-guide-box">
-                <div
-                    style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;border-bottom:1px solid #e2e8f0;padding-bottom:14px;margin-bottom:18px;">
-                    <div>
-                        <h4
-                            style="font-size:16px;font-weight:800;color:#0f172a;display:flex;align-items:center;gap:8px;">
-                            <span>📁</span> Cách 2: Hướng Dẫn Cài Đặt Thủ Công Bằng Tệp Mở Rộng (.zip)
-                        </h4>
-                        <p style="font-size:12.5px;color:var(--muted);margin-top:2px;">
-                            Dành cho Thầy/Cô sử dụng Mozilla Firefox hoặc máy tính cá nhân không muốn đồng bộ Profile
-                            Chrome của trường:
-                        </p>
-                    </div>
-                    <span
-                        style="font-size:11px;background:#f1f5f9;color:#475569;padding:4px 10px;border-radius:6px;font-weight:700;border:1px solid #cbd5e1;">Phiên
-                        bản v2.1.1</span>
-                </div>
-
-                <div class="manual-cards-grid">
-                    <!-- CỘT 1: GOOGLE CHROME & MICROSOFT EDGE (.ZIP THỦ CÔNG) -->
-                    <div class="manual-card">
-                        <div>
-                            <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
-                                <span style="font-size:24px;">🌐</span>
-                                <div>
-                                    <h5 style="font-size:15px;font-weight:800;color:#1d4ed8;">Google Chrome & Microsoft
-                                        Edge</h5>
-                                    <span style="font-size:11px;color:var(--muted);">Cài đặt gói giải nén (Unpacked
-                                        Extension)</span>
-                                </div>
-                            </div>
-
-                            <!-- Link tải trực tiếp Chrome zip -->
-                            <a href="/thamkhao-extension-chrome.zip" class="btn-direct-download" download>
-                                <span>⬇️ Tải Gói Cài Đặt Chrome (.zip)</span>
-                            </a>
-
-                            <div class="unzip-instruction-box">
-                                <div style="font-weight:700;color:#1e293b;margin-bottom:6px;font-size:13.5px;">📦 Phần
-                                    1: Cài đặt tiện ích</div>
-                                <ol>
-                                    <li>Bấm nút xanh ở trên để tải file <code>thamkhao-extension-chrome.zip</code> về máy
-                                        tính.</li>
-                                    <li>Tìm đến file vừa tải, <b>chuột phải</b> &rarr; Chọn <b>"Extract All..." (hoặc
-                                            "Giải nén vào...")</b> để tạo một thư mục.</li>
-                                    <li>Mở tab mới trên Chrome, gõ vào thanh địa chỉ: <code
-                                            style="background:#f1f5f9;padding:2px 6px;border-radius:4px;color:#1d4ed8;font-weight:700;">chrome://extensions</code>
-                                        (nếu dùng Edge: <code
-                                            style="background:#f1f5f9;padding:2px 6px;border-radius:4px;color:#1d4ed8;font-weight:700;">edge://extensions</code>).
-                                    </li>
-                                    <li>Nhìn lên góc trên bên phải, gạt <b>BẬT</b> công tắc <b>"Developer mode" (Chế độ
-                                            cho nhà phát triển)</b>.</li>
-                                    <li>Nhìn sang góc trên bên trái, bấm nút <b>"Load unpacked" (Tải tiện ích đã giải
-                                            nén)</b>.</li>
-                                    <li>Chọn đúng thư mục vừa giải nén ở Bước 2 &rarr; Bấm <b>Select Folder</b>. Tiện
-                                        ích <b>VNU Academic Gateway (VAGS)</b> sẽ xuất hiện ngay lập tức trên thanh công
-                                        cụ của Chrome.</li>
-                                </ol>
-
-                                <div
-                                    style="font-weight:700;color:#059669;margin-top:12px;margin-bottom:6px;font-size:13.5px;border-top:1px dashed #cbd5e1;padding-top:10px;">
-                                    🚀 Phần 2: Đăng nhập và kích hoạt
-                                </div>
-                                <ol>
-                                    <li>Bấm biểu tượng mảnh ghép <b>🧩</b> trên trình duyệt &rarr; Bấm ghim <b>📌</b>
-                                        VAGS ra ngoài.</li>
-                                    <li>Mở VAGS &rarr; Bấm <b>🔑 Đăng nhập VNU SSO</b> bằng email
-                                        <code>@vnu.edu.vn</code>.
-                                    </li>
-                                    <li><b>(Bắt buộc)</b>: Gạt công tắc <b>"Đường truyền Proxy" sang BẬT</b>. Khi biểu
-                                        tượng chuyển từ <b>OFF (đỏ)</b> sang <b>ON (xanh)</b> là hoàn tất, bạn có thể
-                                        vào <i>sciencedirect.com, springer.com...</i> để tải tài liệu.</li>
-                                </ol>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- CỘT 2: MOZILLA FIREFOX (.ZIP / .XPI THỦ CÔNG) -->
-                    <div class="manual-card">
-                        <div>
-                            <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
-                                <span style="font-size:24px;">🦊</span>
-                                <div>
-                                    <h5 style="font-size:15px;font-weight:800;color:#ea580c;">Mozilla Firefox</h5>
-                                    <span style="font-size:11px;color:var(--muted);">Cài đặt phần bổ trợ Firefox (Gecko
-                                        Add-on)</span>
-                                </div>
-                            </div>
-
-                            <!-- Link tải trực tiếp Firefox zip -->
-                            <a href="/thamkhao-extension-firefox.zip" class="btn-direct-download firefox" download>
-                                <span>🦊 Tải Add-on Mozilla Firefox (.zip)</span>
-                            </a>
-
-                            <div class="unzip-instruction-box">
-                                <b>Hướng dẫn giải nén và nạp phần bổ trợ Firefox:</b>
-                                <ol>
-                                    <li>Bấm nút cam ở trên để tải file <code>thamkhao-extension-firefox.zip</code> về máy
-                                        tính $\rightarrow$ Giải nén ra thư mục.</li>
-                                    <li>Mở tab mới trên Firefox, gõ vào thanh địa chỉ: <code
-                                            style="background:#f1f5f9;padding:2px 6px;border-radius:4px;color:#ea580c;font-weight:700;">about:debugging#/runtime/this-firefox</code>.
-                                    </li>
-                                    <li>Bấm nút <b>"Load Temporary Add-on..." (Tải phần bổ trợ tạm thời...)</b>.</li>
-                                    <li>Dẫn tới thư mục vừa giải nén và chọn file <code>manifest.json</code>.</li>
-                                    <li>Tiện ích VAGS sẽ được nạp ngay lập tức vào trình duyệt Firefox.</li>
-                                    <li>Bấm vào biểu tượng VAGS trên thanh công cụ và đăng nhập VNU SSO để bắt đầu tra
-                                        cứu.</li>
-                                </ol>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- CỘT 3: CẤU HÌNH TỰ ĐỘNG BẰNG PAC SCRIPT & MẬT KHẨU ỨNG DỤNG CHO THIẾT BỊ DI ĐỘNG -->
-                <div
-                    style="margin-top:20px;padding:18px 20px;background:#f8fafc;border:1px solid #cbd5e1;border-radius:12px;">
-                    <div
-                        style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px;">
-                        <div>
-                            <strong style="font-size:14px;color:#0f172a;display:flex;align-items:center;gap:6px;">
-                                <span>📱</span> Phương án 3: Cấu hình PAC Script & Mật Khẩu Ứng Dụng (iOS, Android,
-                                macOS)
-                            </strong>
-                            <p style="font-size:12px;color:var(--muted);margin-top:2px;">
-                                Dành cho thiết bị di động hoặc Thầy/Cô cấu hình trực tiếp vào cài đặt Proxy của hệ
-                                thống:
-                            </p>
-                        </div>
-                        <div>
-                            <a href="/vags.pac" target="_blank"
-                                style="font-family:monospace;font-size:12px;background:#0f172a;color:#38bdf8;padding:6px 12px;border-radius:6px;text-decoration:none;display:inline-block;font-weight:700;">PAC
-                                URL: https://thamkhao.vnu.edu.vn/vags.pac ↗</a>
-                        </div>
-                    </div>
-
-                    <!-- Hộp Mật khẩu ứng dụng (Proxy Access Key) -->
-                    <div id="proxyKeySection"
-                        style="background:#ffffff;border:1px solid #e2e8f0;border-radius:8px;padding:14px 16px;">
-                        <div id="proxyKeyUnauth"
-                            style="font-size:12px;color:#64748b;display:flex;align-items:center;gap:8px;">
-                            <span>🔒</span>
-                            <span>Vui lòng đăng nhập <b>VNU SSO</b> ở góc trên bên phải để nhận <b>Mật khẩu ứng dụng
-                                    (Proxy Access Key)</b> định danh bảo mật cho thiết bị.</span>
-                        </div>
-                        <div id="proxyKeyAuth" style="display:none;">
-                            <div
-                                style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
-                                <span style="font-size:12px;font-weight:700;color:#0f172a;">Thông tin xác thực Proxy
-                                    định danh (App Password):</span>
-                                <button type="button" onclick="regenerateUserProxyKey()"
-                                    style="padding:4px 10px;font-size:11px;background:#f1f5f9;color:#0f172a;border:1px solid #cbd5e1;cursor:pointer;border-radius:6px;font-weight:600;">
-                                    🔄 Tạo Mới Mã Truy Cập
-                                </button>
-                            </div>
-                            <div
-                                style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:12px;font-size:12px;">
-                                <div
-                                    style="background:#f8fafc;padding:10px 12px;border-radius:6px;border:1px solid #e2e8f0;">
-                                    <div style="color:#64748b;font-size:11px;margin-bottom:2px;">Máy chủ Proxy (Host &
-                                        Port):</div>
-                                    <code
-                                        style="font-weight:700;color:#0f172a;font-size:13px;">thamkhao.vnu.edu.vn : 443</code>
-                                </div>
-                                <div
-                                    style="background:#f8fafc;padding:10px 12px;border-radius:6px;border:1px solid #e2e8f0;">
-                                    <div style="color:#64748b;font-size:11px;margin-bottom:2px;">Tên đăng nhập
-                                        (Username):</div>
-                                    <code id="displayProxyUser"
-                                        style="font-weight:700;color:#0369a1;font-size:13px;">canbo@vnu.edu.vn</code>
-                                </div>
-                                <div
-                                    style="background:#f8fafc;padding:10px 12px;border-radius:6px;border:1px solid #e2e8f0;display:flex;align-items:center;justify-content:space-between;">
-                                    <div>
-                                        <div style="color:#64748b;font-size:11px;margin-bottom:2px;">Mật khẩu ứng dụng
-                                            (Access Key):</div>
-                                        <code id="displayProxyKey"
-                                            style="font-weight:800;color:#059669;font-size:13px;letter-spacing:0.5px;">vags_k_...</code>
-                                    </div>
-                                    <button type="button" onclick="copyProxyKey()"
-                                        style="background:#e0f2fe;color:#0369a1;border:none;padding:5px 10px;border-radius:4px;cursor:pointer;font-size:11px;font-weight:700;">📋
-                                        Chép</button>
-                                </div>
-                            </div>
-                            <div style="font-size:11px;color:#64748b;margin-top:10px;">
-                                💡 <b>Lưu ý an toàn:</b> Dùng cặp Username/Access Key trên khi thiết bị di động
-                                (iPhone/iPad/Android) hoặc trình duyệt yêu cầu xác thực Proxy. Proxy sẽ chặn hoàn toàn
-                                các truy cập từ khách lạ không có tài khoản.
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
         </section>
 
         <!-- Banner Quản trị viên PQTKT (Chỉ hiển thị khi đăng nhập đúng tài khoản Quản trị) -->
