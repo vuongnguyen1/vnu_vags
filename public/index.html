@@ -1571,13 +1571,22 @@
                             </div>
 
                             <!-- Link tải trực tiếp Chrome zip -->
-                            <a href="/thamkhao-extension-chrome.zip" class="btn-direct-download" download>
-                                <span>⬇️ Tải Gói Cài Đặt Chrome (.zip)</span>
-                            </a>
+                            <!-- Link tải trực tiếp Chrome zip & Tệp PDF Hướng dẫn -->
+                            <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
+                                <a href="/thamkhao-extension-chrome.zip" class="btn-direct-download" download style="margin-bottom:0;flex:1;min-width:180px;">
+                                    <span>⬇️ Tải Gói Cài Đặt Chrome (.zip)</span>
+                                </a>
+                                <a href="/huong-dan-cai-dat-vags-chrome.pdf" target="_blank" class="btn-direct-download" style="background:#0284c7;margin-bottom:0;flex:1;min-width:180px;" title="Xem hoặc tải file PDF hướng dẫn cài đặt từng bước có ảnh minh họa">
+                                    <span>📄 Xem Hướng Dẫn Cài Đặt (PDF)</span>
+                                </a>
+                            </div>
 
                             <div class="unzip-instruction-box">
-                                <div style="font-weight:700;color:#1e293b;margin-bottom:6px;font-size:13.5px;">📦 Phần
-                                    1: Cài đặt tiện ích</div>
+                                <div style="font-weight:700;color:#1e293b;margin-bottom:6px;font-size:13.5px;">📦 Phần 1: Cài đặt tiện ích</div>
+                                <div style="margin-bottom:12px;padding:9px 12px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:6px;font-size:12.5px;color:#0369a1;display:flex;align-items:center;gap:8px;">
+                                    <span>📄</span>
+                                    <span><b>File đính kèm:</b> Thầy/Cô có thể xem hoặc tải <a href="/huong-dan-cai-dat-vags-chrome.pdf" target="_blank" style="color:#0284c7;font-weight:700;text-decoration:underline;">Tệp PDF hướng dẫn cài đặt có hình ảnh chi tiết</a> để xem từng bước.</span>
+                                </div>
                                 <ol>
                                     <li>Bấm nút xanh ở trên để tải file <code>thamkhao-extension-chrome.zip</code> về máy
                                         tính.</li>
@@ -1650,87 +1659,7 @@
                         </div>
                     </div>
                 </div>
-
-                <!-- CỘT 3: CẤU HÌNH TỰ ĐỘNG BẰNG PAC SCRIPT & MẬT KHẨU ỨNG DỤNG CHO THIẾT BỊ DI ĐỘNG -->
-                <div
-                    style="margin-top:20px;padding:18px 20px;background:#f8fafc;border:1px solid #cbd5e1;border-radius:12px;">
-                    <div
-                        style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px;">
-                        <div>
-                            <strong style="font-size:14px;color:#0f172a;display:flex;align-items:center;gap:6px;">
-                                <span>📱</span> Phương án 3: Cấu hình PAC Script & Mật Khẩu Ứng Dụng (iOS, Android,
-                                macOS)
-                            </strong>
-                            <p style="font-size:12px;color:var(--muted);margin-top:2px;">
-                                Dành cho thiết bị di động hoặc Thầy/Cô cấu hình trực tiếp vào cài đặt Proxy của hệ
-                                thống:
-                            </p>
-                        </div>
-                        <div>
-                            <a href="/vags.pac" target="_blank"
-                                style="font-family:monospace;font-size:12px;background:#0f172a;color:#38bdf8;padding:6px 12px;border-radius:6px;text-decoration:none;display:inline-block;font-weight:700;">PAC
-                                URL: https://thamkhao.vnu.edu.vn/vags.pac ↗</a>
-                        </div>
-                    </div>
-
-                    <!-- Hộp Mật khẩu ứng dụng (Proxy Access Key) -->
-                    <div id="proxyKeySection"
-                        style="background:#ffffff;border:1px solid #e2e8f0;border-radius:8px;padding:14px 16px;">
-                        <div id="proxyKeyUnauth"
-                            style="font-size:12px;color:#64748b;display:flex;align-items:center;gap:8px;">
-                            <span>🔒</span>
-                            <span>Vui lòng đăng nhập <b>VNU SSO</b> ở góc trên bên phải để nhận <b>Mật khẩu ứng dụng
-                                    (Proxy Access Key)</b> định danh bảo mật cho thiết bị.</span>
-                        </div>
-                        <div id="proxyKeyAuth" style="display:none;">
-                            <div
-                                style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
-                                <span style="font-size:12px;font-weight:700;color:#0f172a;">Thông tin xác thực Proxy
-                                    định danh (App Password):</span>
-                                <button type="button" onclick="regenerateUserProxyKey()"
-                                    style="padding:4px 10px;font-size:11px;background:#f1f5f9;color:#0f172a;border:1px solid #cbd5e1;cursor:pointer;border-radius:6px;font-weight:600;">
-                                    🔄 Tạo Mới Mã Truy Cập
-                                </button>
-                            </div>
-                            <div
-                                style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:12px;font-size:12px;">
-                                <div
-                                    style="background:#f8fafc;padding:10px 12px;border-radius:6px;border:1px solid #e2e8f0;">
-                                    <div style="color:#64748b;font-size:11px;margin-bottom:2px;">Máy chủ Proxy (Host &
-                                        Port):</div>
-                                    <code
-                                        style="font-weight:700;color:#0f172a;font-size:13px;">thamkhao.vnu.edu.vn : 443</code>
-                                </div>
-                                <div
-                                    style="background:#f8fafc;padding:10px 12px;border-radius:6px;border:1px solid #e2e8f0;">
-                                    <div style="color:#64748b;font-size:11px;margin-bottom:2px;">Tên đăng nhập
-                                        (Username):</div>
-                                    <code id="displayProxyUser"
-                                        style="font-weight:700;color:#0369a1;font-size:13px;">canbo@vnu.edu.vn</code>
-                                </div>
-                                <div
-                                    style="background:#f8fafc;padding:10px 12px;border-radius:6px;border:1px solid #e2e8f0;display:flex;align-items:center;justify-content:space-between;">
-                                    <div>
-                                        <div style="color:#64748b;font-size:11px;margin-bottom:2px;">Mật khẩu ứng dụng
-                                            (Access Key):</div>
-                                        <code id="displayProxyKey"
-                                            style="font-weight:800;color:#059669;font-size:13px;letter-spacing:0.5px;">vags_k_...</code>
-                                    </div>
-                                    <button type="button" onclick="copyProxyKey()"
-                                        style="background:#e0f2fe;color:#0369a1;border:none;padding:5px 10px;border-radius:4px;cursor:pointer;font-size:11px;font-weight:700;">📋
-                                        Chép</button>
-                                </div>
-                            </div>
-                            <div style="font-size:11px;color:#64748b;margin-top:10px;">
-                                💡 <b>Lưu ý an toàn:</b> Dùng cặp Username/Access Key trên khi thiết bị di động
-                                (iPhone/iPad/Android) hoặc trình duyệt yêu cầu xác thực Proxy. Proxy sẽ chặn hoàn toàn
-                                các truy cập từ khách lạ không có tài khoản.
-                            </div>
-                        </div>
-                    </div>
-                </div>
             </div>
-        
 
             <!-- ================= PHẦN 2: CÁCH 2 - ĐỒNG BỘ HỒ SƠ GOOGLE CHROME ================= -->
             <div class="profile-guide-container">
@@ -2040,7 +1969,77 @@
                 </div>
             </div>
 
-            <!-- ================= PHẦN 2: HƯỚNG DẪN CÀI ĐẶT THỦ CÔNG (LUÔN MỞ RỘNG 100%, KHÔNG THU GỌN) ================= -->
+            <!-- ================= PHẦN 3: CÁCH 3 - CẤU HÌNH PAC SCRIPT & MẬT KHẨU ỨNG DỤNG CHO THIẾT BỊ DI ĐỘNG ================= -->
+            <div class="manual-guide-box" style="margin-top:30px;border-top:4px solid #475569;">
+                <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px;">
+                    <div>
+                        <h4 style="font-size:16px;font-weight:800;color:#0f172a;display:flex;align-items:center;gap:8px;">
+                            <span>📱</span> Cách 3: Cấu hình PAC Script & Mật Khẩu Ứng Dụng (iOS, Android, macOS)
+                        </h4>
+                        <p style="font-size:12.5px;color:var(--muted);margin-top:2px;">
+                            Dành cho thiết bị di động hoặc Thầy/Cô cấu hình trực tiếp vào cài đặt Proxy của hệ thống:
+                        </p>
+                    </div>
+                    <div>
+                        <a href="/vags.pac" target="_blank"
+                            style="font-family:monospace;font-size:12px;background:#0f172a;color:#38bdf8;padding:6px 12px;border-radius:6px;text-decoration:none;display:inline-block;font-weight:700;">PAC URL: https://thamkhao.vnu.edu.vn/vags.pac ↗</a>
+                    </div>
+                </div>
+<div id="proxyKeySection"
+                        style="background:#ffffff;border:1px solid #e2e8f0;border-radius:8px;padding:14px 16px;">
+                        <div id="proxyKeyUnauth"
+                            style="font-size:12px;color:#64748b;display:flex;align-items:center;gap:8px;">
+                            <span>🔒</span>
+                            <span>Vui lòng đăng nhập <b>VNU SSO</b> ở góc trên bên phải để nhận <b>Mật khẩu ứng dụng
+                                    (Proxy Access Key)</b> định danh bảo mật cho thiết bị.</span>
+                        </div>
+                        <div id="proxyKeyAuth" style="display:none;">
+                            <div
+                                style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
+                                <span style="font-size:12px;font-weight:700;color:#0f172a;">Thông tin xác thực Proxy
+                                    định danh (App Password):</span>
+                                <button type="button" onclick="regenerateUserProxyKey()"
+                                    style="padding:4px 10px;font-size:11px;background:#f1f5f9;color:#0f172a;border:1px solid #cbd5e1;cursor:pointer;border-radius:6px;font-weight:600;">
+                                    🔄 Tạo Mới Mã Truy Cập
+                                </button>
+                            </div>
+                            <div
+                                style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:12px;font-size:12px;">
+                                <div
+                                    style="background:#f8fafc;padding:10px 12px;border-radius:6px;border:1px solid #e2e8f0;">
+                                    <div style="color:#64748b;font-size:11px;margin-bottom:2px;">Máy chủ Proxy (Host &
+                                        Port):</div>
+                                    <code
+                                        style="font-weight:700;color:#0f172a;font-size:13px;">thamkhao.vnu.edu.vn : 443</code>
+                                </div>
+                                <div
+                                    style="background:#f8fafc;padding:10px 12px;border-radius:6px;border:1px solid #e2e8f0;">
+                                    <div style="color:#64748b;font-size:11px;margin-bottom:2px;">Tên đăng nhập
+                                        (Username):</div>
+                                    <code id="displayProxyUser"
+                                        style="font-weight:700;color:#0369a1;font-size:13px;">canbo@vnu.edu.vn</code>
+                                </div>
+                                <div
+                                    style="background:#f8fafc;padding:10px 12px;border-radius:6px;border:1px solid #e2e8f0;display:flex;align-items:center;justify-content:space-between;">
+                                    <div>
+                                        <div style="color:#64748b;font-size:11px;margin-bottom:2px;">Mật khẩu ứng dụng
+                                            (Access Key):</div>
+                                        <code id="displayProxyKey"
+                                            style="font-weight:800;color:#059669;font-size:13px;letter-spacing:0.5px;">vags_k_...</code>
+                                    </div>
+                                    <button type="button" onclick="copyProxyKey()"
+                                        style="background:#e0f2fe;color:#0369a1;border:none;padding:5px 10px;border-radius:4px;cursor:pointer;font-size:11px;font-weight:700;">📋
+                                        Chép</button>
+                                </div>
+                            </div>
+                            <div style="font-size:11px;color:#64748b;margin-top:10px;">
+                                💡 <b>Lưu ý an toàn:</b> Dùng cặp Username/Access Key trên khi thiết bị di động
+                                (iPhone/iPad/Android) hoặc trình duyệt yêu cầu xác thực Proxy. Proxy sẽ chặn hoàn toàn
+                                các truy cập từ khách lạ không có tài khoản.
+                            </div>
+                        </div>
+                    </div>
+            </div>
         </section>
 
         <!-- Banner Quản trị viên PQTKT (Chỉ hiển thị khi đăng nhập đúng tài khoản Quản trị) -->
