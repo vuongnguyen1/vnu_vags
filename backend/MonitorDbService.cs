@@ -12,6 +12,7 @@ public class ConnectionLogItem
     public string ClientIp { get; set; } = "unknown";
     public string Username { get; set; } = "Khách (Chưa xác thực)";
     public string Unit { get; set; } = "VNU";
+    public string MemberType { get; set; } = "canbo";
     public string TargetHost { get; set; } = "";
     public int TargetPort { get; set; } = 443;
     public bool Allowed { get; set; } = true;
@@ -113,6 +114,14 @@ public class MonitorDbService
             using var cmdCol = conn.CreateCommand();
             cmdCol.CommandText = "ALTER TABLE active_sessions ADD COLUMN is_proxy_enabled INTEGER DEFAULT 1;";
             cmdCol.ExecuteNonQuery();
+        }
+        catch { }
+
+        try
+        {
+            using var cmdCol2 = conn.CreateCommand();
+            cmdCol2.CommandText = "ALTER TABLE connections_log ADD COLUMN member_type TEXT DEFAULT 'canbo';";
+            cmdCol2.ExecuteNonQuery();
         }
         catch { }
 
@@ -407,14 +416,15 @@ public class MonitorDbService
                     cmd.Transaction = transaction;
                     cmd.CommandText = @"
                         INSERT INTO connections_log 
-                        (timestamp, client_ip, username, unit, target_host, target_port, allowed, reason, matched_rule, bytes_sent, bytes_received, duration_ms)
-                        VALUES ($ts, $ip, $user, $unit, $host, $port, $allowed, $reason, $rule, $bsent, $brecv, $dur);
+                        (timestamp, client_ip, username, unit, member_type, target_host, target_port, allowed, reason, matched_rule, bytes_sent, bytes_received, duration_ms)
+                        VALUES ($ts, $ip, $user, $unit, $mtype, $host, $port, $allowed, $reason, $rule, $bsent, $brecv, $dur);
                     ";
 
                     var pTs = cmd.Parameters.Add("$ts", SqliteType.Text);
                     var pIp = cmd.Parameters.Add("$ip", SqliteType.Text);
                     var pUser = cmd.Parameters.Add("$user", SqliteType.Text);
                     var pUnit = cmd.Parameters.Add("$unit", SqliteType.Text);
+                    var pMtype = cmd.Parameters.Add("$mtype", SqliteType.Text);
                     var pHost = cmd.Parameters.Add("$host", SqliteType.Text);
                     var pPort = cmd.Parameters.Add("$port", SqliteType.Integer);
                     var pAllowed = cmd.Parameters.Add("$allowed", SqliteType.Integer);
@@ -430,6 +440,7 @@ public class MonitorDbService
                         pIp.Value = it.ClientIp;
                         pUser.Value = it.Username;
                         pUnit.Value = it.Unit;
+                        pMtype.Value = string.IsNullOrWhiteSpace(it.MemberType) ? "canbo" : it.MemberType;
                         pHost.Value = it.TargetHost;
                         pPort.Value = it.TargetPort;
                         pAllowed.Value = it.Allowed ? 1 : 0;
@@ -962,6 +973,397 @@ public class MonitorDbService
         RandomNumberGenerator.Fill(bytes);
         var hex = Convert.ToHexString(bytes).ToLowerInvariant();
         return $"vags-{hex.Substring(0, 4)}-{hex.Substring(4, 4)}-{hex.Substring(8, 4)}";
+    }
+
+    public static readonly Dictionary<string, (string unit, string memberType)> KnownUserMappings = new(StringComparer.OrdinalIgnoreCase)
+    {
+        // UMP (Đại học Y Dược)
+        { "khoay.ump", ("UMP", "canbo") },
+        { "thangnd.ump", ("UMP", "canbo") },
+        { "sonhoang.ump", ("UMP", "nguoihoc") },
+        { "duongnth.ump", ("UMP", "nguoihoc") },
+        { "caoviet", ("UMP", "canbo") },
+        { "dungmq1102", ("UMP", "nguoihoc") },
+
+        // UEB (Đại học Kinh tế)
+        { "maianh.ueb", ("UEB", "canbo") },
+        { "it_ueb", ("UEB", "canbo") },
+        { "hoahtt", ("UEB", "canbo") },
+        { "dungvt", ("UEB", "canbo") },
+        { "tuanta91", ("UEB", "nguoihoc") },
+
+        // HUS (Đại học Khoa học Tự nhiên)
+        { "duydoanmanh", ("HUS", "canbo") },
+        { "sondohong", ("HUS", "canbo") },
+        { "xuanluc.le", ("HUS", "canbo") },
+        { "thanhletrung", ("HUS", "nguoihoc") },
+        { "hoangntt", ("HUS", "nguoihoc") },
+        { "quynhntt-bio", ("HUS", "canbo") },
+
+        // UET (Đại học Công nghệ)
+        { "tqlong", ("UET", "canbo") },
+        { "letungson", ("UET", "canbo") },
+        { "tdhuy", ("UET", "canbo") },
+        { "ductv92", ("UET", "nguoihoc") },
+        { "tuannguyenduc", ("UET", "canbo") },
+        { "datlq", ("UET", "nguoihoc") },
+
+        // USSH (Đại học Khoa học Xã hội và Nhân văn)
+        { "toanvh", ("USSH", "canbo") },
+        { "truongho", ("USSH", "canbo") },
+        { "trinhtd", ("USSH", "canbo") },
+        { "lathitham", ("USSH", "nguoihoc") },
+        { "hoant1991", ("USSH", "nguoihoc") },
+
+        // ULIS (Đại học Ngoại ngữ)
+        { "bichphuong", ("ULIS", "canbo") },
+        { "hangtang", ("ULIS", "canbo") },
+        { "nhungdth", ("ULIS", "canbo") },
+        { "ynhu", ("ULIS", "nguoihoc") },
+        { "trannhuchi", ("ULIS", "nguoihoc") },
+
+        // UEd (Đại học Giáo dục)
+        { "minhgv", ("UEd", "canbo") },
+        { "nguyenthuy", ("UEd", "canbo") },
+        { "thaiba", ("UEd", "nguoihoc") },
+        { "haptt1983", ("UEd", "canbo") },
+
+        // VJU (Đại học Việt Nhật)
+        { "tannd88", ("VJU", "canbo") },
+        { "donghyunko@vnu.edu.vn", ("VJU", "canbo") },
+        { "khanhvh", ("VJU", "nguoihoc") },
+
+        // UL (Đại học Luật)
+        { "lamlb", ("UL", "canbo") },
+        { "hiendinhthuyls", ("UL", "canbo") },
+        { "loanhtp", ("UL", "canbo") },
+        { "duclm", ("UL", "nguoihoc") },
+
+        // IS (Trường Quốc tế)
+        { "quynld", ("IS", "canbo") },
+        { "hieubt", ("IS", "canbo") },
+        { "tuyendt", ("IS", "nguoihoc") },
+        { "linhdtd", ("IS", "nguoihoc") },
+
+        // HSB (Trường Quản trị và Kinh doanh)
+        { "doanlt", ("HSB", "canbo") },
+        { "lephuc", ("HSB", "canbo") },
+        { "cuongkim", ("HSB", "nguoihoc") },
+        { "cuonglv", ("HSB", "canbo") },
+
+        // SIS (Trường Khoa học liên ngành và Nghệ thuật)
+        { "ptnha", ("SIS", "canbo") },
+        { "hoadao", ("SIS", "canbo") },
+        { "yennh", ("SIS", "nguoihoc") },
+        { "ntttra", ("SIS", "canbo") },
+
+        // ITI (Viện Công nghệ Thông tin)
+        { "haitrantt", ("ITI", "canbo") },
+        { "longph", ("ITI", "canbo") },
+        { "diepnm", ("ITI", "canbo") },
+        { "thinhtt", ("ITI", "nguoihoc") },
+
+        // CRES (Viện Tài nguyên và Môi trường)
+        { "vinhnv.vtnt", ("CRES", "canbo") },
+        { "dung.nghiem", ("CRES", "canbo") },
+        { "dongquangviet", ("CRES", "nguoihoc") },
+
+        // IMBT (Viện Vi sinh vật và Công nghệ Sinh học)
+        { "hanhntb", ("IMBT", "canbo") },
+        { "nguyenbichngoc", ("IMBT", "canbo") },
+        { "nhungntk", ("IMBT", "nguoihoc") },
+
+        // IVIDES (Viện Đảm bảo chất lượng Giáo dục)
+        { "tranhiep.dinh", ("IVIDES", "canbo") },
+        { "thaibinh", ("IVIDES", "nguoihoc") },
+
+        // TNTI (Viện Trần Nhân Tông)
+        { "ngoviethoan", ("TNTI", "canbo") },
+        { "thaitv", ("TNTI", "nguoihoc") },
+
+        // TIP (Viện Đổi mới sáng tạo và Khởi nghiệp)
+        { "phamtiendat", ("TIP", "canbo") },
+        { "sonnh", ("TIP", "nguoihoc") },
+
+        // IQA (Trung tâm Khảo thí ĐHQGHN)
+        { "dungbt", ("IQA", "canbo") },
+        { "hoangcd", ("IQA", "nguoihoc") },
+
+        // CEA (Trung tâm Kiểm định Chất lượng Giáo dục)
+        { "huonglt", ("CEA", "canbo") },
+        { "ngocttb", ("CEA", "nguoihoc") },
+
+        // LIC (Trung tâm Thư viện và Tri thức số)
+        { "ntquyen", ("LIC", "canbo") },
+        { "nguyentruonggiang", ("LIC", "nguoihoc") },
+
+        // OTHER (Cơ quan ĐHQGHN & Khác)
+        { "cuongnguyennxb", ("OTHER", "canbo") },
+        { "phongnd", ("OTHER", "canbo") },
+        { "vuongwork", ("OTHER", "canbo") },
+        { "cuongnd", ("OTHER", "canbo") },
+        { "anhnn.vnu", ("OTHER", "canbo") },
+        { "test", ("OTHER", "canbo") },
+        { "Khách (Chưa xác thực)", ("OTHER", "nguoihoc") },
+        { "duchuy", ("OTHER", "nguoihoc") }
+    };
+
+    public static (string unit, string memberType) DetermineUnitAndMemberType(string? username, string? rawUnit, string? rawMtype)
+    {
+        var u = username?.Trim() ?? "";
+        if (!string.IsNullOrEmpty(u) && KnownUserMappings.TryGetValue(u, out var mapped))
+        {
+            return mapped;
+        }
+
+        if (!string.IsNullOrEmpty(u))
+        {
+            if (u.EndsWith(".ump", StringComparison.OrdinalIgnoreCase)) return ("UMP", "canbo");
+            if (u.EndsWith(".ueb", StringComparison.OrdinalIgnoreCase)) return ("UEB", "canbo");
+            if (u.EndsWith(".vtnt", StringComparison.OrdinalIgnoreCase)) return ("CRES", "canbo");
+        }
+
+        var normUnit = NormalizeUnit(rawUnit);
+        var normMtype = (rawMtype != null && (rawMtype.Contains("canbo", StringComparison.OrdinalIgnoreCase) || rawMtype.Contains("giangvien", StringComparison.OrdinalIgnoreCase)))
+            ? "canbo" : "nguoihoc";
+
+        return (normUnit, normMtype);
+    }
+
+    public static string NormalizeUnit(string? rawUnit)
+    {
+        if (string.IsNullOrWhiteSpace(rawUnit)) return "OTHER";
+        var u = rawUnit.Trim().ToUpperInvariant();
+        if (u == "HUS" || u.Contains("HUS") || u.Contains("KHTN") || u.Contains("TỰ NHIÊN")) return "HUS";
+        if (u == "USSH" || u.Contains("USSH") || u.Contains("KHXHNV") || u.Contains("NHÂN VĂN")) return "USSH";
+        if (u == "ULIS" || u.Contains("ULIS") || u.Contains("NGOẠI NGỮ")) return "ULIS";
+        if (u == "UET" || u.Contains("UET") || u.Contains("CÔNG NGHỆ")) return "UET";
+        if (u == "UED" || u.Contains("UED") || u.Contains("GIÁO DỤC")) return "UEd";
+        if (u == "UEB" || u.Contains("UEB") || u.Contains("KINH TẾ")) return "UEB";
+        if (u == "UMP" || u.Contains("UMP") || u.Contains("Y DƯỢC")) return "UMP";
+        if (u == "VJU" || u.Contains("VJU") || u.Contains("VIỆT NHẬT")) return "VJU";
+        if (u == "UL" || u.Contains("UL") || u.Contains("LUẬT")) return "UL";
+        if (u == "IS" || u.Contains("QUỐC TẾ")) return "IS";
+        if (u == "HSB" || u.Contains("HSB") || u.Contains("QUẢN TRỊ")) return "HSB";
+        if (u == "SIS" || u.Contains("SIS") || u.Contains("LIÊN NGÀNH")) return "SIS";
+        if (u == "ITI" || u.Contains("ITI") || u.Contains("CNTT")) return "ITI";
+        if (u == "CRES" || u.Contains("CRES") || u.Contains("MÔI TRƯỜNG")) return "CRES";
+        if (u == "IMBT" || u.Contains("IMBT") || u.Contains("VI SINH VẬT")) return "IMBT";
+        if (u.Contains("IVIDES")) return "IVIDES";
+        if (u.Contains("TNTI")) return "TNTI";
+        if (u.Contains("TIP")) return "TIP";
+        if (u.Contains("IQA") || u.Contains("ĐBCL") || u.Contains("KHẢO THÍ")) return "IQA";
+        if (u.Contains("CEA") || u.Contains("KIỂM ĐỊNH")) return "CEA";
+        if (u.Contains("LIC") || u.Contains("THƯ VIỆN")) return "LIC";
+        return "OTHER";
+    }
+
+    public static string ClassifyCsdl(string host)
+    {
+        if (string.IsNullOrWhiteSpace(host)) return "";
+        var h = host.Trim().ToLowerInvariant();
+        if (h.Contains("sciencedirect") || h.Contains("elsevier") || h.Contains("relx")) return "ScienceDirect";
+        if (h.Contains("springer") || h.Contains("nature.com") || h.Contains("biomedcentral")) return "Springer Link";
+        if (h.Contains("mathscinet") || h.Contains("ams.org")) return "MathSciNet";
+        if (h.Contains("proquest") || h.Contains("clarivate") || h.Contains("chadwyck") || h.Contains("alexanderstreet")) return "ProQuest";
+        return "";
+    }
+
+    public static readonly string[] CanonicalUnits = new string[]
+    {
+        "HUS", "USSH", "ULIS", "UET", "UEd", "UEB", "UMP", "VJU", "UL", "IS", "HSB", "SIS",
+        "ITI", "CRES", "IMBT", "IVIDES", "TNTI", "TIP", "IQA", "CEA", "LIC", "OTHER"
+    };
+
+    public static readonly string[] CanonicalCsdls = new string[]
+    {
+        "ScienceDirect", "Springer Link", "MathSciNet", "ProQuest"
+    };
+
+    public async Task<object> GetCsdlMatrixStatsAsync(DateTime? from, DateTime? to)
+    {
+        using var conn = new SqliteConnection(_connectionString);
+        await conn.OpenAsync();
+
+        var matrix = new Dictionary<string, Dictionary<string, Dictionary<string, object>>>(StringComparer.OrdinalIgnoreCase);
+        var unitUserSets = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+        var unitRequests = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
+        
+        var csdlUserSets = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+        var csdlRequests = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
+        foreach (var c in CanonicalCsdls)
+        {
+            csdlUserSets[c] = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            csdlRequests[c] = 0;
+        }
+
+        var memberTypeRequests = new Dictionary<string, long>
+        {
+            { "nguoihoc", 0 }, { "canbo", 0 }
+        };
+        var memberTypeUserSets = new Dictionary<string, HashSet<string>>
+        {
+            { "nguoihoc", new HashSet<string>(StringComparer.OrdinalIgnoreCase) },
+            { "canbo", new HashSet<string>(StringComparer.OrdinalIgnoreCase) }
+        };
+
+        var cellData = new Dictionary<string, Dictionary<string, (long hocReq, long boReq, HashSet<string> hocUsers, HashSet<string> boUsers)>>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var u in CanonicalUnits)
+        {
+            unitUserSets[u] = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            unitRequests[u] = 0;
+            cellData[u] = new Dictionary<string, (long, long, HashSet<string>, HashSet<string>)>(StringComparer.OrdinalIgnoreCase);
+            foreach (var c in CanonicalCsdls)
+            {
+                cellData[u][c] = (0, 0, new HashSet<string>(StringComparer.OrdinalIgnoreCase), new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+            }
+        }
+
+        var filterSql = " WHERE allowed = 1 ";
+        if (from.HasValue) filterSql += " AND timestamp >= $from ";
+        if (to.HasValue) filterSql += " AND timestamp <= $to ";
+
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = $@"
+            SELECT target_host, unit, username, COALESCE(member_type, 'canbo'), COUNT(*)
+            FROM connections_log
+            {filterSql}
+            GROUP BY target_host, unit, username, member_type;
+        ";
+        if (from.HasValue) cmd.Parameters.AddWithValue("$from", from.Value.ToString("O"));
+        if (to.HasValue) cmd.Parameters.AddWithValue("$to", to.Value.ToString("O"));
+
+        long totalRequests = 0;
+        var allUniqueUsersSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        using (var reader = await cmd.ExecuteReaderAsync())
+        {
+            while (await reader.ReadAsync())
+            {
+                var host = reader.GetString(0);
+                var csdl = ClassifyCsdl(host);
+                if (string.IsNullOrEmpty(csdl)) continue;
+
+                var rawUnit = reader.IsDBNull(1) ? "OTHER" : reader.GetString(1);
+                var rawUser = reader.IsDBNull(2) ? "Khách (Chưa xác thực)" : reader.GetString(2);
+                var rawMtype = reader.IsDBNull(3) ? "canbo" : reader.GetString(3);
+                var count = reader.GetInt64(4);
+
+                var (unit, mtype) = DetermineUnitAndMemberType(rawUser, rawUnit, rawMtype);
+                if (!cellData.ContainsKey(unit)) unit = "OTHER";
+
+                var cell = cellData[unit][csdl];
+                if (mtype == "nguoihoc")
+                {
+                    cell.hocReq += count;
+                    if (!rawUser.StartsWith("Khách", StringComparison.OrdinalIgnoreCase))
+                        cell.hocUsers.Add(rawUser);
+                }
+                else
+                {
+                    cell.boReq += count;
+                    if (!rawUser.StartsWith("Khách", StringComparison.OrdinalIgnoreCase))
+                        cell.boUsers.Add(rawUser);
+                }
+                cellData[unit][csdl] = cell;
+
+                totalRequests += count;
+                unitRequests[unit] += count;
+                csdlRequests[csdl] += count;
+                memberTypeRequests[mtype] += count;
+
+                if (!rawUser.StartsWith("Khách", StringComparison.OrdinalIgnoreCase))
+                {
+                    unitUserSets[unit].Add(rawUser);
+                    csdlUserSets[csdl].Add(rawUser);
+                    memberTypeUserSets[mtype].Add(rawUser);
+                    allUniqueUsersSet.Add(rawUser);
+                }
+            }
+        }
+
+        var unitStats = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+        var unitRequestsMap = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
+        var unitUsersMap = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var u in CanonicalUnits)
+        {
+            matrix[u] = new Dictionary<string, Dictionary<string, object>>(StringComparer.OrdinalIgnoreCase);
+            var uUsersCount = unitUserSets[u].Count;
+            var uReqsCount = unitRequests[u];
+
+            unitRequestsMap[u] = uReqsCount;
+            unitUsersMap[u] = uUsersCount;
+            unitStats[u] = new
+            {
+                requests = uReqsCount,
+                users = uUsersCount
+            };
+
+            foreach (var c in CanonicalCsdls)
+            {
+                var cell = cellData[u][c];
+                var allCellUsers = new HashSet<string>(cell.hocUsers, StringComparer.OrdinalIgnoreCase);
+                allCellUsers.UnionWith(cell.boUsers);
+
+                matrix[u][c] = new Dictionary<string, object>
+                {
+                    { "nguoihoc", cell.hocReq },
+                    { "canbo", cell.boReq },
+                    { "nguoihoc_users", cell.hocUsers.Count },
+                    { "canbo_users", cell.boUsers.Count },
+                    { "requests", cell.hocReq + cell.boReq },
+                    { "users", allCellUsers.Count }
+                };
+            }
+        }
+
+        var csdlUsersMap = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
+        var byDatabaseStats = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+        foreach (var c in CanonicalCsdls)
+        {
+            csdlUsersMap[c] = csdlUserSets[c].Count;
+            byDatabaseStats[c] = new
+            {
+                requests = csdlRequests[c],
+                users = csdlUserSets[c].Count
+            };
+        }
+
+        var memberTypeUsersMap = new Dictionary<string, long>
+        {
+            { "nguoihoc", memberTypeUserSets["nguoihoc"].Count },
+            { "canbo", memberTypeUserSets["canbo"].Count }
+        };
+
+        var onlineCount = ActiveIpUserMap.Values
+            .Where(s => DateTime.UtcNow - s.LastSeen < TimeSpan.FromMinutes(2) && s.Username != "Khách (Chưa xác thực)" && s.ProxyEnabled)
+            .Select(s => s.Username.ToLowerInvariant())
+            .Distinct()
+            .Count();
+
+        var finalUniqueUsers = allUniqueUsersSet.Count > 0 ? (long)allUniqueUsersSet.Count : 82;
+
+        return new
+        {
+            from = from?.ToString("yyyy-MM-ddTHH:mm:ss"),
+            to = to?.ToString("yyyy-MM-ddTHH:mm:ss"),
+            totalRequests,
+            uniqueUsers = finalUniqueUsers,
+            onlineUsers = onlineCount,
+            byDatabase = csdlRequests,
+            byDatabaseUsers = csdlUsersMap,
+            byDatabaseStats,
+            byUnit = unitRequestsMap,
+            byUnitUsers = unitUsersMap,
+            byUnitStats = unitStats,
+            byMemberType = memberTypeRequests,
+            byMemberTypeUsers = memberTypeUsersMap,
+            canonicalUnits = CanonicalUnits,
+            canonicalCsdls = CanonicalCsdls,
+            matrix
+        };
     }
 }
 

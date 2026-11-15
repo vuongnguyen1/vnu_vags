@@ -4,6 +4,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>VNU Academic Gateway (VAGS) - Đại học Quốc gia Hà Nội</title>
     <link rel="icon" href="/logo-vnu.svg" type="image/svg+xml">
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -1397,6 +1400,256 @@
                 gap: 10px;
             }
         }
+
+        /* ================= VAGS INTERACTIVE VIDEO (UDEMY / TED STYLE) ================= */
+        .vags-interactive-video-card {
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 14px;
+            overflow: hidden;
+            margin-bottom: 24px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.3);
+        }
+
+        .vags-video-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 14px 20px;
+            background: #1e293b;
+            border-bottom: 1px solid #334155;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .vags-video-title-wrap {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .vags-video-icon {
+            font-size: 24px;
+        }
+
+        .vags-video-title {
+            font-size: 15px;
+            font-weight: 800;
+            color: #f8fafc;
+        }
+
+        .vags-video-subtitle {
+            font-size: 12px;
+            color: #94a3b8;
+            margin-top: 2px;
+        }
+
+        .vags-video-controls {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .btn-video-mode {
+            background: #334155;
+            color: #f8fafc;
+            border: 1px solid #475569;
+            padding: 6px 14px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s;
+        }
+
+        .btn-video-mode:hover {
+            background: #00803d;
+            border-color: #10b981;
+            color: #ffffff;
+        }
+
+        .btn-video-download {
+            background: rgba(0, 128, 61, 0.2);
+            color: #34d399;
+            border: 1px solid #059669;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 700;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s;
+        }
+
+        .btn-video-download:hover {
+            background: #059669;
+            color: #ffffff;
+        }
+
+        .vags-video-workspace {
+            display: grid;
+            grid-template-columns: 1fr 360px;
+            gap: 16px;
+            padding: 16px;
+            background: #0b1120;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .vags-video-workspace.full-theater {
+            grid-template-columns: 1fr;
+        }
+
+        .vags-player-wrap {
+            width: 100%;
+        }
+
+        .vags-player-aspect {
+            position: relative;
+            width: 100%;
+            aspect-ratio: 16 / 9;
+            background: #000;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+        }
+
+        .vags-player-aspect video {
+            width: 100%;
+            height: 100%;
+            display: block;
+            object-fit: contain;
+        }
+
+        .vags-transcript-sidebar {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 10px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            height: 100%;
+            max-height: 440px;
+        }
+
+        .vags-transcript-header {
+            padding: 10px 14px;
+            background: rgba(15, 23, 42, 0.7);
+            border-bottom: 1px solid #334155;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 11px;
+            font-weight: 800;
+            color: #cbd5e1;
+            letter-spacing: 0.5px;
+        }
+
+        .vags-transcript-hint {
+            font-size: 10.5px;
+            color: #10b981;
+            font-weight: 600;
+        }
+
+        .vags-transcript-list {
+            padding: 8px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            scroll-behavior: smooth;
+            flex: 1;
+        }
+
+        .vags-transcript-list::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .vags-transcript-list::-webkit-scrollbar-track {
+            background: #1e293b;
+        }
+
+        .vags-transcript-list::-webkit-scrollbar-thumb {
+            background: #475569;
+            border-radius: 3px;
+        }
+
+        .vags-transcript-item {
+            display: flex;
+            gap: 10px;
+            padding: 8px 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            border-left: 3px solid transparent;
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .vags-transcript-item:hover {
+            background: rgba(16, 185, 129, 0.1);
+            border-left-color: #34d399;
+            transform: translateX(2px);
+        }
+
+        .vags-transcript-item.is-active {
+            background: rgba(16, 185, 129, 0.18);
+            border-left-color: #10b981;
+        }
+
+        .vags-t-badge {
+            font-family: 'JetBrains Mono', monospace, Consolas, sans-serif;
+            font-size: 11px;
+            font-weight: 700;
+            color: #38bdf8;
+            background: rgba(56, 189, 248, 0.12);
+            padding: 2px 6px;
+            border-radius: 4px;
+            height: fit-content;
+            flex-shrink: 0;
+        }
+
+        .vags-transcript-item.is-active .vags-t-badge {
+            color: #10b981;
+            background: rgba(16, 185, 129, 0.2);
+        }
+
+        .vags-t-body {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .vags-t-step {
+            font-size: 10.5px;
+            font-weight: 700;
+            color: #f59e0b;
+            margin-bottom: 2px;
+        }
+
+        .vags-t-text {
+            font-size: 12px;
+            color: #cbd5e1;
+            line-height: 1.45;
+        }
+
+        .vags-transcript-item.is-active .vags-t-text {
+            color: #ffffff;
+            font-weight: 600;
+        }
+
+        @media (max-width: 900px) {
+            .vags-video-workspace {
+                grid-template-columns: 1fr;
+            }
+            .vags-transcript-sidebar {
+                max-height: 260px;
+            }
+        }
+
     </style>
 </head>
 
@@ -1413,8 +1666,10 @@
             </a>
             <div class="nav-links">
                 <a href="#about">Giới thiệu</a>
+                <a href="#analytics" style="color:#00803d;font-weight:700;">📊 Thống kê 4 CSDL</a>
                 <a href="#databases">CSDL hỗ trợ</a>
                 <a href="#guide">Hướng dẫn cài đặt</a>
+                <a href="/admin" class="btn-admin" style="display:inline-flex;align-items:center;gap:5px;padding:6px 12px;background:#0f172a;color:#ffffff;border-radius:8px;text-decoration:none;font-weight:700;font-size:12.5px;">🛡️ Trang Quản Trị (/admin)</a>
             </div>
             <div class="user-action-area">
                 <!-- Status Pill nhỏ gọn trên Navbar -->
@@ -1468,10 +1723,10 @@
                 <button onclick="handleHeroAction()" class="btn-primary" id="heroMainBtn">
                     <span>🔑 Đăng Nhập VNU SSO</span>
                 </button>
-                <a href="#guide" class="btn-secondary">
-                    <span>📖 Hướng Dẫn Cài Đặt Tiện Ích</span>
+                <a href="#analytics" class="btn-secondary">
+                    <span>📊 Xem Thống Kê 4 CSDL</span>
                 </a>
-                <a href="/admin" class="btn-secondary" id="heroAdminBtn" style="display:none;">
+                <a href="/admin" class="btn-primary" style="background:#0f172a;border-color:#0f172a;color:#ffffff;display:inline-flex;align-items:center;gap:6px;">
                     <span>🛡️ Vào Trang Quản Trị (/admin)</span>
                 </a>
             </div>
@@ -1479,49 +1734,126 @@
     </section>
 
     <main class="container" style="margin-top: 28px;">
+        <!-- Thống Kê Nhanh 4 CSDL Trực Tiếp Trên Trang Chủ -->
+        <section id="analytics" style="background:#ffffff;border:1.5px solid #e2e8f0;border-top:4px solid #00803d;border-radius:14px;padding:22px 24px;margin-bottom:36px;box-shadow:0 2px 8px rgba(0,0,0,0.03);">
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:18px;">
+                <div>
+                    <h3 style="margin:0;font-size:18px;font-weight:800;color:#00803d;display:flex;align-items:center;gap:8px;">
+                        <span>📊</span> Bảng Thống Kê Lưu Lượng 4 CSDL Quốc Tế (ĐHQGHN)
+                    </h3>
+                    <p style="margin:4px 0 0;font-size:13px;color:#64748b;">
+                        Theo dõi số lượt truy cập ScienceDirect, Springer Link, MathSciNet, ProQuest thời gian thực qua Gateway:
+                    </p>
+                </div>
+                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                    <a href="/api/v1/analytics/export-excel" class="btn-sm" style="background:#00803d;color:#ffffff;text-decoration:none;font-weight:700;padding:8px 16px;border-radius:8px;display:inline-flex;align-items:center;gap:6px;">
+                        <span>📥</span> Xuất File Excel (.xlsx) Mẫu ĐHQGHN
+                    </a>
+                    <a href="/admin" class="btn-sm" style="background:#0f172a;color:#ffffff;text-decoration:none;font-weight:700;padding:8px 16px;border-radius:8px;display:inline-flex;align-items:center;gap:6px;">
+                        <span>🛡️</span> Mở Chi Tiết Bảng Quản Trị (/admin) »
+                    </a>
+                </div>
+            </div>
+
+            <!-- 4 Thẻ Đếm Lưu Lượng -->
+            <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));gap:14px;margin-bottom:16px;">
+                <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:12px 14px;">
+                    <div style="font-size:11px;font-weight:700;color:#c2410c;text-transform:uppercase;">📙 ScienceDirect</div>
+                    <div id="homeSdHits" style="font-size:22px;font-weight:900;color:#9a3412;margin-top:4px;">1,204</div>
+                    <div id="homeSdSub" style="font-size:11px;color:#ea580c;margin-top:2px;">👥 45 users • lượt truy cập</div>
+                </div>
+                <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;padding:12px 14px;">
+                    <div style="font-size:11px;font-weight:700;color:#0369a1;text-transform:uppercase;">📘 Springer Link</div>
+                    <div id="homeSpHits" style="font-size:22px;font-weight:900;color:#075985;margin-top:4px;">1,072</div>
+                    <div id="homeSpSub" style="font-size:11px;color:#0284c7;margin-top:2px;">👥 48 users • lượt truy cập</div>
+                </div>
+                <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:12px 14px;">
+                    <div style="font-size:11px;font-weight:700;color:#b91c1c;text-transform:uppercase;">📐 MathSciNet</div>
+                    <div id="homeMaHits" style="font-size:22px;font-weight:900;color:#991b1b;margin-top:4px;">23</div>
+                    <div id="homeMaSub" style="font-size:11px;color:#dc2626;margin-top:2px;">👥 6 users • lượt truy cập</div>
+                </div>
+                <div style="background:#faf5ff;border:1px solid #e9d5ff;border-radius:10px;padding:12px 14px;">
+                    <div style="font-size:11px;font-weight:700;color:#6b21a8;text-transform:uppercase;">📗 ProQuest</div>
+                    <div id="homePqHits" style="font-size:22px;font-weight:900;color:#581c87;margin-top:4px;">132</div>
+                    <div id="homePqSub" style="font-size:11px;color:#7c3aed;margin-top:2px;">👥 14 users • lượt truy cập</div>
+                </div>
+            </div>
+
+            <!-- Tóm Tắt Tổng Hợp -->
+            <div style="display:flex;justify-content:space-between;align-items:center;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px 16px;font-size:12px;color:#475569;flex-wrap:wrap;gap:8px;">
+                <div>
+                    <strong>Tổng lượt kết nối 4 CSDL:</strong> <span id="homeTotHits" style="font-weight:800;color:#00803d;font-size:14px;">2,344</span> requests
+                    <span style="margin:0 8px;color:#cbd5e1;">|</span>
+                    <strong>Người dùng độc bản:</strong> <span id="homeTotUsers" style="font-weight:800;color:#0284c7;font-size:14px;">79</span> Cán bộ / Người học
+                </div>
+                <div>
+                    <span style="display:inline-flex;align-items:center;gap:6px;background:#ecfdf5;color:#059669;padding:3px 10px;border-radius:999px;font-weight:700;font-size:11px;">
+                        <span style="width:6px;height:6px;border-radius:50%;background:#059669;display:inline-block;"></span>
+                        Egress Gateway: 112.137.142.30 (Hoạt động tốt)
+                    </span>
+                </div>
+            </div>
+        </section>
+
         <!-- Danh mục CSDL Quốc tế -->
         <section id="databases">
             <div class="section-title">
-                <h3>Danh Mục CSDL hỗ trợ Phân Tuyến Tự Động</h3>
-                <p>Tiện ích VAGS sẽ tự động kích hoạt đường truyền an toàn khi bạn mở các địa chỉ học thuật sau:</p>
+                <h3>Danh Mục 4 Cơ Sở Dữ Liệu Điện Tử Quốc Tế Hỗ Trợ Phân Tuyến Tự Động</h3>
+                <p>Tiện ích VAGS sẽ tự động kích hoạt đường truyền an toàn qua Proxy ĐHQGHN (Egress IP: 112.137.142.30) khi bạn mở 4 địa chỉ học thuật chuẩn sau:</p>
             </div>
-            <div class="db-grid">
-                <div class="db-card">
+            <div class="db-grid" style="grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));">
+                <!-- 1. ScienceDirect -->
+                <div class="db-card" style="border-top:3px solid #ff6600;">
                     <span class="db-tag">ỦY QUYỀN VAGS</span>
                     <div class="db-logo">
                         <img src="/images/sciencedirect-logo.svg" alt="ScienceDirect (Elsevier) Logo">
                     </div>
-                    <h4>ScienceDirect (Elsevier)</h4>
+                    <h4>1. ScienceDirect (Elsevier)</h4>
                     <p>Bài báo nghiên cứu, tạp chí chuyên ngành Khoa học Tự nhiên, Y Dược, Kỹ thuật và Công nghệ.</p>
                     <a href="https://www.sciencedirect.com" target="_blank" rel="noopener">sciencedirect.com ↗</a>
                 </div>
-                <!-- Tạm thời dừng ủy quyền IEEE
-                <div class="db-card">
-                    <span class="db-tag">ỦY QUYỀN VAGS</span>
-                    <div class="db-logo">⚡</div>
-                    <h4>IEEE Xplore Digital Library</h4>
-                    <p>Tài nguyên học thuật chuyên sâu về Điện, Điện tử, Công nghệ thông tin và Viễn thông.</p>
-                    <a href="https://ieeexplore.ieee.org" target="_blank" rel="noopener">ieeexplore.ieee.org ↗</a>
-                </div>
-                -->
-                <div class="db-card">
+
+                <!-- 2. SpringerLink & Nature -->
+                <div class="db-card" style="border-top:3px solid #005596;">
                     <span class="db-tag">ỦY QUYỀN VAGS</span>
                     <div class="db-logo">
                         <img src="/images/springer-logo.png" alt="SpringerLink & Nature Logo">
                     </div>
-                    <h4>SpringerLink & Nature</h4>
-                    <p>Tạp chí bình duyệt quốc tế, sách chuyên khảo và các ấn phẩm học thuật từ Nature Portfolio và
-                        Springer.</p>
-                    <a href="https://link.springer.com" target="_blank" rel="noopener">springer.com & nature.com ↗</a>
+                    <h4>2. SpringerLink & Nature</h4>
+                    <p>Tạp chí bình duyệt quốc tế, sách chuyên khảo và các ấn phẩm học thuật từ Nature Portfolio và Springer.</p>
+                    <a href="https://link.springer.com" target="_blank" rel="noopener">link.springer.com ↗</a>
                 </div>
-                <div class="db-card">
+
+                <!-- 3. MathSciNet -->
+                <div class="db-card" style="border-top:3px solid #b91c1c;">
                     <span class="db-tag">ỦY QUYỀN VAGS</span>
+                    <div class="db-logo">
+                        <img src="/images/mathscinet-logo.svg" alt="MathSciNet (AMS) Logo">
+                    </div>
+                    <h4>3. MathSciNet (AMS)</h4>
+                    <p>Cơ sở dữ liệu đánh giá và trích dẫn chuẩn mực của Hội Toán học Hoa Kỳ về Toán học và Khoa học tính toán.</p>
+                    <a href="https://mathscinet.ams.org/mathscinet/publications-search" target="_blank" rel="noopener">mathscinet.ams.org ↗</a>
+                </div>
+
+                <!-- 4. ProQuest -->
+                <div class="db-card" style="border-top:3px solid #7c3aed;">
+                    <span class="db-tag">ỦY QUYỀN VAGS</span>
+                    <div class="db-logo">
+                        <img src="/images/proquest-logo.svg" alt="ProQuest (Clarivate) Logo">
+                    </div>
+                    <h4>4. ProQuest (Clarivate)</h4>
+                    <p>Cơ sở dữ liệu đa ngành quốc tế: hàng triệu luận án tiến sĩ, thạc sĩ toàn cầu, tài liệu học thuật và tạp chí chuyên ngành.</p>
+                    <a href="https://www.proquest.com" target="_blank" rel="noopener">proquest.com ↗</a>
+                </div>
+
+                <!-- 5. Thư viện Số VNU (LIC) -->
+                <div class="db-card" style="border-top:3px solid #00803d;">
+                    <span class="db-tag" style="background:#fef3c7;color:#92400e;border-color:#fde68a;">HỌC LIỆU NỘI BỘ</span>
                     <div class="db-logo">
                         <img src="/images/lic-logo.svg" alt="Thư viện Số VNU (LIC) Logo">
                     </div>
                     <h4>Thư viện Số VNU (LIC)</h4>
-                    <p>Trung tâm Thư viện và Tri thức số ĐHQGHN: luận văn, luận án, giáo trình và tài liệu nội sinh số.
-                    </p>
+                    <p>Trung tâm Thư viện và Tri thức số ĐHQGHN: luận văn, luận án, giáo trình và tài liệu nội sinh số (bật/tắt proxy linh hoạt).</p>
                     <a href="https://lic.vnu.edu.vn" target="_blank" rel="noopener">lic.vnu.edu.vn ↗</a>
                 </div>
             </div>
@@ -1554,6 +1886,49 @@
                     </div>
                     <span
                         style="font-size:11px;background:#f1f5f9;color:#475569;padding:4px 10px;border-radius:6px;font-weight:700;border:1px solid #cbd5e1;">Khuyên dùng • v2.1.4</span>
+                </div>
+
+                
+                <!-- ================= VIDEO PLAYER HƯỚNG DẪN CHROME (UDEMY / TED STYLE INTERACTIVE) ================= -->
+                <div class="vags-interactive-video-card" id="vagsVideoGuide">
+                    <div class="vags-video-header">
+                        <div class="vags-video-title-wrap">
+                            <span class="vags-video-icon">🎬</span>
+                            <div>
+                                <div class="vags-video-title">Video Hướng Dẫn Cài Đặt Tiện Ích VAGS (Google Chrome & Edge)</div>
+                                <div class="vags-video-subtitle">Có thuyết minh giọng đọc AI &bull; Spotlight làm nổi bật thao tác &bull; Đồng bộ bản chép lời</div>
+                            </div>
+                        </div>
+                        <div class="vags-video-controls">
+                            <button type="button" class="btn-video-mode" id="btnToggleTranscript" onclick="toggleVagsTranscript()" title="Ẩn/Hiện bản chép lời để xem video to hơn">
+                                <span id="transcriptIcon">↔️</span>
+                                <span id="transcriptLabel">Ẩn Bản Chép Lời (Xem Lớn)</span>
+                            </button>
+                            <a href="/videos/vags-chrome-guide-final.mp4" download class="btn-video-download" title="Tải file video MP4 có tiếng về máy">
+                                <span>⬇️ Tải Video (8.7 MB)</span>
+                            </a>
+                        </div>
+                    </div>
+
+                    <div class="vags-video-workspace" id="vagsWorkspace">
+                        <div class="vags-player-wrap">
+                            <div class="vags-player-aspect">
+                                <video id="vagsMainPlayer" controls playsinline preload="metadata">
+                                    <source src="/videos/vags-chrome-guide-final.mp4" type="video/mp4">
+                                    <track id="vagsVttTrack" src="/videos/vags-chrome-guide.vtt" kind="subtitles" srclang="vi" label="Tiếng Việt" default>
+                                    Trình duyệt của bạn không hỗ trợ thẻ video.
+                                </video>
+                            </div>
+                        </div>
+
+                        <div class="vags-transcript-sidebar" id="vagsTranscriptSidebar">
+                            <div class="vags-transcript-header">
+                                <span>📝 BẢN CHÉP LỜI &bull; NHẢY THEO BƯỚC</span>
+                                <span class="vags-transcript-hint">Bấm vào câu để tua</span>
+                            </div>
+                            <div class="vags-transcript-list" id="vagsTranscriptList"></div>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="manual-cards-grid">
@@ -2049,11 +2424,11 @@
             </div>
         </section>
 
-        <!-- Banner Quản trị viên PQTKT (Chỉ hiển thị khi đăng nhập đúng tài khoản Quản trị) -->
+        <!-- Banner Quản trị viên DUAC (Chỉ hiển thị khi đăng nhập đúng tài khoản Quản trị) -->
         <div class="admin-banner" id="adminBanner" style="display:none;">
             <div class="admin-banner-text">
-                <h4>Quản Trị Hệ Thống (Phòng Quản Trị & Kế Hoạch - PQTKT)</h4>
-                <p>Cán bộ quản trị thuộc đơn vị pqtkt đăng nhập qua VNU SSO để vào Bảng quản trị cấu hình định tuyến và
+                <h4>Quản Trị Hệ Thống (Trung Tâm Quản Trị Đại Học Số - DUAC)</h4>
+                <p>Cán bộ quản trị thuộc đơn vị DUAC đăng nhập qua VNU SSO để vào Bảng quản trị cấu hình định tuyến và
                     theo dõi lưu lượng thời gian thực.</p>
             </div>
             <div>
@@ -2069,9 +2444,13 @@
             <div>
                 <strong>ĐẠI HỌC QUỐC GIA HÀ NỘI — VIETNAM NATIONAL UNIVERSITY, HANOI</strong>
                 <p>Cổng Truy nhập Tài liệu Tham khảo Điện tử (VAGS) • Địa chỉ: 144 Xuân Thủy, Cầu Giấy, Hà Nội</p>
-                <p>Đơn vị quản lý: Phòng Quản trị & Kế hoạch (PQTKT) • Trung tâm Thư viện & Tri thức số (LIC)</p>
+                <p>Đơn vị quản lý: Trung tâm Quản trị Đại học số (DUAC)</p>
             </div>
-            <!-- Đã ẩn liên kết chính sách quyền riêng tư theo yêu cầu -->
+            <div>
+                <a href="/admin" style="color:#cbd5e1;font-size:12.5px;text-decoration:none;display:inline-flex;align-items:center;gap:4px;padding:6px 12px;border:1px solid rgba(255,255,255,0.2);border-radius:8px;">
+                    <span>🛡️ Khu Vực Quản Trị Hệ Thống ↗</span>
+                </a>
+            </div>
         </div>
     </footer>
 
@@ -2105,7 +2484,7 @@
             const token = localStorage.getItem('vags_token');
             const memberType = localStorage.getItem('vags_member_type') || 'canbo';
             const userLower = (user || '').toLowerCase();
-            const isAdmin = (unit && unit.toLowerCase().includes('pqtkt')) ||
+            const isAdmin = (unit && (unit.toLowerCase().includes('pqtkt') || unit.toLowerCase().includes('duac'))) ||
                 userLower === 'admin' ||
                 userLower === 'phongnd' ||
                 userLower === 'vuongwork' ||
@@ -2606,6 +2985,116 @@
                 widget.style.top = clamped.top + 'px';
             });
         })();
+
+
+        /* ================= VAGS INTERACTIVE VIDEO SCRIPT ================= */
+        (function initVagsInteractiveVideo() {
+            const player = document.getElementById('vagsMainPlayer');
+            const listEl = document.getElementById('vagsTranscriptList');
+            const workspace = document.getElementById('vagsWorkspace');
+            const labelEl = document.getElementById('transcriptLabel');
+            const iconEl = document.getElementById('transcriptIcon');
+
+            if (!player || !listEl) return;
+
+            const TRANSCRIPT = [
+                { start: 1.0, end: 5.5, time: "00:01", step: "Khởi động", text: "Đầu tiên, Quý Thầy/Cô đăng nhập tài khoản cán bộ VNU trên trang idp.vnu.edu.vn." },
+                { start: 7.5, end: 11.5, time: "00:07", step: "Chọn ứng dụng", text: "Tại danh sách ứng dụng, nhấp chọn Cổng thông tin Tài Liệu Tham Khảo Điện Tử." },
+                { start: 18.0, end: 23.5, time: "00:18", step: "Bước 1a", text: "Bước 1a: Cuộn xuống mục hướng dẫn và bấm nút Google Chrome để tải tệp zip cài đặt." },
+                { start: 26.0, end: 30.5, time: "00:26", step: "Mở Downloads", text: "Khi tải xong, tại danh sách tải về góc trên bên phải, nhấp chuột phải vào file zip và chọn 'Show in folder' để mở thư mục Downloads." },
+                { start: 33.0, end: 37.5, time: "00:33", step: "Bước 1b", text: "Bước 1b: Nhấp chuột phải vào file zip, chọn 'Extract to thamkhao-extension-chrome' để giải nén toàn bộ mã nguồn." },
+                { start: 48.0, end: 53.5, time: "00:48", step: "Bước 2", text: "Bước 2: Mở trang chrome://extensions, gạt công tắc góc trên bên phải để bật Chế độ cho nhà phát triển." },
+                { start: 55.0, end: 58.5, time: "00:55", step: "Bước 3", text: "Bước 3: Nhấp vào nút 'Load unpacked' ở góc trên bên trái để nạp tiện ích đã giải nén." },
+                { start: 60.0, end: 65.0, time: "01:00", step: "Bước 4", text: "Bước 4: Trong hộp thoại mở ra, chọn đúng thư mục tiện ích đã giải nén trong mục Downloads (mặc định tệp tải về sẽ nằm ở đây), sau đó bấm nút 'Select Folder'." },
+                { start: 66.5, end: 71.0, time: "01:06", step: "Bước 5", text: "Bước 5: Tiện ích đã nạp thành công. Bấm biểu tượng mảnh ghép và ghim VAGS lên thanh công cụ." },
+                { start: 73.5, end: 78.0, time: "01:13", step: "Bước 6a", text: "Bước 6a: Quay lại trang Cổng tra cứu, bấm nút 'Đăng nhập VNU SSO' ở góc phải để kích hoạt tài khoản." },
+                { start: 79.0, end: 83.5, time: "01:19", step: "Xác thực SSO", text: "Do Quý Thầy/Cô đã đăng nhập tài khoản VNU từ lúc đầu, hệ thống sẽ tự động nhận diện danh tính và chuyển hướng xác thực an toàn." },
+                { start: 84.5, end: 88.0, time: "01:24", step: "Đăng nhập xong", text: "Xác thực hoàn tất, góc trên màn hình hiển thị tên tài khoản cán bộ của Quý Thầy/Cô." },
+                { start: 89.5, end: 93.5, time: "01:29", step: "Bước 6b", text: "Bước 6b: Nhấp vào biểu tượng VAGS trên thanh công cụ và gạt công tắc Đường truyền Proxy sang BẬT." },
+                { start: 95.0, end: 99.5, time: "01:35", step: "Proxy Đang Bật", text: "Hệ thống xác nhận trạng thái màu xanh: KẾT NỐI PROXY THÀNH CÔNG qua dải mạng ĐHQGHN." },
+                { start: 101.5, end: 107.0, time: "01:41", step: "Bước 7", text: "Bước 7: Mở cơ sở dữ liệu ScienceDirect, góc trên hiển thị nhận diện Thư viện ĐHQGHN. Cài đặt hoàn tất!" }
+            ];
+
+            listEl.innerHTML = TRANSCRIPT.map((item, idx) => `
+                <div class="vags-transcript-item" data-idx="${idx}" data-start="${item.start}" onclick="seekVagsVideo(${item.start})">
+                    <span class="vags-t-badge">${item.time}</span>
+                    <div class="vags-t-body">
+                        <div class="vags-t-step">${item.step}</div>
+                        <div class="vags-t-text">${item.text}</div>
+                    </div>
+                </div>
+            `).join('');
+
+            window.seekVagsVideo = function(sec) {
+                player.currentTime = sec;
+                player.play();
+            };
+
+            window.toggleVagsTranscript = function() {
+                const isTheater = workspace.classList.toggle('full-theater');
+                if (isTheater) {
+                    labelEl.textContent = '📑 Hiện Bản Chép Lời';
+                    iconEl.textContent = '📑';
+                } else {
+                    labelEl.textContent = '↔️ Ẩn Bản Chép Lời (Xem Lớn)';
+                    iconEl.textContent = '↔️';
+                }
+            };
+
+            let currentActiveIdx = -1;
+            player.addEventListener('timeupdate', () => {
+                const cur = player.currentTime;
+                const idx = TRANSCRIPT.findIndex(item => cur >= item.start && cur < item.end);
+                if (idx !== currentActiveIdx) {
+                    const prev = listEl.querySelector('.vags-transcript-item.is-active');
+                    if (prev) prev.classList.remove('is-active');
+
+                    if (idx !== -1) {
+                        const target = listEl.querySelector(`.vags-transcript-item[data-idx="${idx}"]`);
+                        if (target) {
+                            target.classList.add('is-active');
+                            target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                        }
+                    }
+                    currentActiveIdx = idx;
+                }
+            });
+        })();
+
+        function updateHomeCsdlStats() {
+            fetch('/api/v1/analytics/csdl-stats').then(r => r.json()).then(d => {
+                if (d && d.byDatabase) {
+                    const elSd = document.getElementById('homeSdHits');
+                    if (elSd) elSd.innerText = (d.byDatabase['ScienceDirect'] || 0).toLocaleString();
+                    const elSp = document.getElementById('homeSpHits');
+                    if (elSp) elSp.innerText = (d.byDatabase['Springer Link'] || 0).toLocaleString();
+                    const elMa = document.getElementById('homeMaHits');
+                    if (elMa) elMa.innerText = (d.byDatabase['MathSciNet'] || 0).toLocaleString();
+                    const elPq = document.getElementById('homePqHits');
+                    if (elPq) elPq.innerText = (d.byDatabase['ProQuest'] || 0).toLocaleString();
+                    const elTot = document.getElementById('homeTotHits');
+                    if (elTot) elTot.innerText = (d.totalRequests || 0).toLocaleString();
+                    const elUsers = document.getElementById('homeTotUsers');
+                    if (elUsers) elUsers.innerText = (d.uniqueUsers || 0).toLocaleString();
+
+                    const sdU = (d.byDatabaseUsers && d.byDatabaseUsers['ScienceDirect']) || 0;
+                    const spU = (d.byDatabaseUsers && d.byDatabaseUsers['Springer Link']) || 0;
+                    const maU = (d.byDatabaseUsers && d.byDatabaseUsers['MathSciNet']) || 0;
+                    const pqU = (d.byDatabaseUsers && d.byDatabaseUsers['ProQuest']) || 0;
+
+                    const elSdSub = document.getElementById('homeSdSub');
+                    if (elSdSub) elSdSub.innerText = `👥 ${sdU} users • lượt truy cập`;
+                    const elSpSub = document.getElementById('homeSpSub');
+                    if (elSpSub) elSpSub.innerText = `👥 ${spU} users • lượt truy cập`;
+                    const elMaSub = document.getElementById('homeMaSub');
+                    if (elMaSub) elMaSub.innerText = `👥 ${maU} users • lượt truy cập`;
+                    const elPqSub = document.getElementById('homePqSub');
+                    if (elPqSub) elPqSub.innerText = `👥 ${pqU} users • lượt truy cập`;
+                }
+            }).catch(() => {});
+        }
+        updateHomeCsdlStats();
+        setInterval(updateHomeCsdlStats, 10000);
 
         checkSession();
         detectExtension();
