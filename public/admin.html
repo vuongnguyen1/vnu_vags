@@ -2685,6 +2685,13 @@
         let cachedCsdlData = null;
         let currentCsdlPreset = '7days';
 
+        function formatCsdlYmd(d) {
+            const y = d.getFullYear();
+            const m = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${y}-${m}-${day}`;
+        }
+
         function applyCsdlPreset(preset) {
             currentCsdlPreset = preset;
             document.querySelectorAll('.csdl-preset-btn').forEach(b => {
@@ -2694,16 +2701,16 @@
             const toInput = document.getElementById('csdlToDate');
             const fromInput = document.getElementById('csdlFromDate');
             if (preset === 'today') {
-                fromInput.value = now.toISOString().split('T')[0];
-                toInput.value = now.toISOString().split('T')[0];
+                fromInput.value = formatCsdlYmd(now);
+                toInput.value = formatCsdlYmd(now);
             } else if (preset === '7days') {
                 const d = new Date(now.getTime() - 7 * 86400000);
-                fromInput.value = d.toISOString().split('T')[0];
-                toInput.value = now.toISOString().split('T')[0];
+                fromInput.value = formatCsdlYmd(d);
+                toInput.value = formatCsdlYmd(now);
             } else if (preset === '30days') {
                 const d = new Date(now.getTime() - 30 * 86400000);
-                fromInput.value = d.toISOString().split('T')[0];
-                toInput.value = now.toISOString().split('T')[0];
+                fromInput.value = formatCsdlYmd(d);
+                toInput.value = formatCsdlYmd(now);
             } else if (preset === 'all') {
                 fromInput.value = '';
                 toInput.value = '';
@@ -2719,8 +2726,8 @@
                 if (!fromVal && currentCsdlPreset === '7days') {
                     const now = new Date();
                     const d = new Date(now.getTime() - 7 * 86400000);
-                    fromVal = d.toISOString().split('T')[0];
-                    toVal = now.toISOString().split('T')[0];
+                    fromVal = formatCsdlYmd(d);
+                    toVal = formatCsdlYmd(now);
                     if (document.getElementById('csdlFromDate')) document.getElementById('csdlFromDate').value = fromVal;
                     if (document.getElementById('csdlToDate')) document.getElementById('csdlToDate').value = toVal;
                 }
@@ -2751,7 +2758,11 @@
             if (fromVal && toVal) {
                 const fp = fromVal.split('-');
                 const tp = toVal.split('-');
-                rangeText = `📅 Dữ liệu: ${fp[2]}/${fp[1]}/${fp[0]} — ${tp[2]}/${tp[1]}/${tp[0]}`;
+                if (fromVal === toVal) {
+                    rangeText = `📅 Dữ liệu ngày: ${fp[2]}/${fp[1]}/${fp[0]}`;
+                } else {
+                    rangeText = `📅 Dữ liệu: ${fp[2]}/${fp[1]}/${fp[0]} — ${tp[2]}/${tp[1]}/${tp[0]}`;
+                }
             } else if (fromVal) {
                 const fp = fromVal.split('-');
                 rangeText = `📅 Dữ liệu từ: ${fp[2]}/${fp[1]}/${fp[0]} đến nay`;

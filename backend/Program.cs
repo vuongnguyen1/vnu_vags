@@ -1,6 +1,7 @@
 using System.Buffers;
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO.Pipelines;
 using System.Net;
 using System.Net.Sockets;
@@ -1451,12 +1452,54 @@ app.MapGet("/api/v1/admin/audit-logs/export", async (int? limit) =>
 });
 
 // ================= BÁO CÁO & THỐNG KÊ 4 CSDL ĐIỆN TỬ VNU =================
+(DateTime? FromUtc, DateTime? ToUtc) ParseVnuDateRange(string? fromQuery, string? toQuery)
+{
+    var vnOffset = TimeSpan.FromHours(7);
+    DateTime? fromUtc = null;
+    DateTime? toUtc = null;
+
+    if (!string.IsNullOrWhiteSpace(fromQuery))
+    {
+        var s = fromQuery.Trim();
+        if (DateTime.TryParse(s, CultureInfo.InvariantCulture, DateTimeStyles.None, out var dt))
+        {
+            if (s.Length == 10) // "yyyy-MM-dd"
+            {
+                // Start of Vietnam day (00:00:00 VN) -> convert to UTC (-7h)
+                var dto = new DateTimeOffset(dt.Year, dt.Month, dt.Day, 0, 0, 0, vnOffset);
+                fromUtc = dto.UtcDateTime;
+            }
+            else
+            {
+                fromUtc = dt.Kind == DateTimeKind.Utc ? dt : dt.ToUniversalTime();
+            }
+        }
+    }
+
+    if (!string.IsNullOrWhiteSpace(toQuery))
+    {
+        var s = toQuery.Trim();
+        if (DateTime.TryParse(s, CultureInfo.InvariantCulture, DateTimeStyles.None, out var dt))
+        {
+            if (s.Length == 10) // "yyyy-MM-dd"
+            {
+                // End of Vietnam day (23:59:59.999 VN) -> convert to UTC (-7h)
+                var dto = new DateTimeOffset(dt.Year, dt.Month, dt.Day, 23, 59, 59, 999, vnOffset);
+                toUtc = dto.UtcDateTime;
+            }
+            else
+            {
+                toUtc = dt.Kind == DateTimeKind.Utc ? dt : dt.ToUniversalTime();
+            }
+        }
+    }
+
+    return (fromUtc, toUtc);
+}
+
 app.MapGet("/api/v1/analytics/csdl-stats", async (HttpContext ctx) =>
 {
-    DateTime? from = null;
-    DateTime? to = null;
-    if (DateTime.TryParse(ctx.Request.Query["from"], out var f)) from = f.ToUniversalTime();
-    if (DateTime.TryParse(ctx.Request.Query["to"], out var t)) to = t.ToUniversalTime();
+    var (from, to) = ParseVnuDateRange(ctx.Request.Query["from"], ctx.Request.Query["to"]);
 
     var stats = await monitorDb.GetCsdlMatrixStatsAsync(from, to);
     return Results.Json(stats, jsonOptions);
@@ -1464,12 +1507,7 @@ app.MapGet("/api/v1/analytics/csdl-stats", async (HttpContext ctx) =>
 
 app.MapGet("/api/v1/analytics/export-excel", async (HttpContext ctx) =>
 {
-    DateTime? from = null;
-    DateTime? to = null;
-    var fromStr = ctx.Request.Query["from"].ToString();
-    var toStr = ctx.Request.Query["to"].ToString();
-    if (DateTime.TryParse(fromStr, out var f)) from = f.ToUniversalTime();
-    if (DateTime.TryParse(toStr, out var t)) to = t.ToUniversalTime();
+    var (from, to) = ParseVnuDateRange(ctx.Request.Query["from"], ctx.Request.Query["to"]);
 
     var statsObj = await monitorDb.GetCsdlMatrixStatsAsync(from, to);
     var statsJson = JsonSerializer.Serialize(statsObj);
@@ -1478,9 +1516,12 @@ app.MapGet("/api/v1/analytics/export-excel", async (HttpContext ctx) =>
     var matrixEl = root.GetProperty("matrix");
     var unitUsersEl = root.GetProperty("byUnitUsers");
 
-    var fromDateDisplay = from.HasValue ? from.Value.ToLocalTime().ToString("dd/MM/yyyy") : "08/11/2026";
-    var toDateDisplay = to.HasValue ? to.Value.ToLocalTime().ToString("dd/MM/yyyy") : DateTime.Now.ToString("dd/MM/yyyy");
-    var dateTitle = $"THỐNG KÊ SỐ LƯỢNG TRUY CẬP CSDL ĐIỆN TỬ TỪ NGÀY {fromDateDisplay} ĐẾN NGÀY {toDateDisplay}";
+    var vnNow = DateTime.UtcNow.AddHours(7);
+    var fromDateDisplay = from.HasValue ? from.Value.AddHours(7).ToString("dd/MM/yyyy") : "08/11/2026";
+    var toDateDisplay = to.HasValue ? to.Value.AddHours(7).ToString("dd/MM/yyyy") : vnNow.ToString("dd/MM/yyyy");
+    var dateTitle = (fromDateDisplay == toDateDisplay)
+        ? $"THỐNG KÊ SỐ LƯỢNG TRUY CẬP CSDL ĐIỆN TỬ NGÀY {fromDateDisplay}"
+        : $"THỐNG KÊ SỐ LƯỢNG TRUY CẬP CSDL ĐIỆN TỬ TỪ NGÀY {fromDateDisplay} ĐẾN NGÀY {toDateDisplay}";
 
     var tmpPayload = Path.Combine(Path.GetTempPath(), $"vags_csdl_req_{Guid.NewGuid():N}.json");
     var tmpOutput = Path.Combine(Path.GetTempPath(), $"vags_csdl_export_{Guid.NewGuid():N}.xlsx");

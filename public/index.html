@@ -3076,17 +3076,24 @@
             let fromVal = '';
             let toVal = '';
 
+            const formatHomeYmd = (d) => {
+                const y = d.getFullYear();
+                const m = String(d.getMonth() + 1).padStart(2, '0');
+                const day = String(d.getDate()).padStart(2, '0');
+                return `${y}-${m}-${day}`;
+            };
+
             if (homeCurrentPreset === 'today') {
-                fromVal = now.toISOString().split('T')[0];
-                toVal = now.toISOString().split('T')[0];
+                fromVal = formatHomeYmd(now);
+                toVal = formatHomeYmd(now);
             } else if (homeCurrentPreset === '7days') {
                 const d = new Date(now.getTime() - 7 * 86400000);
-                fromVal = d.toISOString().split('T')[0];
-                toVal = now.toISOString().split('T')[0];
+                fromVal = formatHomeYmd(d);
+                toVal = formatHomeYmd(now);
             } else if (homeCurrentPreset === '30days') {
                 const d = new Date(now.getTime() - 30 * 86400000);
-                fromVal = d.toISOString().split('T')[0];
-                toVal = now.toISOString().split('T')[0];
+                fromVal = formatHomeYmd(d);
+                toVal = formatHomeYmd(now);
             }
 
             let url = '/api/v1/analytics/csdl-stats';

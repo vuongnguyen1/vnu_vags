@@ -1370,7 +1370,7 @@ public class MonitorDbService
             .Distinct()
             .Count();
 
-        var finalUniqueUsers = allUniqueUsersSet.Count > 0 ? (long)allUniqueUsersSet.Count : 82;
+        var finalUniqueUsers = (long)allUniqueUsersSet.Count;
 
         return new
         {
