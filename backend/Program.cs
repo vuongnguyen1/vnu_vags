@@ -1536,8 +1536,17 @@ app.MapGet("/api/v1/analytics/export-excel", async (HttpContext ctx) =>
             title = dateTitle,
             from_date = fromDateDisplay,
             to_date = toDateDisplay,
-            matrix = matrixEl,
-            by_unit_users = unitUsersEl,
+            matrix = root.GetProperty("matrix"),
+            by_unit_users = root.GetProperty("byUnitUsers"),
+            by_unit_hoc_users = root.GetProperty("byUnitHocUsers"),
+            by_unit_bo_users = root.GetProperty("byUnitBoUsers"),
+            by_unit_hoc_requests = root.GetProperty("byUnitHocRequests"),
+            by_unit_bo_requests = root.GetProperty("byUnitBoRequests"),
+            by_unit_stats = root.GetProperty("byUnitStats"),
+            by_database_stats = root.GetProperty("byDatabaseStats"),
+            by_member_type_users = root.GetProperty("byMemberTypeUsers"),
+            unique_users = root.GetProperty("uniqueUsers"),
+            total_requests = root.GetProperty("totalRequests"),
             output_path = tmpOutput
         };
         await File.WriteAllTextAsync(tmpPayload, JsonSerializer.Serialize(pyPayload));

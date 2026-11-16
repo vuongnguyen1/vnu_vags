@@ -1214,14 +1214,26 @@ public class MonitorDbService
 
         var matrix = new Dictionary<string, Dictionary<string, Dictionary<string, object>>>(StringComparer.OrdinalIgnoreCase);
         var unitUserSets = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+        var unitHocUserSets = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+        var unitBoUserSets = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
         var unitRequests = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
+        var unitHocRequests = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
+        var unitBoRequests = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
         
         var csdlUserSets = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+        var csdlHocUserSets = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+        var csdlBoUserSets = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
         var csdlRequests = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
+        var csdlHocRequests = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
+        var csdlBoRequests = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
         foreach (var c in CanonicalCsdls)
         {
             csdlUserSets[c] = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            csdlHocUserSets[c] = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            csdlBoUserSets[c] = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             csdlRequests[c] = 0;
+            csdlHocRequests[c] = 0;
+            csdlBoRequests[c] = 0;
         }
 
         var memberTypeRequests = new Dictionary<string, long>
@@ -1239,7 +1251,11 @@ public class MonitorDbService
         foreach (var u in CanonicalUnits)
         {
             unitUserSets[u] = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            unitHocUserSets[u] = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            unitBoUserSets[u] = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             unitRequests[u] = 0;
+            unitHocRequests[u] = 0;
+            unitBoRequests[u] = 0;
             cellData[u] = new Dictionary<string, (long, long, HashSet<string>, HashSet<string>)>(StringComparer.OrdinalIgnoreCase);
             foreach (var c in CanonicalCsdls)
             {
@@ -1284,14 +1300,26 @@ public class MonitorDbService
                 if (mtype == "nguoihoc")
                 {
                     cell.hocReq += count;
+                    unitHocRequests[unit] += count;
+                    csdlHocRequests[csdl] += count;
                     if (!rawUser.StartsWith("Khách", StringComparison.OrdinalIgnoreCase))
+                    {
                         cell.hocUsers.Add(rawUser);
+                        unitHocUserSets[unit].Add(rawUser);
+                        csdlHocUserSets[csdl].Add(rawUser);
+                    }
                 }
                 else
                 {
                     cell.boReq += count;
+                    unitBoRequests[unit] += count;
+                    csdlBoRequests[csdl] += count;
                     if (!rawUser.StartsWith("Khách", StringComparison.OrdinalIgnoreCase))
+                    {
                         cell.boUsers.Add(rawUser);
+                        unitBoUserSets[unit].Add(rawUser);
+                        csdlBoUserSets[csdl].Add(rawUser);
+                    }
                 }
                 cellData[unit][csdl] = cell;
 
@@ -1313,6 +1341,10 @@ public class MonitorDbService
         var unitStats = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
         var unitRequestsMap = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
         var unitUsersMap = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
+        var unitHocUsersMap = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
+        var unitBoUsersMap = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
+        var unitHocReqMap = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
+        var unitBoReqMap = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var u in CanonicalUnits)
         {
@@ -1322,10 +1354,19 @@ public class MonitorDbService
 
             unitRequestsMap[u] = uReqsCount;
             unitUsersMap[u] = uUsersCount;
+            unitHocUsersMap[u] = unitHocUserSets[u].Count;
+            unitBoUsersMap[u] = unitBoUserSets[u].Count;
+            unitHocReqMap[u] = unitHocRequests[u];
+            unitBoReqMap[u] = unitBoRequests[u];
+
             unitStats[u] = new
             {
                 requests = uReqsCount,
-                users = uUsersCount
+                users = uUsersCount,
+                hoc_requests = unitHocRequests[u],
+                hoc_users = unitHocUserSets[u].Count,
+                bo_requests = unitBoRequests[u],
+                bo_users = unitBoUserSets[u].Count
             };
 
             foreach (var c in CanonicalCsdls)
@@ -1354,7 +1395,11 @@ public class MonitorDbService
             byDatabaseStats[c] = new
             {
                 requests = csdlRequests[c],
-                users = csdlUserSets[c].Count
+                users = csdlUserSets[c].Count,
+                hoc_requests = csdlHocRequests[c],
+                hoc_users = csdlHocUserSets[c].Count,
+                bo_requests = csdlBoRequests[c],
+                bo_users = csdlBoUserSets[c].Count
             };
         }
 
@@ -1384,6 +1429,10 @@ public class MonitorDbService
             byDatabaseStats,
             byUnit = unitRequestsMap,
             byUnitUsers = unitUsersMap,
+            byUnitHocUsers = unitHocUsersMap,
+            byUnitBoUsers = unitBoUsersMap,
+            byUnitHocRequests = unitHocReqMap,
+            byUnitBoRequests = unitBoReqMap,
             byUnitStats = unitStats,
             byMemberType = memberTypeRequests,
             byMemberTypeUsers = memberTypeUsersMap,
