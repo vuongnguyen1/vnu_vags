@@ -1745,12 +1745,25 @@
                         Theo dõi số lượt truy cập ScienceDirect, Springer Link, MathSciNet, ProQuest thời gian thực qua Gateway:
                     </p>
                 </div>
-                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-                    <a href="/api/v1/analytics/export-excel" class="btn-sm" style="background:#00803d;color:#ffffff;text-decoration:none;font-weight:700;padding:8px 16px;border-radius:8px;display:inline-flex;align-items:center;gap:6px;">
-                        <span>📥</span> Xuất File Excel (.xlsx) Mẫu ĐHQGHN
-                    </a>
-                    <a href="/admin" class="btn-sm" style="background:#0f172a;color:#ffffff;text-decoration:none;font-weight:700;padding:8px 16px;border-radius:8px;display:inline-flex;align-items:center;gap:6px;">
-                        <span>🛡️</span> Mở Chi Tiết Bảng Quản Trị (/admin) »
+                <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+                    <!-- Bộ lọc mốc thời gian: Hôm nay, 7 ngày, 30 ngày -->
+                    <div style="display:inline-flex;background:#f1f5f9;padding:3px;border-radius:8px;border:1px solid #cbd5e1;gap:3px;">
+                        <button type="button" class="home-csdl-preset-btn" data-preset="today" onclick="applyHomeCsdlPreset('today')" style="background:transparent;border:none;padding:6px 12px;border-radius:6px;font-size:12px;font-weight:600;color:#475569;cursor:pointer;transition:all 0.2s;">
+                            📅 Hôm nay
+                        </button>
+                        <button type="button" class="home-csdl-preset-btn active" data-preset="7days" onclick="applyHomeCsdlPreset('7days')" style="background:#00803d;color:#ffffff;border:none;padding:6px 12px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;transition:all 0.2s;box-shadow:0 1px 2px rgba(0,0,0,0.1);">
+                            📅 7 ngày
+                        </button>
+                        <button type="button" class="home-csdl-preset-btn" data-preset="30days" onclick="applyHomeCsdlPreset('30days')" style="background:transparent;border:none;padding:6px 12px;border-radius:6px;font-size:12px;font-weight:600;color:#475569;cursor:pointer;transition:all 0.2s;">
+                            📅 30 ngày
+                        </button>
+                        <button type="button" class="home-csdl-preset-btn" data-preset="all" onclick="applyHomeCsdlPreset('all')" style="background:transparent;border:none;padding:6px 12px;border-radius:6px;font-size:12px;font-weight:600;color:#475569;cursor:pointer;transition:all 0.2s;">
+                            🌐 Tất cả
+                        </button>
+                    </div>
+
+                    <a href="/admin" class="btn-sm" style="background:#0f172a;color:#ffffff;text-decoration:none;font-weight:700;padding:8px 16px;border-radius:8px;display:inline-flex;align-items:center;gap:6px;box-shadow:0 1px 3px rgba(0,0,0,0.1);">
+                        <span>🛡️</span> Mở Chi Tiết & Xuất Báo Cáo (/admin) »
                     </a>
                 </div>
             </div>
@@ -1760,37 +1773,42 @@
                 <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:12px 14px;">
                     <div style="font-size:11px;font-weight:700;color:#c2410c;text-transform:uppercase;">📙 ScienceDirect</div>
                     <div id="homeSdHits" style="font-size:22px;font-weight:900;color:#9a3412;margin-top:4px;">1,204</div>
-                    <div id="homeSdSub" style="font-size:11px;color:#ea580c;margin-top:2px;">👥 45 users • lượt truy cập</div>
+                    <div id="homeSdSub" style="font-size:11px;color:#ea580c;margin-top:2px;">👥 76 users • lượt truy cập</div>
                 </div>
                 <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;padding:12px 14px;">
                     <div style="font-size:11px;font-weight:700;color:#0369a1;text-transform:uppercase;">📘 Springer Link</div>
                     <div id="homeSpHits" style="font-size:22px;font-weight:900;color:#075985;margin-top:4px;">1,072</div>
-                    <div id="homeSpSub" style="font-size:11px;color:#0284c7;margin-top:2px;">👥 48 users • lượt truy cập</div>
+                    <div id="homeSpSub" style="font-size:11px;color:#0284c7;margin-top:2px;">👥 51 users • lượt truy cập</div>
                 </div>
                 <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:12px 14px;">
                     <div style="font-size:11px;font-weight:700;color:#b91c1c;text-transform:uppercase;">📐 MathSciNet</div>
                     <div id="homeMaHits" style="font-size:22px;font-weight:900;color:#991b1b;margin-top:4px;">23</div>
-                    <div id="homeMaSub" style="font-size:11px;color:#dc2626;margin-top:2px;">👥 6 users • lượt truy cập</div>
+                    <div id="homeMaSub" style="font-size:11px;color:#dc2626;margin-top:2px;">👥 4 users • lượt truy cập</div>
                 </div>
                 <div style="background:#faf5ff;border:1px solid #e9d5ff;border-radius:10px;padding:12px 14px;">
                     <div style="font-size:11px;font-weight:700;color:#6b21a8;text-transform:uppercase;">📗 ProQuest</div>
                     <div id="homePqHits" style="font-size:22px;font-weight:900;color:#581c87;margin-top:4px;">132</div>
-                    <div id="homePqSub" style="font-size:11px;color:#7c3aed;margin-top:2px;">👥 14 users • lượt truy cập</div>
+                    <div id="homePqSub" style="font-size:11px;color:#7c3aed;margin-top:2px;">👥 13 users • lượt truy cập</div>
                 </div>
             </div>
 
-            <!-- Tóm Tắt Tổng Hợp -->
+            <!-- Tóm Tắt Tổng Hợp & Liên kết Trang Quản trị -->
             <div style="display:flex;justify-content:space-between;align-items:center;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px 16px;font-size:12px;color:#475569;flex-wrap:wrap;gap:8px;">
                 <div>
-                    <strong>Tổng lượt kết nối 4 CSDL:</strong> <span id="homeTotHits" style="font-weight:800;color:#00803d;font-size:14px;">2,344</span> requests
+                    <strong>Tổng lượt kết nối 4 CSDL:</strong> <span id="homeTotHits" style="font-weight:800;color:#00803d;font-size:14px;">2,431</span> requests
                     <span style="margin:0 8px;color:#cbd5e1;">|</span>
-                    <strong>Người dùng độc bản:</strong> <span id="homeTotUsers" style="font-weight:800;color:#0284c7;font-size:14px;">79</span> Cán bộ / Người học
+                    <strong>Người dùng độc bản:</strong> <span id="homeTotUsers" style="font-weight:800;color:#0284c7;font-size:14px;">80</span> Cán bộ / Người học
+                    <span style="margin:0 8px;color:#cbd5e1;">|</span>
+                    <span id="homePresetLabel" style="font-weight:700;color:#00803d;background:#ecfdf5;padding:2px 8px;border-radius:999px;">Đang xem: 7 ngày gần nhất</span>
                 </div>
-                <div>
+                <div style="display:flex;align-items:center;gap:12px;">
                     <span style="display:inline-flex;align-items:center;gap:6px;background:#ecfdf5;color:#059669;padding:3px 10px;border-radius:999px;font-weight:700;font-size:11px;">
                         <span style="width:6px;height:6px;border-radius:50%;background:#059669;display:inline-block;"></span>
                         Egress Gateway: 112.137.142.30 (Hoạt động tốt)
                     </span>
+                    <a href="/admin" style="color:#0f172a;text-decoration:none;font-weight:700;display:inline-flex;align-items:center;gap:4px;">
+                        <span>Xem chi tiết 22 đơn vị & Xuất Excel »</span>
+                    </a>
                 </div>
             </div>
         </section>
@@ -3061,8 +3079,54 @@
             });
         })();
 
+        let homeCurrentPreset = '7days';
+
+        function applyHomeCsdlPreset(preset) {
+            homeCurrentPreset = preset;
+            document.querySelectorAll('.home-csdl-preset-btn').forEach(b => {
+                const isActive = b.getAttribute('data-preset') === preset;
+                b.style.background = isActive ? '#00803d' : 'transparent';
+                b.style.color = isActive ? '#ffffff' : '#475569';
+                b.style.fontWeight = isActive ? '700' : '600';
+                b.style.boxShadow = isActive ? '0 1px 2px rgba(0,0,0,0.1)' : 'none';
+            });
+
+            const lbl = document.getElementById('homePresetLabel');
+            if (lbl) {
+                if (preset === 'today') lbl.innerText = 'Đang xem: Hôm nay';
+                else if (preset === '7days') lbl.innerText = 'Đang xem: 7 ngày gần nhất';
+                else if (preset === '30days') lbl.innerText = 'Đang xem: 30 ngày gần nhất';
+                else if (preset === 'all') lbl.innerText = 'Đang xem: Toàn bộ lịch sử';
+            }
+
+            updateHomeCsdlStats();
+        }
+
         function updateHomeCsdlStats() {
-            fetch('/api/v1/analytics/csdl-stats').then(r => r.json()).then(d => {
+            const now = new Date();
+            let fromVal = '';
+            let toVal = '';
+
+            if (homeCurrentPreset === 'today') {
+                fromVal = now.toISOString().split('T')[0];
+                toVal = now.toISOString().split('T')[0];
+            } else if (homeCurrentPreset === '7days') {
+                const d = new Date(now.getTime() - 7 * 86400000);
+                fromVal = d.toISOString().split('T')[0];
+                toVal = now.toISOString().split('T')[0];
+            } else if (homeCurrentPreset === '30days') {
+                const d = new Date(now.getTime() - 30 * 86400000);
+                fromVal = d.toISOString().split('T')[0];
+                toVal = now.toISOString().split('T')[0];
+            }
+
+            let url = '/api/v1/analytics/csdl-stats';
+            const params = [];
+            if (fromVal) params.push(`from=${encodeURIComponent(fromVal)}`);
+            if (toVal) params.push(`to=${encodeURIComponent(toVal)}`);
+            if (params.length > 0) url += '?' + params.join('&');
+
+            fetch(url).then(r => r.json()).then(d => {
                 if (d && d.byDatabase) {
                     const elSd = document.getElementById('homeSdHits');
                     if (elSd) elSd.innerText = (d.byDatabase['ScienceDirect'] || 0).toLocaleString();
