@@ -1294,8 +1294,11 @@ app.MapPost("/api/v1/auth/exchange", async (HttpContext context, ExchangeCodeReq
         monitorDb.RegisterUserActivity(clientIp, username, organizationalUnit, memberType);
     }
 
-    // Phân quyền Quản trị viên: Đơn vị 'pqtkt' (như phongnd, vuongwork) hoặc username 'admin', 'vuongwork'
-    var isAdmin = (!string.IsNullOrEmpty(organizationalUnit) && organizationalUnit.Contains("pqtkt", StringComparison.OrdinalIgnoreCase)) ||
+    // Phân quyền Quản trị viên: ou=pqtkt thuộc ou=ttqtdhs trong ou to canbo, hoặc tài khoản admin/phongnd/vuongwork
+    var ouLower = (organizationalUnit ?? "").ToLowerInvariant();
+    var isAdmin = ouLower.Contains("pqtkt") ||
+                  ouLower.Contains("ttqtdhs") ||
+                  ouLower.Contains("duac") ||
                   string.Equals(username, "phongnd", StringComparison.OrdinalIgnoreCase) ||
                   string.Equals(username, "vuongwork", StringComparison.OrdinalIgnoreCase) ||
                   string.Equals(username, "vuongwork@vnu.edu.vn", StringComparison.OrdinalIgnoreCase) ||

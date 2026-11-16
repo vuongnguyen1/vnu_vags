@@ -1725,9 +1725,6 @@
                 <a href="#analytics" class="btn-secondary">
                     <span>📊 Xem Thống Kê 4 CSDL</span>
                 </a>
-                <a href="/admin" class="btn-primary" style="background:#0f172a;border-color:#0f172a;color:#ffffff;display:inline-flex;align-items:center;gap:6px;">
-                    <span>🛡️ Vào Trang Quản Trị (/admin)</span>
-                </a>
             </div>
         </div>
     </section>
@@ -1801,9 +1798,6 @@
                         <span style="width:6px;height:6px;border-radius:50%;background:#059669;display:inline-block;"></span>
                         Egress Gateway: 112.137.142.30 (Hoạt động tốt)
                     </span>
-                    <a href="/admin" style="color:#0f172a;text-decoration:none;font-weight:700;display:inline-flex;align-items:center;gap:4px;">
-                        <span>Xem chi tiết 22 đơn vị & Xuất Excel »</span>
-                    </a>
                 </div>
             </div>
         </section>
@@ -2426,19 +2420,6 @@
             </div>
         </section>
 
-        <!-- Banner Quản trị viên DUAC (Chỉ hiển thị khi đăng nhập đúng tài khoản Quản trị) -->
-        <div class="admin-banner" id="adminBanner" style="display:none;">
-            <div class="admin-banner-text">
-                <h4>Quản Trị Hệ Thống (Trung Tâm Quản Trị Đại Học Số - DUAC)</h4>
-                <p>Cán bộ quản trị thuộc đơn vị DUAC đăng nhập qua VNU SSO để vào Bảng quản trị cấu hình định tuyến và
-                    theo dõi lưu lượng thời gian thực.</p>
-            </div>
-            <div>
-                <a href="/admin" class="btn-primary" style="background:#00803d;color:white;box-shadow:none;">
-                    <span>🛡️ Vào Trang Quản Trị (/admin) ↗</span>
-                </a>
-            </div>
-        </div>
     </main>
 
     <footer>
@@ -2449,8 +2430,8 @@
                 <p>Đơn vị quản lý: Trung tâm Quản trị Đại học số (DUAC)</p>
             </div>
             <div>
-                <a href="/admin" style="color:#cbd5e1;font-size:12.5px;text-decoration:none;display:inline-flex;align-items:center;gap:4px;padding:6px 12px;border:1px solid rgba(255,255,255,0.2);border-radius:8px;">
-                    <span>🛡️ Khu Vực Quản Trị Hệ Thống ↗</span>
+                <a href="/privacy" style="color:#cbd5e1;font-size:12.5px;text-decoration:none;display:inline-flex;align-items:center;gap:4px;padding:6px 12px;border:1px solid rgba(255,255,255,0.2);border-radius:8px;">
+                    <span>Chính sách quyền riêng tư</span>
                 </a>
             </div>
         </div>
@@ -2481,17 +2462,25 @@
 
         function checkSession() {
             const user = localStorage.getItem('vags_user');
-            const unit = localStorage.getItem('vags_unit');
+            const unit = localStorage.getItem('vags_unit') || '';
             const name = localStorage.getItem('vags_name');
             const token = localStorage.getItem('vags_token');
             const memberType = localStorage.getItem('vags_member_type') || 'canbo';
             const userLower = (user || '').toLowerCase();
-            const isAdmin = (unit && (unit.toLowerCase().includes('pqtkt') || unit.toLowerCase().includes('duac'))) ||
+            const unitLower = unit.toLowerCase();
+            const isAdminStorage = localStorage.getItem('vags_is_admin') === 'true';
+
+            // Phân quyền Quản trị viên: ou=pqtkt thuộc ou=ttqtdhs trong ou to canbo
+            const isAdmin = Boolean(user && token) && (
+                unitLower.includes('pqtkt') ||
+                unitLower.includes('ttqtdhs') ||
+                unitLower.includes('duac') ||
                 userLower === 'admin' ||
                 userLower === 'phongnd' ||
                 userLower === 'vuongwork' ||
                 userLower === 'vuongwork@vnu.edu.vn' ||
-                localStorage.getItem('vags_is_admin') === 'true';
+                isAdminStorage
+            );
 
             const unauthBanner = document.getElementById('unauthAlertBanner');
             const authAlertIcon = document.getElementById('authAlertIcon');
@@ -2500,7 +2489,7 @@
             const btnAlertLogin = document.getElementById('btnAlertLogin');
             const heroMainBtn = document.getElementById('heroMainBtn');
 
-            if (user) {
+            if (user && token) {
                 document.getElementById('btnOpenLogin').style.display = 'none';
                 document.getElementById('userPanel').style.display = 'inline-flex';
                 document.getElementById('userNameTxt').textContent = `${name || user}${unit ? ' (' + unit.toUpperCase() + ')' : ''}`;
@@ -2517,14 +2506,10 @@
                     heroMainBtn.innerHTML = '<span>🚀 Bắt Đầu Tra Cứu CSDL</span>';
                 }
 
-                if (isAdmin) {
-                    document.getElementById('btnAdminLink').style.display = 'inline-flex';
-                    document.getElementById('heroAdminBtn').style.display = 'inline-flex';
-                    document.getElementById('adminBanner').style.display = 'flex';
-                } else {
-                    document.getElementById('btnAdminLink').style.display = 'none';
-                    document.getElementById('heroAdminBtn').style.display = 'none';
-                    document.getElementById('adminBanner').style.display = 'none';
+                // Nút Quản trị: CHỈ HIỂN THỊ KHI ĐĂNG NHẬP VÀ ĐÚNG QUYỀN ADMIN (PQTKT/TTQTDHS)
+                const btnAdmin = document.getElementById('btnAdminLink');
+                if (btnAdmin) {
+                    btnAdmin.style.display = isAdmin ? 'inline-flex' : 'none';
                 }
 
                 // Phát tín hiệu đồng bộ phiên cho Extension Content Script

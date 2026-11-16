@@ -395,7 +395,7 @@
 
         /* Auth Gate Overlay */
         #authGate {
-            display: none;
+            display: flex;
             position: fixed;
             inset: 0;
             background: #0f172a;
@@ -424,8 +424,8 @@
         <div class="auth-gate-box">
             <div style="font-size:48px;margin-bottom:12px;">🛡️</div>
             <h2 style="font-size:20px;font-weight:800;color:white;margin:0 0 8px;">Khu Vực Quản Trị Hệ Thống VAGS</h2>
-            <p style="font-size:13px;color:#94a3b8;margin-bottom:24px;line-height:1.6;">
-                Bảng điều khiển này chỉ dành riêng cho Cán bộ thuộc <b>Phòng Quản Trị Kỹ Thuật (PQTKT)</b> hoặc tài khoản được ủy quyền. Vui lòng xác thực tài khoản qua VNU Single Sign-On.
+            <p id="authGateMsg" style="font-size:13px;color:#94a3b8;margin-bottom:24px;line-height:1.6;">
+                Bảng điều khiển này chỉ dành riêng cho Cán bộ Quản trị thuộc <b>Phòng Quản Trị & Kế Hoạch (PQTKT)</b> / <b>Trung tâm Quản trị Đại học số (TTQTDHS)</b>. Vui lòng xác thực tài khoản có thẩm quyền qua VNU Single Sign-On.
             </p>
             <div style="display:flex;flex-direction:column;gap:10px;">
                 <button onclick="loginKeycloakSso()" style="background:#00803d;color:white;padding:12px 20px;border-radius:10px;font-weight:700;font-size:14px;border:none;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px;">
@@ -1365,28 +1365,44 @@
         // 1. RBAC Authentication Gate Check
         function checkAdminAuth() {
             const user = localStorage.getItem('vags_user');
-            const unit = localStorage.getItem('vags_unit');
+            const token = localStorage.getItem('vags_token');
+            const unit = (localStorage.getItem('vags_unit') || '').toLowerCase();
             const userLower = (user || '').toLowerCase();
-            const isAdmin = (unit && (unit.toLowerCase().includes('pqtkt') || unit.toLowerCase().includes('duac'))) ||
-                            userLower === 'admin' ||
-                            userLower === 'phongnd' ||
-                            userLower === 'vuongwork' ||
-                            userLower === 'vuongwork@vnu.edu.vn' ||
-                            localStorage.getItem('vags_is_admin') === 'true';
+            const isAdminStorage = localStorage.getItem('vags_is_admin') === 'true';
 
-            // Cho phép xem Dashboard và Thống kê 4 CSDL trực tiếp
+            // Phân quyền Quản trị viên: ou=pqtkt thuộc ou=ttqtdhs trong ou to canbo
+            const isAdmin = Boolean(user && token) && (
+                unit.includes('pqtkt') ||
+                unit.includes('ttqtdhs') ||
+                unit.includes('duac') ||
+                userLower === 'admin' ||
+                userLower === 'phongnd' ||
+                userLower === 'vuongwork' ||
+                userLower === 'vuongwork@vnu.edu.vn' ||
+                isAdminStorage
+            );
+
+            if (!isAdmin) {
+                // Khóa chặt chẽ toàn bộ giao diện, hiển thị màn hình khóa RBAC Gate
+                document.getElementById('authGate').style.display = 'flex';
+                document.getElementById('dashboardMain').style.display = 'none';
+
+                if (user) {
+                    const msgEl = document.getElementById('authGateMsg');
+                    if (msgEl) {
+                        msgEl.innerHTML = `<span style="color:#f87171;font-weight:700;">⚠️ Tài khoản <b>${user}</b> (${(unit || 'canbo').toUpperCase()}) không có quyền Quản trị!</span><br>Khu vực này chỉ dành riêng cho Cán bộ Quản trị thuộc <b>Phòng Quản trị & Kế hoạch (PQTKT)</b> / <b>Trung tâm Quản trị Đại học số (TTQTDHS)</b>.`;
+                    }
+                }
+                return false;
+            }
+
+            // Đã xác thực Quản trị viên hợp lệ
             document.getElementById('authGate').style.display = 'none';
             document.getElementById('dashboardMain').style.display = 'block';
 
-            if (!isAdmin) {
-                const name = localStorage.getItem('vags_name') || user || 'Khách Quản Trị';
-                document.getElementById('adminNameTxt').innerText = `${name} (Chế Độ Xem)`;
-                return true;
-            } else {
-                const name = localStorage.getItem('vags_name') || user || 'Quản trị viên';
-                document.getElementById('adminNameTxt').innerText = `${name} (${(unit || 'DUAC').toUpperCase()})`;
-                return true;
-            }
+            const name = localStorage.getItem('vags_name') || user || 'Quản trị viên';
+            document.getElementById('adminNameTxt').innerText = `${name} (${(unit || 'DUAC').toUpperCase()})`;
+            return true;
         }
 
         // 2. Tab Navigation Switcher
