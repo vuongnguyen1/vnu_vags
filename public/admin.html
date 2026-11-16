@@ -899,6 +899,7 @@
                         <button class="csdl-preset-btn" data-preset="today" onclick="applyCsdlPreset('today')">Hôm nay</button>
                         <button class="csdl-preset-btn" data-preset="30days" onclick="applyCsdlPreset('30days')">30 ngày qua</button>
                         <button class="csdl-preset-btn" data-preset="all" onclick="applyCsdlPreset('all')">Toàn bộ</button>
+                        <span id="csdlDateRangeLabel" style="font-size: 11px; font-weight: 700; color: #0284c7; background: #e0f2fe; padding: 4px 10px; border-radius: 6px; margin-left: 6px;">📅 Đang tải...</span>
                     </div>
                     <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
                         <span style="font-size: 12px; color: #64748b;">Từ:</span>
@@ -2726,6 +2727,27 @@
 
         function renderCsdlStats(data) {
             if (!data) return;
+
+            // Cập nhật nhãn khoảng thời gian hiển thị
+            const fromVal = document.getElementById('csdlFromDate')?.value;
+            const toVal = document.getElementById('csdlToDate')?.value;
+            let rangeText = '';
+            if (fromVal && toVal) {
+                const fp = fromVal.split('-');
+                const tp = toVal.split('-');
+                rangeText = `📅 Dữ liệu: ${fp[2]}/${fp[1]}/${fp[0]} — ${tp[2]}/${tp[1]}/${tp[0]}`;
+            } else if (fromVal) {
+                const fp = fromVal.split('-');
+                rangeText = `📅 Dữ liệu từ: ${fp[2]}/${fp[1]}/${fp[0]} đến nay`;
+            } else {
+                const now = new Date();
+                const d = String(now.getDate()).padStart(2, '0');
+                const m = String(now.getMonth() + 1).padStart(2, '0');
+                const y = now.getFullYear();
+                rangeText = `📅 Dữ liệu toàn bộ: từ 08/11/2026 đến ${d}/${m}/${y}`;
+            }
+            const dateLbl = document.getElementById('csdlDateRangeLabel');
+            if (dateLbl) dateLbl.innerText = rangeText;
 
             const sdReqs = data.byDatabase?.['ScienceDirect'] || 0;
             const springerReqs = data.byDatabase?.['Springer Link'] || 0;

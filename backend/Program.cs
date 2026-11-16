@@ -1,5 +1,6 @@
 using System.Buffers;
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.IO.Pipelines;
 using System.Net;
 using System.Net.Sockets;
@@ -12,6 +13,7 @@ using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Connections;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.Extensions.FileProviders;
+using Microsoft.AspNetCore.StaticFiles;
 using VagsBackend;
 
 var startTime = DateTime.UtcNow;
@@ -160,7 +162,7 @@ string GetRealClientIp(HttpContext http)
     return CleanIp(rem);
 }
 
-void AddProxyLog(string clientIp, string targetHost, int targetPort, bool allowed, string reason, string matchedRule, string user = "Khách (Chưa xác thực)", string unit = "VNU", long bytesSent = 0, long bytesReceived = 0, long durationMs = 0)
+void AddProxyLog(string clientIp, string targetHost, int targetPort, bool allowed, string reason, string matchedRule, string user = "Khách (Chưa xác thực)", string unit = "VNU", string memberType = "canbo", long bytesSent = 0, long bytesReceived = 0, long durationMs = 0)
 {
     Interlocked.Increment(ref totalProxyRequests);
     if (allowed) Interlocked.Increment(ref allowedProxyRequests);
@@ -168,6 +170,7 @@ void AddProxyLog(string clientIp, string targetHost, int targetPort, bool allowe
 
     var cleanUser = string.IsNullOrWhiteSpace(user) ? "Khách (Chưa xác thực)" : user;
     var cleanUnit = string.IsNullOrWhiteSpace(unit) ? "VNU" : unit;
+    var cleanMtype = string.IsNullOrWhiteSpace(memberType) ? "canbo" : memberType;
 
     proxyLogs.Enqueue(new ProxyLogEntry
     {
@@ -178,7 +181,8 @@ void AddProxyLog(string clientIp, string targetHost, int targetPort, bool allowe
         Reason = reason,
         MatchedRule = matchedRule,
         User = cleanUser,
-        Unit = cleanUnit
+        Unit = cleanUnit,
+        MemberType = cleanMtype
     });
 
     while (proxyLogs.Count > 100 && proxyLogs.TryDequeue(out _)) { }
@@ -189,6 +193,7 @@ void AddProxyLog(string clientIp, string targetHost, int targetPort, bool allowe
         ClientIp = clientIp,
         Username = cleanUser,
         Unit = cleanUnit,
+        MemberType = cleanMtype,
         TargetHost = targetHost,
         TargetPort = targetPort,
         Allowed = allowed,
@@ -276,12 +281,15 @@ RouteDecision EvaluateHost(string rawHost, RuleStoreModel currentRules, string? 
         }
     }
 
-    // 2. Internal VNU Library Whitelist (lic.vnu.edu.vn, iplocation...) -> PROXY
-    foreach (var pattern in currentRules.InternalWhitelist ?? new List<string>())
+    // 2. Internal VNU Library Whitelist (lic.vnu.edu.vn, iplocation...) -> PROXY nếu cờ EnableLicProxy = true
+    if (currentRules.EnableLicProxy)
     {
-        if (ShExpMatch(host, pattern))
+        foreach (var pattern in currentRules.InternalWhitelist ?? new List<string>())
         {
-            return new RouteDecision(host, "PROXY", proxyDirective, pattern, "internalWhitelist", true, "Matched VNU Internal Library / Tool Whitelist");
+            if (ShExpMatch(host, pattern))
+            {
+                return new RouteDecision(host, "PROXY", proxyDirective, pattern, "internalWhitelist", true, "Matched VNU Internal Library / Tool Whitelist");
+            }
         }
     }
 
@@ -629,23 +637,10 @@ async Task HandleConnectionAsync(ConnectionContext connectionContext, Connection
         return;
     }
 
-    // 3. Phân quyền chi tiết cho Cán bộ đã xác thực:
-    // A. Kiểm tra phân quyền Sinh viên (CSDL chỉ dành riêng cho Cán bộ / Giảng viên)
-    var isAcademicResource = decision.MatchedCategory == "globalAcademicWhitelist" || decision.MatchedCategory == "internalWhitelist";
-    if (isAcademicResource && string.Equals(resolvedMemberType, "sinhvien", StringComparison.OrdinalIgnoreCase) && !isOverrideUser)
-    {
-        AddProxyLog(clientIp, targetHost, targetPort, false, "Tài khoản Sinh viên không được phép sử dụng Proxy CSDL (Chỉ dành cho Cán bộ ĐHQGHN)", "disallowed_member_type:sinhvien", resolvedUser, resolvedUnit);
-        var body = "Blocked by VAGS Gateway: Quyền truy cập Proxy CSDL Khoa học Quốc tế chỉ dành cho Cán bộ & Giảng viên ĐHQGHN. Tài khoản Sinh viên không được cấp quyền.\r\n";
-        var resp403 = Encoding.ASCII.GetBytes(
-            "HTTP/1.1 403 Forbidden\r\n" +
-            "Proxy-Agent: VAGS-Gateway/2.0\r\n" +
-            "Content-Type: text/plain; charset=utf-8\r\n" +
-            $"Content-Length: {Encoding.UTF8.GetByteCount(body)}\r\n" +
-            "Connection: close\r\n\r\n" + body);
-        await output.WriteAsync(resp403, connectionContext.ConnectionClosed);
-        await output.FlushAsync(connectionContext.ConnectionClosed);
-        return;
-    }
+    // 3. Phân quyền cho Người dùng VNU đã xác thực (Mở quyền cho cả Cán bộ, Giảng viên và Sinh viên/Người học)
+    var logUser = string.IsNullOrEmpty(resolvedUser) ? "Khách (Chưa xác thực)" : resolvedUser;
+    var logUnit = string.IsNullOrEmpty(resolvedUnit) ? "VNU" : resolvedUnit;
+    var logMemberType = string.IsNullOrEmpty(resolvedMemberType) ? "canbo" : resolvedMemberType;
 
     // B. Kiểm tra Blacklist (Băng thông cao / Game / Mạng xã hội):
     // Đối với Cán bộ hợp lệ: Cho phép chuyển tiếp thông suốt các dịch vụ Google Workspace / Microsoft
@@ -669,9 +664,6 @@ async Task HandleConnectionAsync(ConnectionContext connectionContext, Connection
         return;
     }
 
-    var logUser = string.IsNullOrEmpty(resolvedUser) ? "Khách (Chưa xác thực)" : resolvedUser;
-    var logUnit = string.IsNullOrEmpty(resolvedUnit) ? "VNU" : resolvedUnit;
-
     // 3. Establish TCP tunnel to destination (Academic Publisher or loopback to VAGS itself)
     using var tcpClient = new TcpClient();
     try
@@ -689,7 +681,7 @@ async Task HandleConnectionAsync(ConnectionContext connectionContext, Connection
     }
     catch (Exception ex)
     {
-        AddProxyLog(clientIp, targetHost, targetPort, false, $"Upstream connect failed: {ex.Message}", decision.MatchedRule, logUser, logUnit);
+        AddProxyLog(clientIp, targetHost, targetPort, false, $"Upstream connect failed: {ex.Message}", decision.MatchedRule, logUser, logUnit, logMemberType);
         var resp502 = Encoding.ASCII.GetBytes(
             "HTTP/1.1 502 Bad Gateway\r\n" +
             "Proxy-Agent: VAGS-Gateway/1.0\r\n" +
@@ -722,7 +714,7 @@ async Task HandleConnectionAsync(ConnectionContext connectionContext, Connection
     long bytesReceived = t2.IsCompleted ? t2.Result : 0;
     long durationMs = (long)(DateTime.UtcNow - connStart).TotalMilliseconds;
 
-    AddProxyLog(clientIp, targetHost, targetPort, true, decision.Reason, decision.MatchedRule, logUser, logUnit, bytesSent, bytesReceived, durationMs);
+    AddProxyLog(clientIp, targetHost, targetPort, true, decision.Reason, decision.MatchedRule, logUser, logUnit, logMemberType, bytesSent, bytesReceived, durationMs);
 }
 
 async Task<long> TrackStreamCopyAsync(Stream source, Stream destination, CancellationToken ct)
@@ -913,11 +905,22 @@ if (Directory.Exists(webRootPath))
     });
 
     app.UseDefaultFiles(new DefaultFilesOptions { FileProvider = provider });
+    var htmlNoCachePrepare = new Action<StaticFileResponseContext>(ctx =>
+    {
+        if (ctx.File.Name.EndsWith(".html", StringComparison.OrdinalIgnoreCase))
+        {
+            ctx.Context.Response.Headers.CacheControl = "no-cache, no-store, must-revalidate";
+            ctx.Context.Response.Headers.Pragma = "no-cache";
+            ctx.Context.Response.Headers.Expires = "0";
+        }
+    });
+
     app.UseStaticFiles(new StaticFileOptions
     {
         FileProvider = provider,
         ContentTypeProvider = contentTypeProvider,
-        ServeUnknownFileTypes = true
+        ServeUnknownFileTypes = true,
+        OnPrepareResponse = htmlNoCachePrepare
     });
     // Hỗ trợ cả tiền tố /public/... nếu người dùng truy cập trực tiếp đường dẫn thư mục
     app.UseStaticFiles(new StaticFileOptions
@@ -925,12 +928,19 @@ if (Directory.Exists(webRootPath))
         FileProvider = provider,
         RequestPath = "/public",
         ContentTypeProvider = contentTypeProvider,
-        ServeUnknownFileTypes = true
+        ServeUnknownFileTypes = true,
+        OnPrepareResponse = htmlNoCachePrepare
     });
 }
 
 // Phục vụ giao diện Quản trị viên (/admin -> admin.html)
-app.MapMethods("/admin", new[] { "GET", "HEAD" }, () => Results.File(Path.Combine(webRootPath, "admin.html"), "text/html"));
+app.MapMethods("/admin", new[] { "GET", "HEAD" }, (HttpContext ctx) =>
+{
+    ctx.Response.Headers.CacheControl = "no-cache, no-store, must-revalidate";
+    ctx.Response.Headers.Pragma = "no-cache";
+    ctx.Response.Headers.Expires = "0";
+    return Results.File(Path.Combine(webRootPath, "admin.html"), "text/html");
+});
 
 // Phục vụ trang Chính sách quyền riêng tư (/privacy -> privacy.html)
 app.MapMethods("/privacy", new[] { "GET", "HEAD" }, () => Results.File(Path.Combine(webRootPath, "privacy.html"), "text/html"));
@@ -1019,7 +1029,7 @@ app.MapMethods("/vags.pac", new[] { "GET", "HEAD" }, (HttpContext ctx) =>
     for (var i = 0; i < blacklist.length; i++) {{
         if (shExpMatch(lHost, blacklist[i])) return ""DIRECT"";
     }}
-    var internalWL = {JsonSerializer.Serialize(ruleStore.InternalWhitelist)};
+    var internalWL = {(ruleStore.EnableLicProxy ? JsonSerializer.Serialize(ruleStore.InternalWhitelist) : "[]")};
     for (var j = 0; j < internalWL.length; j++) {{
         if (shExpMatch(lHost, internalWL[j])) return ""{proxyServer}"";
     }}
@@ -1435,6 +1445,109 @@ app.MapGet("/api/v1/admin/audit-logs/export", async (int? limit) =>
 {
     var csv = await monitorDb.ExportAuditLogsCsvAsync(limit ?? 1000);
     return Results.Content(csv, "text/csv; charset=utf-8", Encoding.UTF8);
+});
+
+// ================= BÁO CÁO & THỐNG KÊ 4 CSDL ĐIỆN TỬ VNU =================
+app.MapGet("/api/v1/analytics/csdl-stats", async (HttpContext ctx) =>
+{
+    DateTime? from = null;
+    DateTime? to = null;
+    if (DateTime.TryParse(ctx.Request.Query["from"], out var f)) from = f.ToUniversalTime();
+    if (DateTime.TryParse(ctx.Request.Query["to"], out var t)) to = t.ToUniversalTime();
+
+    var stats = await monitorDb.GetCsdlMatrixStatsAsync(from, to);
+    return Results.Json(stats, jsonOptions);
+});
+
+app.MapGet("/api/v1/analytics/export-excel", async (HttpContext ctx) =>
+{
+    DateTime? from = null;
+    DateTime? to = null;
+    var fromStr = ctx.Request.Query["from"].ToString();
+    var toStr = ctx.Request.Query["to"].ToString();
+    if (DateTime.TryParse(fromStr, out var f)) from = f.ToUniversalTime();
+    if (DateTime.TryParse(toStr, out var t)) to = t.ToUniversalTime();
+
+    var statsObj = await monitorDb.GetCsdlMatrixStatsAsync(from, to);
+    var statsJson = JsonSerializer.Serialize(statsObj);
+    using var doc = JsonDocument.Parse(statsJson);
+    var root = doc.RootElement;
+    var matrixEl = root.GetProperty("matrix");
+    var unitUsersEl = root.GetProperty("byUnitUsers");
+
+    var fromDateDisplay = from.HasValue ? from.Value.ToLocalTime().ToString("dd/MM/yyyy") : "08/11/2026";
+    var toDateDisplay = to.HasValue ? to.Value.ToLocalTime().ToString("dd/MM/yyyy") : DateTime.Now.ToString("dd/MM/yyyy");
+    var dateTitle = $"THỐNG KÊ SỐ LƯỢNG TRUY CẬP CSDL ĐIỆN TỬ TỪ NGÀY {fromDateDisplay} ĐẾN NGÀY {toDateDisplay}";
+
+    var tmpPayload = Path.Combine(Path.GetTempPath(), $"vags_csdl_req_{Guid.NewGuid():N}.json");
+    var tmpOutput = Path.Combine(Path.GetTempPath(), $"vags_csdl_export_{Guid.NewGuid():N}.xlsx");
+    var pyScriptPath = File.Exists(Path.Combine(AppContext.BaseDirectory, "export_csdl_excel.py"))
+        ? Path.Combine(AppContext.BaseDirectory, "export_csdl_excel.py")
+        : "/mnt/data/websites/vags.vnu.edu.vn/backend/export_csdl_excel.py";
+
+    try
+    {
+        var pyPayload = new
+        {
+            title = dateTitle,
+            from_date = fromDateDisplay,
+            to_date = toDateDisplay,
+            matrix = matrixEl,
+            by_unit_users = unitUsersEl,
+            output_path = tmpOutput
+        };
+        await File.WriteAllTextAsync(tmpPayload, JsonSerializer.Serialize(pyPayload));
+
+        var psi = new ProcessStartInfo
+        {
+            FileName = "python3",
+            Arguments = $"\"{pyScriptPath}\" \"{tmpPayload}\"",
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+        using var proc = Process.Start(psi);
+        if (proc != null)
+        {
+            await proc.WaitForExitAsync();
+        }
+
+        if (File.Exists(tmpOutput))
+        {
+            var bytes = await File.ReadAllBytesAsync(tmpOutput);
+            var downloadName = $"Bao_cao_CSDL_VNU_{DateTime.UtcNow:yyyyMMdd_HHmmss}.xlsx";
+            return Results.File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", downloadName);
+        }
+        return Results.Problem("Không thể sinh tệp báo cáo Excel");
+    }
+    finally
+    {
+        try { if (File.Exists(tmpPayload)) File.Delete(tmpPayload); } catch { }
+        try { if (File.Exists(tmpOutput)) File.Delete(tmpOutput); } catch { }
+    }
+});
+
+app.MapPost("/api/v1/admin/toggle-lic", async (HttpContext ctx) =>
+{
+    if (bool.TryParse(ctx.Request.Query["enable"], out var targetEnable))
+    {
+        ruleStore.EnableLicProxy = targetEnable;
+    }
+    else
+    {
+        ruleStore.EnableLicProxy = !ruleStore.EnableLicProxy;
+    }
+    ruleStore.Version = DateTime.UtcNow.ToString("yyyy.MM.dd.HHmmss");
+    ruleStore.UpdatedAt = DateTime.UtcNow.ToString("O");
+    SaveRules(ruleStore);
+
+    var rulesPayload = $"event: RULES_UPDATED\ndata: {JsonSerializer.Serialize(ruleStore, sseJsonOptions)}\n\n";
+    foreach (var kvp in sseClients.ToArray())
+    {
+        try { await kvp.Value.Response.WriteAsync(rulesPayload); await kvp.Value.Response.Body.FlushAsync(); } catch { sseClients.TryRemove(kvp.Key, out _); }
+    }
+    return Results.Json(new { success = true, enableLicProxy = ruleStore.EnableLicProxy, version = ruleStore.Version }, jsonOptions);
 });
 
 // API Ghi nhận nhịp tim hoạt động (Heartbeat) của Cán bộ từ Extension
@@ -1876,6 +1989,7 @@ public class RuleStoreModel
     public string Version { get; set; } = "1.0";
     public string ProxyMode { get; set; } = "FULL_PROXY";
     public bool MaintenanceMode { get; set; } = false;
+    public bool EnableLicProxy { get; set; } = true;
     public List<string> Blacklist { get; set; } = new();
     public List<string> InternalWhitelist { get; set; } = new();
     public List<string> GlobalAcademicWhitelist { get; set; } = new();
@@ -1885,11 +1999,11 @@ public class RuleStoreModel
     public int ProxyPort { get; set; } = 443;
     public string ProxyScheme { get; set; } = "HTTPS";
     public List<string> DomainAliases { get; set; } = new();
-    public List<string> AllowedOUs { get; set; } = new() { "canbo", "pqtkt" };
-    public List<string> DisallowedOUs { get; set; } = new() { "sinhvien" };
-    public List<string> AllowedMemberTypes { get; set; } = new() { "canbo" };
-    public List<string> DisallowedMemberTypes { get; set; } = new() { "sinhvien" };
-    public string AdminOU { get; set; } = "pqtkt";
+    public List<string> AllowedOUs { get; set; } = new() { "canbo", "giangvien", "sinhvien", "nguoihoc", "pqtkt", "duac", "*" };
+    public List<string> DisallowedOUs { get; set; } = new();
+    public List<string> AllowedMemberTypes { get; set; } = new() { "canbo", "giangvien", "sinhvien", "nguoihoc" };
+    public List<string> DisallowedMemberTypes { get; set; } = new();
+    public string AdminOU { get; set; } = "duac";
     public UserOverridesModel UserOverrides { get; set; } = new();
     public string UpdatedAt { get; set; } = DateTime.UtcNow.ToString("O");
 }
@@ -1928,6 +2042,7 @@ public class ProxyLogEntry
     public string MatchedRule { get; set; } = "";
     public string User { get; set; } = "Cán bộ VNU";
     public string Unit { get; set; } = "VNU";
+    public string MemberType { get; set; } = "canbo";
 }
 
 public record EvaluateRequest(string? Host, string? User = null);

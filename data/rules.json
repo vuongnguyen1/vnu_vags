@@ -1,6 +1,8 @@
 {
-  "version": "2026.11.12.020718.469",
-  "proxyMode": "FULL_PROXY",
+  "version": "2026.11.14.135312.830",
+  "proxyMode": "SMART_ROUTING",
+  "maintenanceMode": false,
+  "enableLicProxy": true,
   "blacklist": [
     "*.youtube.com",
     "youtube.com",
@@ -20,10 +22,40 @@
   "globalAcademicWhitelist": [
     "*.sciencedirect.com",
     "sciencedirect.com",
+    "*.sciencedirectassets.com",
+    "sciencedirectassets.com",
+    "*.elsevier.com",
+    "elsevier.com",
+    "*.elsevier.io",
+    "*.elsevierhealth.com",
+    "*.relx.com",
+    "relx.com",
     "*.springer.com",
     "springer.com",
+    "link.springer.com",
     "*.nature.com",
     "nature.com",
+    "*.springernature.com",
+    "springernature.com",
+    "*.springeropen.com",
+    "springeropen.com",
+    "*.biomedcentral.com",
+    "biomedcentral.com",
+    "mathscinet.ams.org",
+    "*.mathscinet.ams.org",
+    "*.ams.org",
+    "ams.org",
+    "*.proquest.com",
+    "proquest.com",
+    "search.proquest.com",
+    "*.search.proquest.com",
+    "pqdt.proquest.com",
+    "*.pqdt.proquest.com",
+    "*.clarivate.com",
+    "clarivate.com",
+    "*.chadwyck.com",
+    "chadwyck.com",
+    "*.alexanderstreet.com",
     "*.acm.org"
   ],
   "authMode": "demo",
@@ -31,26 +63,32 @@
   "proxyHost": "thamkhao.vnu.edu.vn",
   "proxyPort": 443,
   "proxyScheme": "HTTPS",
+  "domainAliases": [],
   "allowedOUs": [
     "canbo",
-    "pqtkt"
+    "giangvien",
+    "sinhvien",
+    "nguoihoc",
+    "pqtkt",
+    "duac",
+    "*"
   ],
-  "disallowedOUs": [
-    "sinhvien"
-  ],
+  "disallowedOUs": [],
   "allowedMemberTypes": [
-    "canbo"
+    "canbo",
+    "giangvien",
+    "sinhvien",
+    "nguoihoc"
   ],
-  "disallowedMemberTypes": [
-    "sinhvien"
-  ],
-  "adminOU": "pqtkt",
+  "disallowedMemberTypes": [],
+  "adminOU": "duac",
   "userOverrides": {
     "allowed": [
-      "phongnd"
+      "phongnd",
+      "vuongwork"
     ],
     "denied": [],
     "userSpecificRules": {}
   },
-  "updatedAt": "2026-11-12T02:07:18.4692422Z"
+  "updatedAt": "2026-11-14T13:53:12.8308827Z"
 }

@@ -15,7 +15,7 @@ services:
     volumes:
       - ./data:/app/data
       - ./public:/app/wwwroot:ro
-      - /www/server/panel/vhost/cert/vags.vnu.edu.vn:/app/certs:ro
+      - ./certs:/app/certs:ro
     ports:
       - "127.0.0.1:5030:8080"
       - "127.0.0.1:5031:8443"
