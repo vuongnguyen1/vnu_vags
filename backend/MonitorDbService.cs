@@ -1007,6 +1007,8 @@ public class MonitorDbService
         { "ductv92", ("UET", "nguoihoc") },
         { "tuannguyenduc", ("UET", "canbo") },
         { "datlq", ("UET", "nguoihoc") },
+        { "duchuy", ("UET", "nguoihoc") },
+        { "ndminh", ("UET", "canbo") },
 
         // USSH (Đại học Khoa học Xã hội và Nhân văn)
         { "toanvh", ("USSH", "canbo") },
@@ -1057,11 +1059,14 @@ public class MonitorDbService
         { "yennh", ("SIS", "nguoihoc") },
         { "ntttra", ("SIS", "canbo") },
 
-        // ITI (Viện Công nghệ Thông tin)
+        // ITI (Viện Công nghệ Thông tin & DUAC)
         { "haitrantt", ("ITI", "canbo") },
         { "longph", ("ITI", "canbo") },
         { "diepnm", ("ITI", "canbo") },
         { "thinhtt", ("ITI", "nguoihoc") },
+        { "phongnd", ("ITI", "canbo") },
+        { "vuongwork", ("ITI", "canbo") },
+        { "test", ("ITI", "canbo") },
 
         // CRES (Viện Tài nguyên và Môi trường)
         { "vinhnv.vtnt", ("CRES", "canbo") },
@@ -1096,16 +1101,14 @@ public class MonitorDbService
         // LIC (Trung tâm Thư viện và Tri thức số)
         { "ntquyen", ("LIC", "canbo") },
         { "nguyentruonggiang", ("LIC", "nguoihoc") },
+        { "cuongnguyennxb", ("LIC", "canbo") },
 
         // OTHER (Cơ quan ĐHQGHN & Khác)
-        { "cuongnguyennxb", ("OTHER", "canbo") },
-        { "phongnd", ("OTHER", "canbo") },
-        { "vuongwork", ("OTHER", "canbo") },
         { "cuongnd", ("OTHER", "canbo") },
+        { "lqanh", ("OTHER", "canbo") },
+        { "hanhmt", ("OTHER", "canbo") },
         { "anhnn.vnu", ("OTHER", "canbo") },
-        { "test", ("OTHER", "canbo") },
-        { "Khách (Chưa xác thực)", ("OTHER", "nguoihoc") },
-        { "duchuy", ("OTHER", "nguoihoc") }
+        { "Khách (Chưa xác thực)", ("OTHER", "nguoihoc") }
     };
 
     public static (string unit, string memberType) DetermineUnitAndMemberType(string? username, string? rawUnit, string? rawMtype)
@@ -1118,9 +1121,32 @@ public class MonitorDbService
 
         if (!string.IsNullOrEmpty(u))
         {
-            if (u.EndsWith(".ump", StringComparison.OrdinalIgnoreCase)) return ("UMP", "canbo");
-            if (u.EndsWith(".ueb", StringComparison.OrdinalIgnoreCase)) return ("UEB", "canbo");
-            if (u.EndsWith(".vtnt", StringComparison.OrdinalIgnoreCase)) return ("CRES", "canbo");
+            var lowU = u.ToLowerInvariant();
+            if (lowU.EndsWith(".ump") || lowU.Contains("ump")) return ("UMP", "canbo");
+            if (lowU.EndsWith(".ueb") || lowU.Contains("ueb")) return ("UEB", "canbo");
+            if (lowU.EndsWith(".vtnt") || lowU.Contains("cres")) return ("CRES", "canbo");
+            if (lowU.Contains("uet")) return ("UET", "canbo");
+            if (lowU.Contains("ulis")) return ("ULIS", "canbo");
+            if (lowU.Contains("ussh")) return ("USSH", "canbo");
+            if (lowU.Contains("hus")) return ("HUS", "canbo");
+            if (lowU.Contains("vju")) return ("VJU", "canbo");
+            if (lowU.Contains("iti")) return ("ITI", "canbo");
+            if (lowU.Contains("lic") || lowU.Contains("nxb")) return ("LIC", "canbo");
+
+            // Mã sinh viên các trường thành viên
+            if (u.Length == 8 && long.TryParse(u, out _))
+            {
+                var code = u.Substring(2, 2);
+                if (code == "01") return ("HUS", "nguoihoc");
+                if (code == "02") return ("UET", "nguoihoc");
+                if (code == "03") return ("USSH", "nguoihoc");
+                if (code == "04") return ("ULIS", "nguoihoc");
+                if (code == "05") return ("UEB", "nguoihoc");
+                if (code == "06") return ("UEd", "nguoihoc");
+                if (code == "07") return ("IS", "nguoihoc");
+                if (code == "08") return ("UMP", "nguoihoc");
+                if (code == "09") return ("UL", "nguoihoc");
+            }
         }
 
         var normUnit = NormalizeUnit(rawUnit);
@@ -1134,6 +1160,7 @@ public class MonitorDbService
     {
         if (string.IsNullOrWhiteSpace(rawUnit)) return "OTHER";
         var u = rawUnit.Trim().ToUpperInvariant();
+        if (u == "PQTKT" || u == "DUAC") return "ITI";
         if (u == "HUS" || u.Contains("HUS") || u.Contains("KHTN") || u.Contains("TỰ NHIÊN")) return "HUS";
         if (u == "USSH" || u.Contains("USSH") || u.Contains("KHXHNV") || u.Contains("NHÂN VĂN")) return "USSH";
         if (u == "ULIS" || u.Contains("ULIS") || u.Contains("NGOẠI NGỮ")) return "ULIS";
@@ -1154,7 +1181,7 @@ public class MonitorDbService
         if (u.Contains("TIP")) return "TIP";
         if (u.Contains("IQA") || u.Contains("ĐBCL") || u.Contains("KHẢO THÍ")) return "IQA";
         if (u.Contains("CEA") || u.Contains("KIỂM ĐỊNH")) return "CEA";
-        if (u.Contains("LIC") || u.Contains("THƯ VIỆN")) return "LIC";
+        if (u.Contains("LIC") || u.Contains("THƯ VIỆN") || u.Contains("NXB")) return "LIC";
         return "OTHER";
     }
 
