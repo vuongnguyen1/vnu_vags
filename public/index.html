@@ -1719,17 +1719,69 @@
             <h2>Giới Thiệu Cổng Truy Nhập Tài Liệu Tham Khảo Điện Tử</h2>
             <p>Hệ thống tự động phân tuyến lưu lượng tới các nhà xuất bản khoa học qua mạng ĐHQGHN, hỗ trợ cán bộ, giảng viên tra cứu, tải tài liệu phục vụ đào tạo và nghiên cứu khoa học.</p>
             <div class="hero-btns">
-                <button onclick="handleHeroAction()" class="btn-primary" id="heroMainBtn">
-                    <span>🔑 Đăng Nhập VNU SSO</span>
-                </button>
-                <a href="#analytics" class="btn-secondary">
-                    <span>📊 Xem Thống Kê 4 CSDL</span>
+                <a href="https://chromewebstore.google.com/detail/vnu-academic-gateway/pjeacnplliggjdcimgjoflofcpdmhedm" target="_blank" rel="noopener" class="btn-primary">
+                    <span>🌐 Cài Đặt Extension Google Chrome ↗</span>
+                </a>
+                <a href="https://addons.mozilla.org/en-US/firefox/addon/vnu-academic-gateway-vags/" target="_blank" rel="noopener" class="btn-secondary" style="background:rgba(234, 88, 12, 0.92);border-color:#fdba74;font-weight:700;color:#ffffff;">
+                    <span>🦊 Cài Đặt Extension Mozilla Firefox ↗</span>
                 </a>
             </div>
         </div>
     </section>
 
     <main class="container" style="margin-top: 28px;">
+        <!-- Danh mục CSDL Quốc tế -->
+        <section id="databases">
+            <div class="section-title">
+                <h3>Danh Mục 4 Cơ Sở Dữ Liệu Điện Tử Quốc Tế Hỗ Trợ Phân Tuyến Tự Động</h3>
+            </div>
+            <div class="db-grid" style="grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));">
+                <!-- 1. ScienceDirect -->
+                <div class="db-card" style="border-top:3px solid #ff6600;">
+                    <span class="db-tag">ỦY QUYỀN</span>
+                    <div class="db-logo">
+                        <img src="/images/sciencedirect-logo.svg" alt="ScienceDirect (Elsevier) Logo">
+                    </div>
+                    <h4>1. ScienceDirect (Elsevier)</h4>
+                    <p>Bài báo nghiên cứu, tạp chí chuyên ngành Khoa học Tự nhiên, Y Dược, Kỹ thuật và Công nghệ.</p>
+                    <a href="https://www.sciencedirect.com" target="_blank" rel="noopener">sciencedirect.com ↗</a>
+                </div>
+
+                <!-- 2. SpringerLink & Nature -->
+                <div class="db-card" style="border-top:3px solid #005596;">
+                    <span class="db-tag">ỦY QUYỀN</span>
+                    <div class="db-logo">
+                        <img src="/images/springer-logo.png" alt="SpringerLink & Nature Logo">
+                    </div>
+                    <h4>2. SpringerLink & Nature</h4>
+                    <p>Tạp chí bình duyệt quốc tế, sách chuyên khảo và các ấn phẩm học thuật từ Nature Portfolio và Springer.</p>
+                    <a href="https://link.springer.com" target="_blank" rel="noopener">link.springer.com ↗</a>
+                </div>
+
+                <!-- 3. MathSciNet -->
+                <div class="db-card" style="border-top:3px solid #b91c1c;">
+                    <span class="db-tag">ỦY QUYỀN</span>
+                    <div class="db-logo">
+                        <img src="/images/mathscinet-logo.svg?v=2" alt="MathSciNet (AMS) Logo" style="height: 44px; margin: -4px 0;">
+                    </div>
+                    <h4>3. MathSciNet (AMS)</h4>
+                    <p>Cơ sở dữ liệu đánh giá và trích dẫn chuẩn mực của Hội Toán học Hoa Kỳ về Toán học và Khoa học tính toán.</p>
+                    <a href="https://mathscinet.ams.org/mathscinet/publications-search" target="_blank" rel="noopener">mathscinet.ams.org ↗</a>
+                </div>
+
+                <!-- 4. ProQuest -->
+                <div class="db-card" style="border-top:3px solid #7c3aed;">
+                    <span class="db-tag">ỦY QUYỀN</span>
+                    <div class="db-logo">
+                        <img src="/images/proquest-logo.png?v=2" alt="ProQuest (Clarivate) Logo" style="height: 40px; margin: -2px 0;">
+                    </div>
+                    <h4>4. ProQuest (Clarivate)</h4>
+                    <p>Cơ sở dữ liệu đa ngành quốc tế: hàng triệu luận án tiến sĩ, thạc sĩ toàn cầu, tài liệu học thuật và tạp chí chuyên ngành.</p>
+                    <a href="https://www.proquest.com" target="_blank" rel="noopener">proquest.com ↗</a>
+                </div>
+            </div>
+        </section>
+
         <!-- Thống Kê Nhanh 4 CSDL Trực Tiếp Trên Trang Chủ -->
         <section id="analytics" style="background:#ffffff;border:1.5px solid #e2e8f0;border-top:4px solid #00803d;border-radius:14px;padding:22px 24px;margin-bottom:36px;box-shadow:0 2px 8px rgba(0,0,0,0.03);">
             <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:18px;">
@@ -1792,65 +1844,6 @@
                     <strong>Người dùng độc bản:</strong> <span id="homeTotUsers" style="font-weight:800;color:#0284c7;font-size:14px;">80</span> Cán bộ / Người học
                     <span style="margin:0 8px;color:#cbd5e1;">|</span>
                     <span id="homePresetLabel" style="font-weight:700;color:#00803d;background:#ecfdf5;padding:2px 8px;border-radius:999px;">Đang xem: 7 ngày gần nhất</span>
-                </div>
-                <div style="display:flex;align-items:center;gap:12px;">
-                    <span style="display:inline-flex;align-items:center;gap:6px;background:#ecfdf5;color:#059669;padding:3px 10px;border-radius:999px;font-weight:700;font-size:11px;">
-                        <span style="width:6px;height:6px;border-radius:50%;background:#059669;display:inline-block;"></span>
-                        Egress Gateway: 112.137.142.30 (Hoạt động tốt)
-                    </span>
-                </div>
-            </div>
-        </section>
-
-        <!-- Danh mục CSDL Quốc tế -->
-        <section id="databases">
-            <div class="section-title">
-                <h3>Danh Mục 4 Cơ Sở Dữ Liệu Điện Tử Quốc Tế Hỗ Trợ Phân Tuyến Tự Động</h3>
-                <p>Tiện ích VAGS sẽ tự động kích hoạt đường truyền an toàn qua Proxy ĐHQGHN (Egress IP: 112.137.142.30) khi bạn mở 4 địa chỉ học thuật chuẩn sau:</p>
-            </div>
-            <div class="db-grid" style="grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));">
-                <!-- 1. ScienceDirect -->
-                <div class="db-card" style="border-top:3px solid #ff6600;">
-                    <span class="db-tag">ỦY QUYỀN VAGS</span>
-                    <div class="db-logo">
-                        <img src="/images/sciencedirect-logo.svg" alt="ScienceDirect (Elsevier) Logo">
-                    </div>
-                    <h4>1. ScienceDirect (Elsevier)</h4>
-                    <p>Bài báo nghiên cứu, tạp chí chuyên ngành Khoa học Tự nhiên, Y Dược, Kỹ thuật và Công nghệ.</p>
-                    <a href="https://www.sciencedirect.com" target="_blank" rel="noopener">sciencedirect.com ↗</a>
-                </div>
-
-                <!-- 2. SpringerLink & Nature -->
-                <div class="db-card" style="border-top:3px solid #005596;">
-                    <span class="db-tag">ỦY QUYỀN VAGS</span>
-                    <div class="db-logo">
-                        <img src="/images/springer-logo.png" alt="SpringerLink & Nature Logo">
-                    </div>
-                    <h4>2. SpringerLink & Nature</h4>
-                    <p>Tạp chí bình duyệt quốc tế, sách chuyên khảo và các ấn phẩm học thuật từ Nature Portfolio và Springer.</p>
-                    <a href="https://link.springer.com" target="_blank" rel="noopener">link.springer.com ↗</a>
-                </div>
-
-                <!-- 3. MathSciNet -->
-                <div class="db-card" style="border-top:3px solid #b91c1c;">
-                    <span class="db-tag">ỦY QUYỀN VAGS</span>
-                    <div class="db-logo">
-                        <img src="/images/mathscinet-logo.svg" alt="MathSciNet (AMS) Logo">
-                    </div>
-                    <h4>3. MathSciNet (AMS)</h4>
-                    <p>Cơ sở dữ liệu đánh giá và trích dẫn chuẩn mực của Hội Toán học Hoa Kỳ về Toán học và Khoa học tính toán.</p>
-                    <a href="https://mathscinet.ams.org/mathscinet/publications-search" target="_blank" rel="noopener">mathscinet.ams.org ↗</a>
-                </div>
-
-                <!-- 4. ProQuest -->
-                <div class="db-card" style="border-top:3px solid #7c3aed;">
-                    <span class="db-tag">ỦY QUYỀN VAGS</span>
-                    <div class="db-logo">
-                        <img src="/images/proquest-logo.svg" alt="ProQuest (Clarivate) Logo">
-                    </div>
-                    <h4>4. ProQuest (Clarivate)</h4>
-                    <p>Cơ sở dữ liệu đa ngành quốc tế: hàng triệu luận án tiến sĩ, thạc sĩ toàn cầu, tài liệu học thuật và tạp chí chuyên ngành.</p>
-                    <a href="https://www.proquest.com" target="_blank" rel="noopener">proquest.com ↗</a>
                 </div>
             </div>
         </section>
@@ -1941,8 +1934,10 @@
                                 </div>
                             </div>
 
-                            <!-- Link tải trực tiếp Chrome zip -->
-                            <!-- Link tải trực tiếp Chrome zip & Tệp PDF Hướng dẫn -->
+                            <!-- Link cài đặt Chrome Web Store, tải Chrome zip & Tệp PDF Hướng dẫn -->
+                            <a href="https://chromewebstore.google.com/detail/vnu-academic-gateway/pjeacnplliggjdcimgjoflofcpdmhedm" target="_blank" rel="noopener" class="btn-direct-download" style="background:linear-gradient(135deg, #1a73e8, #1557b0);margin-bottom:10px;">
+                                <span>🌐 Cài Đặt Trực Tiếp Trên Chrome Web Store (Khuyên dùng) ↗</span>
+                            </a>
                             <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
                                 <a href="/thamkhao-extension-chrome.zip" class="btn-direct-download" download style="margin-bottom:0;flex:1;min-width:180px;">
                                     <span>⬇️ Tải Gói Cài Đặt Chrome (.zip)</span>
@@ -2007,15 +2002,25 @@
                                 </div>
                             </div>
 
-                            <!-- Link tải trực tiếp Firefox zip -->
-                            <a href="/thamkhao-extension-firefox.zip" class="btn-direct-download firefox" download>
-                                <span>🦊 Tải Add-on Mozilla Firefox (.zip)</span>
-                            </a>
+                            <!-- Link cài đặt Firefox Add-ons & tải trực tiếp Firefox zip -->
+                            <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
+                                <a href="https://addons.mozilla.org/en-US/firefox/addon/vnu-academic-gateway-vags/" target="_blank" rel="noopener" class="btn-direct-download firefox" style="margin-bottom:0;flex:1.3;min-width:210px;background:linear-gradient(135deg, #ea580c, #c2410c);">
+                                    <span>🦊 Cài Đặt Trên Firefox Add-ons (Chính thức) ↗</span>
+                                </a>
+                                <a href="/thamkhao-extension-firefox.zip" class="btn-direct-download" download style="background:#64748b;margin-bottom:0;flex:1;min-width:160px;">
+                                    <span>⬇️ Tải Gói (.zip) Dự Phòng</span>
+                                </a>
+                            </div>
 
                             <div class="unzip-instruction-box">
                                 <div style="font-weight:700;color:#1e293b;margin-bottom:6px;font-size:13.5px;">📦 Phần 1: Cài đặt tiện ích</div>
+                                <div style="margin-bottom:12px;padding:9px 12px;background:#fff7ed;border:1px solid #fed7aa;border-radius:6px;font-size:12.5px;color:#9a3412;display:flex;align-items:center;gap:8px;">
+                                    <span>🦊</span>
+                                    <span><b>Cách nhanh nhất (Khuyên dùng):</b> Bấm nút <b>Cài Đặt Trên Firefox Add-ons (Chính thức)</b> ở trên &rarr; Bấm <b>"Add to Firefox" (Thêm vào Firefox)</b> để cài đặt chỉ với 1 cú nhấp chuột (không cần giải nén).</span>
+                                </div>
+                                <div style="font-size:12px;font-weight:700;color:#64748b;margin-bottom:6px;">Hoặc cài đặt thủ công qua tệp .zip dự phòng:</div>
                                 <ol>
-                                    <li>Bấm nút cam ở trên để tải file <code>thamkhao-extension-firefox.zip</code> về máy tính.</li>
+                                    <li>Bấm nút xám <b>Tải Gói (.zip) Dự Phòng</b> ở trên để tải file <code>thamkhao-extension-firefox.zip</code> về máy tính.</li>
                                     <li>Tìm đến file vừa tải, <b>chuột phải</b> chọn <b>"Extract All..." (hoặc "Giải nén vào...")</b> để giải nén ra một thư mục.</li>
                                     <li>Mở tab mới trên Firefox, gõ vào thanh địa chỉ: <code
                                             style="background:#f1f5f9;padding:2px 6px;border-radius:4px;color:#ea580c;font-weight:700;">about:debugging#/runtime/this-firefox</code> rồi nhấn Enter.
@@ -2060,11 +2065,14 @@
                             </p>
                         </div>
                     </div>
-                    <div>
-                        <span style="font-size:11px;color:var(--muted);display:block;text-align:right;">Miền quản trị tổ
-                            chức:</span>
-                        <span
-                            style="font-size:12px;font-family:monospace;font-weight:700;color:#00803d;background:#ecfdf5;padding:3px 8px;border-radius:6px;border:1px solid #a7f3d0;">@vnu.edu.vn</span>
+                    <div style="display:flex;align-items:center;">
+                        <a href="https://chromewebstore.google.com/detail/vnu-academic-gateway/pjeacnplliggjdcimgjoflofcpdmhedm"
+                            target="_blank" rel="noopener"
+                            style="background:#ecfdf5;color:#00803d;border:1.5px solid #86efac;padding:9px 16px;border-radius:10px;font-weight:700;font-size:13px;text-decoration:none;display:inline-flex;align-items:center;gap:8px;box-shadow:0 2px 6px rgba(0,128,61,0.08);transition:all 0.2s;"
+                            onmouseover="this.style.background='#dcfce7';this.style.borderColor='#4ade80';"
+                            onmouseout="this.style.background='#ecfdf5';this.style.borderColor='#86efac';">
+                            <span>🌐</span> Cài đặt từ Chrome Web Store ↗
+                        </a>
                     </div>
                 </div>
 
@@ -2429,7 +2437,7 @@
                 <p>Cổng Truy nhập Tài liệu Tham khảo Điện tử (VAGS) • Địa chỉ: 144 Xuân Thủy, Cầu Giấy, Hà Nội</p>
                 <p>Đơn vị quản lý: Trung tâm Quản trị Đại học số (DUAC)</p>
             </div>
-            <div>
+            <div style="display:none;">
                 <a href="/privacy" style="color:#cbd5e1;font-size:12.5px;text-decoration:none;display:inline-flex;align-items:center;gap:4px;padding:6px 12px;border:1px solid rgba(255,255,255,0.2);border-radius:8px;">
                     <span>Chính sách quyền riêng tư</span>
                 </a>
@@ -2487,7 +2495,6 @@
             const authAlertTitle = document.getElementById('authAlertTitle');
             const authAlertDesc = document.getElementById('authAlertDesc');
             const btnAlertLogin = document.getElementById('btnAlertLogin');
-            const heroMainBtn = document.getElementById('heroMainBtn');
 
             if (user && token) {
                 document.getElementById('btnOpenLogin').style.display = 'none';
@@ -2500,11 +2507,6 @@
                 if (authAlertTitle) authAlertTitle.textContent = `Đã Xác Thực Cán Bộ: ${name || user}${unit ? ' • Đơn vị ' + unit.toUpperCase() : ''}`;
                 if (authAlertDesc) authAlertDesc.textContent = 'Tài khoản Cán bộ ĐHQGHN hợp lệ. Quyền truy cập Proxy CSDL Khoa học Quốc tế đang hoạt động.';
                 if (btnAlertLogin) btnAlertLogin.style.display = 'none';
-
-                // Nút Hero chuyển sang Bắt đầu tra cứu
-                if (heroMainBtn) {
-                    heroMainBtn.innerHTML = '<span>🚀 Bắt Đầu Tra Cứu CSDL</span>';
-                }
 
                 // Nút Quản trị: CHỈ HIỂN THỊ KHI ĐĂNG NHẬP VÀ ĐÚNG QUYỀN ADMIN (PQTKT/TTQTDHS)
                 const btnAdmin = document.getElementById('btnAdminLink');
@@ -2550,10 +2552,6 @@
                 if (authAlertTitle) authAlertTitle.textContent = 'Chưa Xác Thực Danh Tính Cán Bộ VNU SSO';
                 if (authAlertDesc) authAlertDesc.innerHTML = 'Bạn chưa đăng nhập tài khoản ĐHQGHN. Vui lòng bấm nút <b>[🔑 Đăng nhập VNU SSO]</b> ở góc trên bên phải màn hình để kích hoạt ủy quyền CSDL.';
                 if (btnAlertLogin) btnAlertLogin.style.display = 'inline-flex';
-
-                if (heroMainBtn) {
-                    heroMainBtn.innerHTML = '<span>🔑 Đăng Nhập VNU SSO</span>';
-                }
             }
         }
 
