@@ -678,11 +678,9 @@ async Task HandleConnectionAsync(ConnectionContext connectionContext, Connection
     }
 
     // 3. Establish TCP tunnel to destination (Academic Publisher or loopback to VAGS itself)
-    using var tcpClient = new TcpClient();
+    TcpClient? tcpClient = null;
     try
     {
-        using var cts = CancellationTokenSource.CreateLinkedTokenSource(connectionContext.ConnectionClosed);
-        cts.CancelAfter(TimeSpan.FromSeconds(10));
         var connectHost = targetHost;
         var connectPort = targetPort;
         if (IsVagsSelfHost(targetHost, ruleStore))
@@ -690,19 +688,73 @@ async Task HandleConnectionAsync(ConnectionContext connectionContext, Connection
             connectHost = serverIp;
             connectPort = 443;
         }
-        await tcpClient.ConnectAsync(connectHost, connectPort, cts.Token);
+
+        Exception? lastConnectEx = null;
+        for (int attempt = 0; attempt < 2; attempt++)
+        {
+            TcpClient? attemptClient = null;
+            try
+            {
+                attemptClient = new TcpClient();
+                using var cts = CancellationTokenSource.CreateLinkedTokenSource(connectionContext.ConnectionClosed);
+                cts.CancelAfter(TimeSpan.FromSeconds(10));
+                await attemptClient.ConnectAsync(connectHost, connectPort, cts.Token);
+                tcpClient = attemptClient;
+                attemptClient = null;
+                break;
+            }
+            catch (OperationCanceledException) when (connectionContext.ConnectionClosed.IsCancellationRequested)
+            {
+                attemptClient?.Dispose();
+                return;
+            }
+            catch (SocketException sockEx) when (attempt == 0 && !connectionContext.ConnectionClosed.IsCancellationRequested)
+            {
+                attemptClient?.Dispose();
+                lastConnectEx = sockEx;
+                await Task.Delay(150, connectionContext.ConnectionClosed);
+            }
+            catch (Exception ex)
+            {
+                attemptClient?.Dispose();
+                lastConnectEx = ex;
+                break;
+            }
+        }
+
+        if (tcpClient == null)
+        {
+            if (connectionContext.ConnectionClosed.IsCancellationRequested)
+                return;
+            throw lastConnectEx ?? new SocketException((int)SocketError.HostNotFound);
+        }
+    }
+    catch (OperationCanceledException) when (connectionContext.ConnectionClosed.IsCancellationRequested)
+    {
+        tcpClient?.Dispose();
+        return;
     }
     catch (Exception ex)
     {
+        tcpClient?.Dispose();
+        if (connectionContext.ConnectionClosed.IsCancellationRequested)
+            return;
+
         AddProxyLog(clientIp, targetHost, targetPort, false, $"Upstream connect failed: {ex.Message}", decision.MatchedRule, logUser, logUnit, logMemberType);
-        var resp502 = Encoding.ASCII.GetBytes(
-            "HTTP/1.1 502 Bad Gateway\r\n" +
-            "Proxy-Agent: VAGS-Gateway/1.0\r\n" +
-            "Connection: close\r\n\r\n");
-        await output.WriteAsync(resp502, connectionContext.ConnectionClosed);
-        await output.FlushAsync(connectionContext.ConnectionClosed);
+        try
+        {
+            var resp502 = Encoding.ASCII.GetBytes(
+                "HTTP/1.1 502 Bad Gateway\r\n" +
+                "Proxy-Agent: VAGS-Gateway/1.0\r\n" +
+                "Connection: close\r\n\r\n");
+            await output.WriteAsync(resp502, connectionContext.ConnectionClosed);
+            await output.FlushAsync(connectionContext.ConnectionClosed);
+        }
+        catch { }
         return;
     }
+
+    using var _ownedTcpClient = tcpClient;
 
     var resp200 = Encoding.ASCII.GetBytes(
         "HTTP/1.1 200 Connection Established\r\n" +

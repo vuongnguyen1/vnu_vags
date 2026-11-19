@@ -11,7 +11,7 @@ services:
       - VAGS_WEBROOT=/app/wwwroot
       - VAGS_KEYCLOAK_AUTHORITY=https://idp.vnu.edu.vn/auth/realms/vnu
       - VAGS_KEYCLOAK_CLIENT_ID=vags-gateway
-      - VAGS_KEYCLOAK_CLIENT_SECRET=6m1VxNOdAaiN9Jsz1lrnQ006OvDFOnbk
+      - VAGS_KEYCLOAK_CLIENT_SECRET=${KEYCLOAK_CLIENT_SECRET}
     volumes:
       - ./data:/app/data
       - ./public:/app/wwwroot:ro
@@ -19,6 +19,9 @@ services:
     ports:
       - "127.0.0.1:5030:8080"
       - "127.0.0.1:5031:8443"
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     networks:
       - vags-net
 
