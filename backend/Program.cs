@@ -581,6 +581,18 @@ async Task HandleConnectionAsync(ConnectionContext connectionContext, Connection
         return;
     }
 
+    // Chuyển hướng kiểm tra IP của Extension cũ (Chrome Web Store) từ api4.ipify.org sang /api/v1/ip-check nội bộ
+    if (targetHost.EndsWith("ipify.org", StringComparison.OrdinalIgnoreCase))
+    {
+        var respIpify = Encoding.ASCII.GetBytes(
+            "HTTP/1.1 403 Forbidden\r\n" +
+            "Proxy-Agent: VAGS-Gateway/2.2\r\n" +
+            "Connection: close\r\n\r\n");
+        await output.WriteAsync(respIpify, connectionContext.ConnectionClosed);
+        await output.FlushAsync(connectionContext.ConnectionClosed);
+        return;
+    }
+
     // Kiểm tra tài khoản bị khoá (Admin Lock / Denied Override)
     var isUserDenied = isUserAuthenticated && (ruleStore.UserOverrides?.Denied?.Contains(resolvedUser, StringComparer.OrdinalIgnoreCase) == true);
     if (isUserDenied && !isTargetVagsPortal)
@@ -943,9 +955,8 @@ app.MapMethods("/admin", new[] { "GET", "HEAD" }, (HttpContext ctx) =>
     return Results.File(Path.Combine(webRootPath, "admin.html"), "text/html");
 });
 
-// Phục vụ trang Chính sách quyền riêng tư (/privacy -> privacy.html)
-app.MapMethods("/privacy", new[] { "GET", "HEAD" }, () => Results.File(Path.Combine(webRootPath, "privacy.html"), "text/html"));
-app.MapMethods("/privacy/", new[] { "GET", "HEAD" }, () => Results.File(Path.Combine(webRootPath, "privacy.html"), "text/html"));
+// Phục vụ trang Chính sách quyền riêng tư (/privacy & /privacy/ -> privacy.html)
+app.MapMethods("/privacy", new[] { "GET", "HEAD" }, () => Results.File(Path.Combine(webRootPath, "privacy.html"), "text/html; charset=utf-8"));
 
 // Phục vụ trực tiếp CRX & XML với đúng chuẩn MIME Type cho Chrome Enterprise Policy
 app.MapMethods("/updates/vags-extension.xml", new[] { "GET", "HEAD" }, () =>
@@ -1156,10 +1167,30 @@ async Task<IResult> HandleSaveRulesAsync(RuleStoreModel newRules)
     if (newRules.UserOverrides == null)
         newRules.UserOverrides = ruleStore.UserOverrides;
 
-    ruleStore = newRules;
-    SaveRules(ruleStore);
+    string serialized;
+    string savedVersion;
+    string savedUpdatedAt;
+    lock (ruleLock)
+    {
+        newRules.ManualAdmins = (ruleStore.ManualAdmins ?? new List<AdminAccountEntry>())
+            .Select(a => new AdminAccountEntry
+            {
+                Username = a.Username,
+                Email = a.Email,
+                FullName = a.FullName,
+                Unit = a.Unit,
+                Role = a.Role,
+                AddedBy = a.AddedBy,
+                CreatedAt = a.CreatedAt
+            })
+            .ToList();
+        ruleStore = newRules;
+        SaveRules(ruleStore);
+        serialized = JsonSerializer.Serialize(ruleStore, sseJsonOptions);
+        savedVersion = ruleStore.Version;
+        savedUpdatedAt = ruleStore.UpdatedAt;
+    }
 
-    var serialized = JsonSerializer.Serialize(ruleStore, sseJsonOptions);
     var payload = $"event: RULES_UPDATED\ndata: {serialized}\n\n";
 
     int delivered = 0;
@@ -1181,8 +1212,8 @@ async Task<IResult> HandleSaveRulesAsync(RuleStoreModel newRules)
     {
         success = true,
         message = "Đã lưu và phát sóng tập luật thành công",
-        version = ruleStore.Version,
-        updatedAt = ruleStore.UpdatedAt,
+        version = savedVersion,
+        updatedAt = savedUpdatedAt,
         broadcastedClients = delivered
     }, jsonOptions);
 }
@@ -1222,6 +1253,76 @@ app.MapPost("/api/v1/user/logout", (HttpContext context) =>
     monitorDb.UnregisterUserActivity(clientIp);
     return Results.Json(new { ok = true, clientIp, message = "Đã thu hồi phiên cán bộ thành công." }, jsonOptions);
 });
+
+string NormalizeUsername(string? raw)
+{
+    var s = (raw ?? "").Trim().ToLowerInvariant();
+    var atIdx = s.IndexOf('@');
+    return atIdx >= 0 ? s.Substring(0, atIdx).Trim() : s;
+}
+
+string ResolveAdminRole(string? username, string? email, string? ou)
+{
+    var rawUser = (username ?? "").Trim().ToLowerInvariant();
+    var cleanUser = NormalizeUsername(username);
+    var cleanEmail = (email ?? "").Trim().ToLowerInvariant();
+    if (string.IsNullOrEmpty(cleanEmail) && rawUser.Contains('@'))
+    {
+        cleanEmail = rawUser;
+    }
+    var ouLower = (ou ?? "").Trim().ToLowerInvariant();
+
+    if (ouLower.Contains("pqtkt") ||
+        ouLower.Contains("ttqtdhs") ||
+        ouLower.Contains("duac") ||
+        cleanUser == "admin" ||
+        cleanUser == "phongnd" ||
+        cleanUser == "vuongwork" ||
+        cleanEmail.Contains("vuongwork"))
+    {
+        return "super_admin";
+    }
+
+    lock (ruleLock)
+    {
+        var manualAdmins = ruleStore.ManualAdmins;
+        if (manualAdmins != null)
+        {
+            var matched = manualAdmins.FirstOrDefault(a =>
+            {
+                var entryUser = NormalizeUsername(a.Username);
+                var entryEmail = (a.Email ?? "").Trim().ToLowerInvariant();
+                return (!string.IsNullOrEmpty(cleanUser) && !string.IsNullOrEmpty(entryUser) && entryUser == cleanUser) ||
+                       (!string.IsNullOrEmpty(cleanEmail) && !string.IsNullOrEmpty(entryEmail) && entryEmail == cleanEmail);
+            });
+
+            if (matched != null)
+            {
+                return string.Equals(matched.Role?.Trim(), "super_admin", StringComparison.OrdinalIgnoreCase)
+                    ? "super_admin"
+                    : "report_viewer";
+            }
+        }
+    }
+
+    return "";
+}
+
+List<AdminAccountEntry> SnapshotManualAdminsLocked()
+{
+    return (ruleStore.ManualAdmins ?? new List<AdminAccountEntry>())
+        .Select(a => new AdminAccountEntry
+        {
+            Username = a.Username,
+            Email = a.Email,
+            FullName = a.FullName,
+            Unit = a.Unit,
+            Role = a.Role,
+            AddedBy = a.AddedBy,
+            CreatedAt = a.CreatedAt
+        })
+        .ToList();
+}
 
 // 7. API Trao đổi Authorization Code lấy Token & UserInfo từ Keycloak Production
 app.MapPost("/api/v1/auth/exchange", async (HttpContext context, ExchangeCodeRequest req, IHttpClientFactory httpClientFactory) =>
@@ -1295,18 +1396,11 @@ app.MapPost("/api/v1/auth/exchange", async (HttpContext context, ExchangeCodeReq
         monitorDb.RegisterUserActivity(clientIp, username, organizationalUnit, memberType);
     }
 
-    // Phân quyền Quản trị viên: ou=pqtkt thuộc ou=ttqtdhs trong ou to canbo, hoặc tài khoản admin/phongnd/vuongwork
-    var ouLower = (organizationalUnit ?? "").ToLowerInvariant();
-    var isAdmin = ouLower.Contains("pqtkt") ||
-                  ouLower.Contains("ttqtdhs") ||
-                  ouLower.Contains("duac") ||
-                  string.Equals(username, "phongnd", StringComparison.OrdinalIgnoreCase) ||
-                  string.Equals(username, "vuongwork", StringComparison.OrdinalIgnoreCase) ||
-                  string.Equals(username, "vuongwork@vnu.edu.vn", StringComparison.OrdinalIgnoreCase) ||
-                  (!string.IsNullOrEmpty(email) && email.Contains("vuongwork", StringComparison.OrdinalIgnoreCase)) ||
-                  string.Equals(username, "admin", StringComparison.OrdinalIgnoreCase);
+    // Phân quyền Quản trị viên (2 cấp: super_admin & report_viewer)
+    var adminRole = ResolveAdminRole(username, email, organizationalUnit);
+    bool isAdmin = !string.IsNullOrEmpty(adminRole);
 
-    if (isAdmin && (string.IsNullOrEmpty(organizationalUnit) || organizationalUnit == "VNU"))
+    if (adminRole == "super_admin" && (string.IsNullOrEmpty(organizationalUnit) || organizationalUnit == "VNU"))
     {
         organizationalUnit = "PQTKT";
     }
@@ -1323,6 +1417,7 @@ app.MapPost("/api/v1/auth/exchange", async (HttpContext context, ExchangeCodeReq
         organizationalUnit = organizationalUnit,
         memberType = memberType,
         isAdmin = isAdmin,
+        adminRole = adminRole,
         issuer = keycloakAuthority
     }, jsonOptions);
 });
@@ -1331,16 +1426,13 @@ app.MapPost("/api/v1/auth/exchange", async (HttpContext context, ExchangeCodeReq
 // User thuộc đơn vị 'pqtkt' (như phongnd) được cấp quyền Admin
 app.MapPost("/api/v1/auth/demo-token", (HttpContext context, DemoTokenRequest? req) =>
 {
-    var username = string.IsNullOrWhiteSpace(req?.Username) ? "phongnd" : req!.Username!;
+    var username = string.IsNullOrWhiteSpace(req?.Username) ? "phongnd" : req!.Username!.Trim();
     var unit = string.IsNullOrWhiteSpace(req?.OrganizationalUnit)
         ? (username.Contains("phongnd", StringComparison.OrdinalIgnoreCase) ? "pqtkt" : "general")
-        : req!.OrganizationalUnit!;
-    var isAdmin = unit.Equals("pqtkt", StringComparison.OrdinalIgnoreCase) ||
-                  username.Equals("admin", StringComparison.OrdinalIgnoreCase) ||
-                  username.Equals("phongnd", StringComparison.OrdinalIgnoreCase) ||
-                  username.Equals("vuongwork", StringComparison.OrdinalIgnoreCase) ||
-                  username.Equals("vuongwork@vnu.edu.vn", StringComparison.OrdinalIgnoreCase) ||
-                  username.Contains("vuongwork", StringComparison.OrdinalIgnoreCase);
+        : req!.OrganizationalUnit!.Trim();
+    var email = username.Contains('@') ? username : $"{username}@vnu.edu.vn";
+    var adminRole = ResolveAdminRole(username, email, unit);
+    bool isAdmin = !string.IsNullOrEmpty(adminRole);
 
     var clientIp = GetRealClientIp(context);
     monitorDb.RegisterUserActivity(clientIp, username, unit, "canbo");
@@ -1352,13 +1444,14 @@ app.MapPost("/api/v1/auth/demo-token", (HttpContext context, DemoTokenRequest? r
         sub = username,
         preferred_username = username,
         name = username == "phongnd" ? "Nguyễn Đức Phong (P. Quản trị & Kế hoạch)" : username,
-        email = $"{username}@vnu.edu.vn",
+        email = email,
         iss = "https://idp.vnu.edu.vn/auth/realms/vnu",
         aud = "vags-gateway",
         organizational_unit = unit,
         vnu_admin_unit = unit,
         role = isAdmin ? "vags-admin" : "vnu-academic-faculty",
         isAdmin = isAdmin,
+        adminRole = adminRole,
         exp = exp
     };
     var payload = Convert.ToBase64String(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(payloadObj))).TrimEnd('=').Replace('+', '-').Replace('/', '_');
@@ -1373,21 +1466,203 @@ app.MapPost("/api/v1/auth/demo-token", (HttpContext context, DemoTokenRequest? r
         name = username == "phongnd" ? "Nguyễn Đức Phong" : username,
         organizationalUnit = unit,
         isAdmin = isAdmin,
+        adminRole = adminRole,
         issuer = "https://idp.vnu.edu.vn/auth/realms/vnu"
+    }, jsonOptions);
+});
+
+// 7.1 API Kiểm tra quyền Admin & Role RBAC hiện tại
+app.MapGet("/api/v1/auth/check-admin", (HttpContext context) =>
+{
+    var user = context.Request.Query["user"].FirstOrDefault();
+    var email = context.Request.Query["email"].FirstOrDefault();
+    var ou = context.Request.Query["ou"].FirstOrDefault();
+
+    var role = ResolveAdminRole(user, email, ou);
+    return Results.Json(new
+    {
+        isAdmin = !string.IsNullOrEmpty(role),
+        adminRole = role,
+        user = user ?? "",
+        ou = ou ?? ""
+    }, jsonOptions);
+});
+
+// 7.2 API Danh sách tài khoản Admin gốc & Admin cấp quyền thủ công
+app.MapGet("/api/v1/admin/accounts", () =>
+{
+    var rootAdmins = new[]
+    {
+        new { identifier = "ou=pqtkt", label = "Phòng Quản trị & Kế hoạch (ou=pqtkt)", role = "super_admin", type = "ou" },
+        new { identifier = "ou=ttqtdhs", label = "Trung tâm Quản trị Đại học số (ou=ttqtdhs)", role = "super_admin", type = "ou" },
+        new { identifier = "ou=duac", label = "Trung tâm Ứng dụng CNTT / DUAC (ou=duac)", role = "super_admin", type = "ou" },
+        new { identifier = "phongnd", label = "phongnd@vnu.edu.vn (Nguyễn Đức Phong - PQTKT)", role = "super_admin", type = "user" },
+        new { identifier = "vuongwork", label = "vuongwork@vnu.edu.vn (Root Admin)", role = "super_admin", type = "user" },
+        new { identifier = "admin", label = "admin (Tài khoản Quản trị hệ thống)", role = "super_admin", type = "user" }
+    };
+
+    List<AdminAccountEntry> manualAdminsSnapshot;
+    lock (ruleLock)
+    {
+        manualAdminsSnapshot = SnapshotManualAdminsLocked();
+    }
+
+    return Results.Json(new
+    {
+        ok = true,
+        rootAdmins = rootAdmins,
+        manualAdmins = manualAdminsSnapshot
+    }, jsonOptions);
+});
+
+// 7.3 API Thêm mới hoặc cập nhật vai trò tài khoản Admin thủ công
+app.MapPost("/api/v1/admin/accounts", (ManualAdminUpsertRequest? req) =>
+{
+    if (req == null || (string.IsNullOrWhiteSpace(req.Username) && string.IsNullOrWhiteSpace(req.Email)))
+    {
+        return Results.BadRequest(new { ok = false, message = "Vui lòng nhập tên tài khoản hoặc email VNU." });
+    }
+
+    var rawUser = (req.Username ?? "").Trim().ToLowerInvariant();
+    var rawEmail = (req.Email ?? "").Trim().ToLowerInvariant();
+
+    var cleanUser = NormalizeUsername(rawUser);
+    if (string.IsNullOrWhiteSpace(cleanUser) && !string.IsNullOrWhiteSpace(rawEmail))
+    {
+        cleanUser = NormalizeUsername(rawEmail);
+    }
+
+    if (string.IsNullOrWhiteSpace(cleanUser))
+    {
+        return Results.BadRequest(new { ok = false, message = "Tên tài khoản không hợp lệ." });
+    }
+
+    var explicitEmail = !string.IsNullOrWhiteSpace(rawEmail)
+        ? rawEmail
+        : (rawUser.Contains('@') ? rawUser : "");
+    if (!string.IsNullOrWhiteSpace(explicitEmail) && !explicitEmail.Contains('@'))
+    {
+        explicitEmail = $"{explicitEmail}@vnu.edu.vn";
+    }
+    var cleanEmail = !string.IsNullOrWhiteSpace(explicitEmail) ? explicitEmail : $"{cleanUser}@vnu.edu.vn";
+
+    var cleanRole = string.Equals(req.Role?.Trim(), "super_admin", StringComparison.OrdinalIgnoreCase)
+        ? "super_admin"
+        : "report_viewer";
+
+    AdminAccountEntry entry;
+    List<AdminAccountEntry> manualAdminsSnapshot;
+    bool isUpdate = false;
+
+    lock (ruleLock)
+    {
+        ruleStore.ManualAdmins ??= new List<AdminAccountEntry>();
+        var idx = ruleStore.ManualAdmins.FindIndex(a =>
+            NormalizeUsername(a.Username) == cleanUser ||
+            (!string.IsNullOrEmpty(explicitEmail) && string.Equals((a.Email ?? "").Trim(), explicitEmail, StringComparison.OrdinalIgnoreCase)));
+
+        if (idx >= 0)
+        {
+            isUpdate = true;
+            var existing = ruleStore.ManualAdmins[idx];
+            entry = new AdminAccountEntry
+            {
+                Username = cleanUser,
+                Email = !string.IsNullOrWhiteSpace(explicitEmail)
+                    ? explicitEmail
+                    : (!string.IsNullOrWhiteSpace(existing.Email) ? existing.Email : cleanEmail),
+                FullName = !string.IsNullOrWhiteSpace(req.FullName) ? req.FullName.Trim() : existing.FullName,
+                Unit = !string.IsNullOrWhiteSpace(req.Unit) ? req.Unit.Trim() : existing.Unit,
+                Role = cleanRole,
+                AddedBy = !string.IsNullOrWhiteSpace(req.AddedBy) ? req.AddedBy.Trim() : existing.AddedBy,
+                CreatedAt = !string.IsNullOrWhiteSpace(existing.CreatedAt) ? existing.CreatedAt : DateTime.UtcNow.ToString("O")
+            };
+            ruleStore.ManualAdmins[idx] = entry;
+        }
+        else
+        {
+            entry = new AdminAccountEntry
+            {
+                Username = cleanUser,
+                Email = cleanEmail,
+                FullName = (req.FullName ?? "").Trim(),
+                Unit = (req.Unit ?? "").Trim(),
+                Role = cleanRole,
+                AddedBy = string.IsNullOrWhiteSpace(req.AddedBy) ? "admin" : req.AddedBy.Trim(),
+                CreatedAt = DateTime.UtcNow.ToString("O")
+            };
+            ruleStore.ManualAdmins.Add(entry);
+        }
+
+        SaveRules(ruleStore);
+        manualAdminsSnapshot = SnapshotManualAdminsLocked();
+    }
+
+    var roleLabel = cleanRole == "super_admin" ? "Admin Toàn Quyền" : "Admin Xem Báo Cáo";
+    var msg = isUpdate
+        ? $"Đã cập nhật quyền '{roleLabel}' cho tài khoản '{cleanUser}'."
+        : $"Đã cấp quyền '{roleLabel}' cho tài khoản '{cleanUser}'.";
+
+    return Results.Json(new
+    {
+        ok = true,
+        message = msg,
+        account = entry,
+        manualAdmins = manualAdminsSnapshot
+    }, jsonOptions);
+});
+
+// 7.4 API Thu hồi quyền Admin thủ công
+app.MapDelete("/api/v1/admin/accounts/{username}", (string username) =>
+{
+    var rawTarget = (username ?? "").Trim().ToLowerInvariant();
+    var cleanTarget = NormalizeUsername(username);
+    if (string.IsNullOrWhiteSpace(cleanTarget))
+    {
+        return Results.BadRequest(new { ok = false, message = "Tên tài khoản không hợp lệ." });
+    }
+
+    List<AdminAccountEntry> manualAdminsSnapshot;
+    lock (ruleLock)
+    {
+        ruleStore.ManualAdmins ??= new List<AdminAccountEntry>();
+        int removed = ruleStore.ManualAdmins.RemoveAll(a =>
+            NormalizeUsername(a.Username) == cleanTarget ||
+            (!string.IsNullOrEmpty(rawTarget) && string.Equals((a.Email ?? "").Trim(), rawTarget, StringComparison.OrdinalIgnoreCase)));
+
+        if (removed == 0)
+        {
+            return Results.NotFound(new
+            {
+                ok = false,
+                message = $"Không tìm thấy tài khoản admin thủ công '{username}'."
+            });
+        }
+
+        SaveRules(ruleStore);
+        manualAdminsSnapshot = SnapshotManualAdminsLocked();
+    }
+
+    return Results.Json(new
+    {
+        ok = true,
+        message = $"Đã thu hồi quyền Admin thủ công của tài khoản '{cleanTarget}'.",
+        manualAdmins = manualAdminsSnapshot
     }, jsonOptions);
 });
 
 // 7. API Kiểm tra IP & Chống Rò Rỉ Mạng (IP Leak Check)
 app.MapGet("/api/v1/ip-check", (HttpContext http) =>
 {
-    var remoteIp = http.Connection.RemoteIpAddress?.ToString() ?? "unknown";
-    var forwardedFor = http.Request.Headers["X-Forwarded-For"].FirstOrDefault();
-    var clientIp = !string.IsNullOrEmpty(forwardedFor) ? forwardedFor.Split(',')[0].Trim() : remoteIp;
-    var isVnu = clientIp.StartsWith("112.137.") || clientIp.StartsWith("10.241.") || clientIp.StartsWith("172.16.") || clientIp == serverIp || clientIp == "112.137.142.30" || clientIp == "112.137.133.14";
+    var clientIp = GetRealClientIp(http);
+    var (resolvedUser, _, _) = monitorDb.ResolveUser(clientIp, null, null, null);
+    var isAuthUser = !string.IsNullOrEmpty(resolvedUser) && resolvedUser != "Khách (Chưa xác thực)";
+    var isVnu = isAuthUser || clientIp.StartsWith("112.137.") || clientIp.StartsWith("10.241.") || clientIp.StartsWith("172.16.") || clientIp == serverIp || clientIp == "112.137.142.30" || clientIp == "112.137.133.14";
 
     return Results.Json(new
     {
-        clientIp = clientIp,
+        clientIp = isVnu ? serverIp : clientIp,
+        realClientIp = clientIp,
         isVnuNetwork = isVnu,
         vnuEgressIp = serverIp,
         status = isVnu ? "VNU Internal / Tunneled Network" : "External Direct Network",
@@ -2058,7 +2333,19 @@ public class RuleStoreModel
     public List<string> DisallowedMemberTypes { get; set; } = new();
     public string AdminOU { get; set; } = "duac";
     public UserOverridesModel UserOverrides { get; set; } = new();
+    public List<AdminAccountEntry> ManualAdmins { get; set; } = new();
     public string UpdatedAt { get; set; } = DateTime.UtcNow.ToString("O");
+}
+
+public class AdminAccountEntry
+{
+    public string Username { get; set; } = "";
+    public string Email { get; set; } = "";
+    public string FullName { get; set; } = "";
+    public string Unit { get; set; } = "";
+    public string Role { get; set; } = "report_viewer";
+    public string AddedBy { get; set; } = "";
+    public string CreatedAt { get; set; } = DateTime.UtcNow.ToString("O");
 }
 
 public class UserOverridesModel
@@ -2107,6 +2394,7 @@ public record KeyRegenerateRequest(string? User);
 public record BroadcastUpdateRequest(string? Version);
 public record ForceUserActionRequest(string? User, string? Ip, bool? All, string? Reason);
 public record LockUserRequest(string? User, string? Reason);
+public record ManualAdminUpsertRequest(string? Username, string? Email, string? FullName, string? Unit, string? Role, string? AddedBy);
 public record RouteDecision(
     string Host,
     string Action,

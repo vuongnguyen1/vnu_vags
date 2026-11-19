@@ -1666,7 +1666,7 @@
             </a>
             <div class="nav-links">
                 <a href="#about">Giới thiệu</a>
-                <a href="#analytics" style="color:#00803d;font-weight:700;">📊 Thống kê 4 CSDL</a>
+                <a href="#analytics">Thống kê</a>
                 <a href="#databases">CSDL hỗ trợ</a>
                 <a href="#guide">Hướng dẫn cài đặt</a>
             </div>
@@ -1717,15 +1717,7 @@
     <section class="hero" id="about">
         <div class="hero-inner">
             <h2>Giới Thiệu Cổng Truy Nhập Tài Liệu Tham Khảo Điện Tử</h2>
-            <p>Hệ thống tự động phân tuyến lưu lượng tới các nhà xuất bản khoa học qua mạng ĐHQGHN, hỗ trợ cán bộ, giảng viên tra cứu, tải tài liệu phục vụ đào tạo và nghiên cứu khoa học.</p>
-            <div class="hero-btns">
-                <a href="https://chromewebstore.google.com/detail/vnu-academic-gateway/pjeacnplliggjdcimgjoflofcpdmhedm" target="_blank" rel="noopener" class="btn-primary">
-                    <span>🌐 Cài Đặt Extension Google Chrome ↗</span>
-                </a>
-                <a href="https://addons.mozilla.org/en-US/firefox/addon/vnu-academic-gateway-vags/" target="_blank" rel="noopener" class="btn-secondary" style="background:rgba(234, 88, 12, 0.92);border-color:#fdba74;font-weight:700;color:#ffffff;">
-                    <span>🦊 Cài Đặt Extension Mozilla Firefox ↗</span>
-                </a>
-            </div>
+            <p style="margin-bottom: 0;">Hệ thống tự động phân tuyến lưu lượng tới các nhà xuất bản khoa học qua mạng ĐHQGHN, hỗ trợ cán bộ, giảng viên tra cứu, tải tài liệu phục vụ đào tạo và nghiên cứu khoa học.</p>
         </div>
     </section>
 
@@ -2477,18 +2469,20 @@
             const userLower = (user || '').toLowerCase();
             const unitLower = unit.toLowerCase();
             const isAdminStorage = localStorage.getItem('vags_is_admin') === 'true';
+            const adminRoleStorage = localStorage.getItem('vags_admin_role') || '';
 
-            // Phân quyền Quản trị viên: ou=pqtkt thuộc ou=ttqtdhs trong ou to canbo
-            const isAdmin = Boolean(user && token) && (
+            // Phân quyền Quản trị viên: ou=pqtkt thuộc ou=ttqtdhs trong ou to canbo hoặc tài khoản được cấp quyền thủ công
+            const isRootAdmin = Boolean(user && token) && (
                 unitLower.includes('pqtkt') ||
                 unitLower.includes('ttqtdhs') ||
                 unitLower.includes('duac') ||
                 userLower === 'admin' ||
                 userLower === 'phongnd' ||
                 userLower === 'vuongwork' ||
-                userLower === 'vuongwork@vnu.edu.vn' ||
-                isAdminStorage
+                userLower === 'vuongwork@vnu.edu.vn'
             );
+            const isAdmin = Boolean(user && token) && (isRootAdmin || isAdminStorage || Boolean(adminRoleStorage));
+            const effectiveAdminRole = adminRoleStorage || (isRootAdmin ? 'super_admin' : (isAdmin ? 'super_admin' : ''));
 
             const unauthBanner = document.getElementById('unauthAlertBanner');
             const authAlertIcon = document.getElementById('authAlertIcon');
@@ -2508,7 +2502,7 @@
                 if (authAlertDesc) authAlertDesc.textContent = 'Tài khoản Cán bộ ĐHQGHN hợp lệ. Quyền truy cập Proxy CSDL Khoa học Quốc tế đang hoạt động.';
                 if (btnAlertLogin) btnAlertLogin.style.display = 'none';
 
-                // Nút Quản trị: CHỈ HIỂN THỊ KHI ĐĂNG NHẬP VÀ ĐÚNG QUYỀN ADMIN (PQTKT/TTQTDHS)
+                // Nút Quản trị: CHỈ HIỂN THỊ KHI ĐĂNG NHẬP VÀ ĐÚNG QUYỀN ADMIN (PQTKT/TTQTDHS hoặc cấp thủ công)
                 const btnAdmin = document.getElementById('btnAdminLink');
                 if (btnAdmin) {
                     btnAdmin.style.display = isAdmin ? 'inline-flex' : 'none';
@@ -2521,10 +2515,35 @@
                     vagsName: name || user,
                     vagsUnit: unit || '',
                     vagsMemberType: memberType,
-                    vagsIsAdmin: isAdmin
+                    vagsIsAdmin: isAdmin,
+                    vagsAdminRole: effectiveAdminRole
                 };
                 window.dispatchEvent(new CustomEvent('VAGS_SSO_SYNC', { detail: sessionData }));
                 window.postMessage({ type: 'VAGS_SSO_SYNC', data: sessionData }, '*');
+
+                // Làm mới quyền Admin theo thời gian thực từ Backend (hỗ trợ cấp/thu hồi quyền thủ công không cần đăng nhập lại)
+                fetch(`/api/v1/auth/check-admin?user=${encodeURIComponent(user)}&ou=${encodeURIComponent(unit)}`)
+                    .then(res => res.ok ? res.json() : null)
+                    .then(data => {
+                        if (!data) return;
+                        const liveIsAdmin = Boolean(data.isAdmin);
+                        const liveRole = data.adminRole || (liveIsAdmin ? 'super_admin' : '');
+                        localStorage.setItem('vags_is_admin', liveIsAdmin ? 'true' : 'false');
+                        localStorage.setItem('vags_admin_role', liveRole);
+                        if (btnAdmin) {
+                            btnAdmin.style.display = liveIsAdmin ? 'inline-flex' : 'none';
+                        }
+                        if (liveIsAdmin !== isAdmin || liveRole !== effectiveAdminRole) {
+                            const updatedSessionData = {
+                                ...sessionData,
+                                vagsIsAdmin: liveIsAdmin,
+                                vagsAdminRole: liveRole
+                            };
+                            window.dispatchEvent(new CustomEvent('VAGS_SSO_SYNC', { detail: updatedSessionData }));
+                            window.postMessage({ type: 'VAGS_SSO_SYNC', data: updatedSessionData }, '*');
+                        }
+                    })
+                    .catch(() => { });
 
                 // Gửi Heartbeat ngay lập tức khi tải trang để định danh IP người dùng trong hệ thống
                 fetch('/api/v1/user/heartbeat', {
@@ -2538,8 +2557,12 @@
             } else {
                 document.getElementById('btnOpenLogin').style.display = 'inline-flex';
                 document.getElementById('userPanel').style.display = 'none';
-                document.getElementById('heroAdminBtn').style.display = 'none';
-                document.getElementById('adminBanner').style.display = 'none';
+                const btnAdmin = document.getElementById('btnAdminLink');
+                if (btnAdmin) btnAdmin.style.display = 'none';
+                const heroAdminBtn = document.getElementById('heroAdminBtn');
+                if (heroAdminBtn) heroAdminBtn.style.display = 'none';
+                const adminBanner = document.getElementById('adminBanner');
+                if (adminBanner) adminBanner.style.display = 'none';
 
                 const pUnauth = document.getElementById('proxyKeyUnauth');
                 const pAuth = document.getElementById('proxyKeyAuth');
@@ -2841,6 +2864,7 @@
             localStorage.removeItem('vags_name');
             localStorage.removeItem('vags_member_type');
             localStorage.removeItem('vags_is_admin');
+            localStorage.removeItem('vags_admin_role');
             sessionStorage.clear();
 
             window.dispatchEvent(new CustomEvent('VAGS_SSO_LOGOUT'));

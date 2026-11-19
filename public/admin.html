@@ -37,7 +37,7 @@
             color: var(--text);
             line-height: 1.5;
         }
-        .wrapper { max-width: 1360px; margin: 0 auto; }
+        .wrapper { max-width: 1440px; margin: 0 auto; }
 
         /* Top Header Navbar */
         .header-nav {
@@ -120,35 +120,104 @@
         .btn-sm.danger { background: #dc2626; color: white; border-color: #dc2626; }
         .btn-sm.danger:hover { background: #b91c1c; }
 
-        /* Modern 5-Tab Bar */
-        .tabs-nav {
+        /* Left Sidebar + Main Content Layout */
+        .admin-layout {
             display: flex;
-            align-items: center;
-            gap: 6px;
+            align-items: flex-start;
+            gap: 20px;
+        }
+        .admin-sidebar {
+            width: 265px;
+            flex-shrink: 0;
+            position: sticky;
+            top: 16px;
             background: #ffffff;
             border: 1px solid var(--border);
-            padding: 6px;
-            border-radius: 12px;
-            margin-bottom: 20px;
-            overflow-x: auto;
-            box-shadow: 0 1px 4px rgba(0,0,0,0.02);
+            border-radius: 14px;
+            padding: 14px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03);
         }
-        .tab-btn {
+        .admin-content {
+            flex: 1;
+            min-width: 0;
+        }
+        .sidebar-user-card {
+            background: #f8fafc;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 12px;
+            margin-bottom: 14px;
+        }
+        .sidebar-user-name {
+            font-size: 13px;
+            font-weight: 800;
+            color: var(--text);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .sidebar-user-unit {
+            font-size: 11px;
+            color: var(--muted);
+            margin-top: 2px;
+            font-weight: 600;
+        }
+        .sidebar-role-badge {
             display: inline-flex;
             align-items: center;
-            gap: 8px;
-            padding: 10px 18px;
+            gap: 5px;
+            margin-top: 8px;
+            padding: 4px 10px;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 700;
+            background: #ecfdf5;
+            color: #065f46;
+            border: 1px solid #a7f3d0;
+        }
+        .sidebar-role-badge.viewer {
+            background: #eff6ff;
+            color: #1d4ed8;
+            border-color: #bfdbfe;
+        }
+        .sidebar-group {
+            margin-bottom: 14px;
+        }
+        .sidebar-group:last-child {
+            margin-bottom: 0;
+        }
+        .sidebar-group-title {
+            font-size: 10.5px;
+            font-weight: 800;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            padding: 4px 10px 6px;
+        }
+        .admin-sidebar .tab-btn {
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            gap: 9px;
+            width: 100%;
+            text-align: left;
+            padding: 10px 12px;
+            margin-bottom: 4px;
             font-size: 13px;
             font-weight: 700;
-            color: var(--muted);
+            color: #475569;
             background: transparent;
             border: none;
-            border-radius: 8px;
+            border-radius: 9px;
             cursor: pointer;
-            transition: all 0.18s;
-            white-space: nowrap;
+            transition: all 0.16s;
+            white-space: normal;
+            line-height: 1.35;
         }
-        .tab-btn:hover {
+        .admin-sidebar .tab-btn:last-child {
+            margin-bottom: 0;
+        }
+        .admin-sidebar .tab-btn:hover {
             color: var(--text);
             background: #f1f5f9;
         }
@@ -169,10 +238,27 @@
             color: white;
             border-color: #00803d;
         }
-        .tab-btn.active {
+        .admin-sidebar .tab-btn.active {
             color: white;
             background: var(--vnu-green);
             box-shadow: 0 2px 8px rgba(0, 128, 61, 0.25);
+        }
+        @media (max-width: 960px) {
+            .admin-layout {
+                flex-direction: column;
+            }
+            .admin-sidebar {
+                width: 100%;
+                position: static;
+            }
+            .admin-sidebar .sidebar-nav-items {
+                display: grid;
+                grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+                gap: 6px;
+            }
+            .admin-sidebar .tab-btn {
+                margin-bottom: 0;
+            }
         }
 
         /* Tab Content Panes */
@@ -450,18 +536,19 @@
             </div>
 
             <div class="user-panel">
-                <span class="pill-live" id="sseLivePill">
+                <span class="pill-live super-admin-only" id="sseLivePill">
                     <span class="dot"></span>
                     <span id="sseStatusTxt">SSE Live</span>
                 </span>
-                <span class="admin-badge">
-                    <span>👑</span>
+                <span class="admin-badge" id="headerRoleBadgeWrap">
+                    <span id="headerRoleIcon">👑</span>
                     <span id="adminNameTxt">Quản trị viên: phongnd (PQTKT)</span>
+                    <span id="headerRoleBadge" style="background:#00803d;color:#fff;padding:2px 8px;border-radius:999px;font-size:10.5px;font-weight:800;margin-left:2px;">👑 Admin Toàn Quyền</span>
                 </span>
-                <button onclick="saveAndBroadcastRules()" class="btn-sm primary" id="btnBroadcast">
+                <button onclick="saveAndBroadcastRules()" class="btn-sm primary super-admin-only" id="btnBroadcast">
                     <span>🚀 Lưu & Phát Sóng Ngay (SSE)</span>
                 </button>
-                <button onclick="broadcastForceUpdate()" class="btn-sm" style="background:#7c3aed;color:white;border-color:#7c3aed;" id="btnForceUpdate" title="Gửi tín hiệu SSE ép tất cả Extension đang trực tuyến cập nhật lên v2.1.4">
+                <button onclick="broadcastForceUpdate()" class="btn-sm super-admin-only" style="background:#7c3aed;color:white;border-color:#7c3aed;" id="btnForceUpdate" title="Gửi tín hiệu SSE ép tất cả Extension đang trực tuyến cập nhật lên v2.1.4">
                     <span>📢 Ép Cập Nhật Extension (2.1.4)</span>
                 </button>
                 <a href="/" class="btn-sm">
@@ -471,30 +558,50 @@
             </div>
         </header>
 
-        <!-- 2. MODERN 6-TAB BAR -->
-        <nav class="tabs-nav">
-            <button class="tab-btn active" onclick="switchTab('overview')">
-                <span>📊</span> <span>Tổng Quan & Phiên Kết Nối</span>
-            </button>
-            <button class="tab-btn" onclick="switchTab('analytics')">
-                <span>📈</span> <span>Giám Sát & Lưu Lượng (SQLite WAL)</span>
-            </button>
-            <button class="tab-btn" onclick="switchTab('csdl')">
-                <span>📚</span> <span>Thống Kê 4 CSDL & Xuất Excel</span>
-            </button>
-            <button class="tab-btn" onclick="switchTab('routing')">
-                <span>🚫</span> <span>Cấu Hình Full Proxy & Blacklist</span>
-            </button>
-            <button class="tab-btn" onclick="switchTab('users')">
-                <span>👤</span> <span>Phân Quyền & Ngoại Lệ</span>
-            </button>
-            <button class="tab-btn" onclick="switchTab('logs')">
-                <span>⚡</span> <span>Nhật Ký Cán Bộ Trực Tiếp</span>
-            </button>
-            <button class="tab-btn" onclick="switchTab('test')">
-                <span>🧪</span> <span>Phòng Kiểm Thử & IP Shield</span>
-            </button>
-        </nav>
+        <!-- 2. LEFT SIDEBAR + MAIN CONTENT LAYOUT -->
+        <div class="admin-layout">
+            <aside class="admin-sidebar">
+                <div class="sidebar-user-card">
+                    <div class="sidebar-user-name" id="sidebarUserName">Đang xác thực...</div>
+                    <div class="sidebar-user-unit" id="sidebarUserUnit">ĐHQGHN</div>
+                    <div id="sidebarRoleBadge" class="sidebar-role-badge">👑 Admin Toàn Quyền</div>
+                </div>
+
+                <div class="sidebar-group">
+                    <div class="sidebar-group-title">BÁO CÁO &amp; GIÁM SÁT</div>
+                    <div class="sidebar-nav-items">
+                        <button class="tab-btn" data-tab="csdl" onclick="switchTab('csdl')">
+                            <span>📚</span> <span>Báo Cáo 4 CSDL &amp; Xuất Excel</span>
+                        </button>
+                        <button class="tab-btn active super-admin-only" data-tab="overview" onclick="switchTab('overview')">
+                            <span>📊</span> <span>Tổng Quan &amp; Phiên Kết Nối</span>
+                        </button>
+                        <button class="tab-btn super-admin-only" data-tab="analytics" onclick="switchTab('analytics')">
+                            <span>📈</span> <span>Giám Sát Lưu Lượng (SQLite)</span>
+                        </button>
+                        <button class="tab-btn super-admin-only" data-tab="logs" onclick="switchTab('logs')">
+                            <span>⚡</span> <span>Nhật Ký Cán Bộ Trực Tiếp</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="sidebar-group super-admin-only">
+                    <div class="sidebar-group-title">CẤU HÌNH &amp; PHÂN QUYỀN</div>
+                    <div class="sidebar-nav-items">
+                        <button class="tab-btn super-admin-only" data-tab="routing" onclick="switchTab('routing')">
+                            <span>⚙️</span> <span>Cấu Hình Proxy &amp; LIC</span>
+                        </button>
+                        <button class="tab-btn super-admin-only" data-tab="users" onclick="switchTab('users')">
+                            <span>🛡️</span> <span>Phân Quyền TK Admin &amp; Ngoại Lệ</span>
+                        </button>
+                        <button class="tab-btn super-admin-only" data-tab="test" onclick="switchTab('test')">
+                            <span>🧪</span> <span>Phòng Kiểm Thử &amp; IP Shield</span>
+                        </button>
+                    </div>
+                </div>
+            </aside>
+
+            <main class="admin-content">
 
         <!-- ========================================== -->
         <!-- TAB 1: TỔNG QUAN & PHIÊN KẾT NỐI           -->
@@ -882,9 +989,6 @@
                         </p>
                     </div>
                     <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
-                        <button id="btnToggleLic" onclick="toggleLicProxyAdmin()" class="btn-sm" style="background: white; border: 1.5px solid #00803d; color: #00803d; font-weight: 700; padding: 8px 14px; cursor: pointer; border-radius: 8px;">
-                            🏛️ Proxy Thư viện LIC: <span style="background:#22c55e;color:#fff;padding:2px 8px;border-radius:6px;font-weight:700;margin-left:4px;">ĐANG BẬT</span>
-                        </button>
                         <button onclick="exportCsdlExcelAdmin()" class="btn-sm" style="background: #00803d; color: white; border: none; font-weight: 700; padding: 8px 16px; cursor: pointer; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,128,61,0.2);">
                             📥 Xuất Báo Cáo Excel (.xlsx)
                         </button>
@@ -1047,6 +1151,24 @@
         <!-- TAB 2: CẤU HÌNH FULL PROXY & BLACKLIST     -->
         <!-- ========================================== -->
         <section id="pane-routing" class="tab-pane">
+            <!-- Panel Cấu Hình Định Tuyến Thư Viện Số ĐHQGHN (LIC Proxy) -->
+            <div class="card" style="border-top: 3px solid #00803d; margin-bottom: 18px;">
+                <div class="card-header-flex" style="margin-bottom: 0;">
+                    <div>
+                        <h3 style="color: #00803d;">🏛️ Cấu Hình Định Tuyến Thư Viện Số ĐHQGHN (LIC Proxy)</h3>
+                        <p class="desc">Bật/tắt định tuyến qua Proxy cho cổng Thư viện số ĐHQGHN (<code>lic.vnu.edu.vn</code>, <code>bookworm.vnu.edu.vn</code>...) và đồng bộ danh mục CSDL LIC thời gian thực:</p>
+                    </div>
+                    <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                        <button id="btnToggleLic" onclick="toggleLicProxyAdmin()" class="btn-sm" style="background: white; border: 1.5px solid #00803d; color: #00803d; font-weight: 700; padding: 8px 14px; cursor: pointer; border-radius: 8px;">
+                            🏛️ Proxy Thư viện LIC: <span style="background:#22c55e;color:#fff;padding:2px 8px;border-radius:6px;font-weight:700;margin-left:4px;">ĐANG BẬT</span>
+                        </button>
+                        <button onclick="syncLicDatabases(event)" class="btn-sm" style="background:#0284c7;color:white;border-color:#0284c7;padding:8px 14px;">
+                            ⚡ Đồng bộ CSDL LIC
+                        </button>
+                    </div>
+                </div>
+            </div>
+
             <!-- Chế độ Định tuyến Toàn phần -->
             <div class="mode-box">
                 <div class="mode-info">
@@ -1073,9 +1195,6 @@
                         <p class="desc" id="tableDesc">Trong chế độ Full Proxy, các tên miền trong danh sách này sẽ được loại trừ để không tải qua đường truyền VNU:</p>
                     </div>
                     <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                        <button onclick="syncLicDatabases(event)" class="btn-sm" style="background:#0284c7;color:white;border-color:#0284c7;">
-                            ⚡ Đồng bộ CSDL LIC
-                        </button>
                         <button onclick="openAddModal()" class="btn-sm primary">
                             + Thêm Tên Miền Mới
                         </button>
@@ -1119,6 +1238,81 @@
         <!-- TAB 3: PHÂN QUYỀN CÁN BỘ & NGOẠI LỆ        -->
         <!-- ========================================== -->
         <section id="pane-users" class="tab-pane">
+            <!-- Quản Lý & Phân Quyền Tài Khoản Admin Thủ Công -->
+            <div class="card" style="margin-bottom:20px;border-top:3px solid #00803d;">
+                <div class="card-header-flex">
+                    <div>
+                        <h3 style="color:#00803d;">👑 Quản Lý &amp; Phân Quyền Tài Khoản Admin Thủ Công (Dành cho PQTKT gốc)</h3>
+                        <p class="desc">Cấp quyền truy cập Bảng Quản trị VAGS cho cán bộ ngoài OU mặc định theo 2 mức phân quyền: <b>Admin Xem Báo Cáo</b> hoặc <b>Admin Toàn Quyền</b>.</p>
+                    </div>
+                    <button onclick="loadManualAdmins()" class="btn-sm">🔄 Làm mới danh sách</button>
+                </div>
+
+                <!-- Thông báo Admin gốc mặc định -->
+                <div style="background:#f8fafc;border:1px solid #cbd5e1;border-radius:10px;padding:12px 14px;margin-bottom:16px;">
+                    <div style="font-size:12px;font-weight:800;color:#0f172a;margin-bottom:6px;">🔐 Tài khoản Admin Gốc Mặc Định (Luôn có quyền Admin Toàn Quyền):</div>
+                    <div id="rootAdminsNoticeList" style="display:flex;flex-wrap:wrap;gap:6px;font-size:12px;">
+                        <span class="ou-chip" style="background:#ecfdf5;color:#065f46;border-color:#a7f3d0;">ou=pqtkt</span>
+                        <span class="ou-chip" style="background:#ecfdf5;color:#065f46;border-color:#a7f3d0;">ou=ttqtdhs</span>
+                        <span class="ou-chip" style="background:#ecfdf5;color:#065f46;border-color:#a7f3d0;">phongnd</span>
+                        <span class="ou-chip" style="background:#ecfdf5;color:#065f46;border-color:#a7f3d0;">vuongwork</span>
+                    </div>
+                </div>
+
+                <!-- Form Cấp / Cập nhật quyền Admin thủ công -->
+                <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:16px;margin-bottom:16px;">
+                    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(210px, 1fr));gap:12px;margin-bottom:12px;">
+                        <div>
+                            <label for="adminAccUsername" style="display:block;font-size:11.5px;font-weight:700;color:#334155;margin-bottom:5px;">Tài khoản / Email VNU *</label>
+                            <input type="text" id="adminAccUsername" placeholder="VD: nguyenvana hoặc nguyenvana@vnu.edu.vn" style="width:100%;padding:9px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:12.5px;background:white;outline:none;">
+                        </div>
+                        <div>
+                            <label for="adminAccFullName" style="display:block;font-size:11.5px;font-weight:700;color:#334155;margin-bottom:5px;">Họ tên / Ghi chú</label>
+                            <input type="text" id="adminAccFullName" placeholder="VD: Nguyễn Văn A (Phụ trách báo cáo)" style="width:100%;padding:9px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:12.5px;background:white;outline:none;">
+                        </div>
+                        <div>
+                            <label for="adminAccUnit" style="display:block;font-size:11.5px;font-weight:700;color:#334155;margin-bottom:5px;">Đơn vị</label>
+                            <input type="text" id="adminAccUnit" placeholder="VD: LIC, UET, HUS, VNU..." style="width:100%;padding:9px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:12.5px;background:white;outline:none;">
+                        </div>
+                    </div>
+
+                    <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;">
+                        <div style="flex:1;min-width:260px;">
+                            <label for="adminAccRole" style="display:block;font-size:11.5px;font-weight:700;color:#334155;margin-bottom:5px;">Mức Phân Quyền</label>
+                            <select id="adminAccRole" style="width:100%;padding:9px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:12.5px;background:white;font-weight:600;color:#0f172a;outline:none;">
+                                <option value="report_viewer">👁️ Admin Xem Báo Cáo — Chỉ xem thống kê 4 CSDL &amp; Xuất Excel, KHÔNG sửa cấu hình</option>
+                                <option value="super_admin">👑 Admin Toàn Quyền — Toàn quyền cấu hình Proxy, tập luật &amp; phân quyền</option>
+                            </select>
+                        </div>
+                        <button onclick="saveManualAdminAccount()" id="btnSaveManualAdmin" class="btn-sm primary" style="padding:10px 18px;font-size:13px;">
+                            + Lưu / Cấp Quyền Admin
+                        </button>
+                    </div>
+                    <div id="manualAdminStatus" class="status" style="margin-top:10px;"></div>
+                </div>
+
+                <!-- Bảng danh sách tài khoản Admin được cấp thủ công -->
+                <div class="table-wrap" style="margin-bottom:0;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th style="width:52px;">STT</th>
+                                <th>Tài khoản &amp; Email</th>
+                                <th>Họ tên &amp; Đơn vị</th>
+                                <th>Vai trò</th>
+                                <th>Người cấp &amp; Ngày tạo</th>
+                                <th style="text-align:right;">Thao tác</th>
+                            </tr>
+                        </thead>
+                        <tbody id="manualAdminsTableBody">
+                            <tr>
+                                <td colspan="6" style="text-align:center;padding:20px;color:var(--muted);">Đang tải danh sách tài khoản Admin thủ công...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
             <!-- Cấu trúc Phân quyền Chuẩn ĐHQGHN -->
             <div class="card" style="margin-bottom:20px;border-left:4px solid #00803d;">
                 <div class="card-header-flex">
@@ -1349,6 +1543,8 @@
                 </div>
             </div>
         </section>
+            </main>
+        </div>
     </div>
 
     <!-- MODAL THÊM DOMAIN MỚI -->
@@ -1380,28 +1576,106 @@
         let activeCategory = 'all';
         let rawLogs = [];
         let sseSource = null;
+        let currentAdminRole = '';
+        let manualAdminsCache = [];
+
+        function escapeHtml(str) {
+            return String(str ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function applyRoleRestrictions(role) {
+            const isViewer = role === 'report_viewer';
+            document.querySelectorAll('.super-admin-only').forEach(el => {
+                el.style.display = isViewer ? 'none' : '';
+            });
+
+            const sidebarBadge = document.getElementById('sidebarRoleBadge');
+            const headerBadge = document.getElementById('headerRoleBadge');
+            const headerIcon = document.getElementById('headerRoleIcon');
+            const headerWrap = document.getElementById('headerRoleBadgeWrap');
+
+            if (isViewer) {
+                if (sidebarBadge) {
+                    sidebarBadge.className = 'sidebar-role-badge viewer';
+                    sidebarBadge.innerText = '👁️ Admin Xem Báo Cáo';
+                }
+                if (headerIcon) headerIcon.innerText = '👁️';
+                if (headerBadge) {
+                    headerBadge.innerText = '👁️ Admin Xem Báo Cáo';
+                    headerBadge.style.background = '#1d4ed8';
+                }
+                if (headerWrap) {
+                    headerWrap.style.background = '#eff6ff';
+                    headerWrap.style.color = '#1e40af';
+                    headerWrap.style.borderColor = '#bfdbfe';
+                }
+                document.querySelectorAll('.tab-pane').forEach(p => {
+                    if (p.id !== 'pane-csdl') p.classList.remove('active');
+                });
+            } else {
+                if (sidebarBadge) {
+                    sidebarBadge.className = 'sidebar-role-badge';
+                    sidebarBadge.innerText = '👑 Admin Toàn Quyền';
+                }
+                if (headerIcon) headerIcon.innerText = '👑';
+                if (headerBadge) {
+                    headerBadge.innerText = '👑 Admin Toàn Quyền';
+                    headerBadge.style.background = '#00803d';
+                }
+                if (headerWrap) {
+                    headerWrap.style.background = '#ecfdf5';
+                    headerWrap.style.color = '#065f46';
+                    headerWrap.style.borderColor = '#a7f3d0';
+                }
+            }
+        }
 
         // 1. RBAC Authentication Gate Check
-        function checkAdminAuth() {
+        async function checkAdminAuth() {
             const user = localStorage.getItem('vags_user');
             const token = localStorage.getItem('vags_token');
-            const unit = (localStorage.getItem('vags_unit') || '').toLowerCase();
+            const unit = localStorage.getItem('vags_unit') || '';
+            const unitLower = unit.toLowerCase();
             const userLower = (user || '').toLowerCase();
             const isAdminStorage = localStorage.getItem('vags_is_admin') === 'true';
+            const storedRole = localStorage.getItem('vags_admin_role') || '';
 
-            // Phân quyền Quản trị viên: ou=pqtkt thuộc ou=ttqtdhs trong ou to canbo
-            const isAdmin = Boolean(user && token) && (
-                unit.includes('pqtkt') ||
-                unit.includes('ttqtdhs') ||
-                unit.includes('duac') ||
+            const isRootLocal = Boolean(user && token) && (
+                unitLower.includes('pqtkt') ||
+                unitLower.includes('ttqtdhs') ||
+                unitLower.includes('duac') ||
                 userLower === 'admin' ||
                 userLower === 'phongnd' ||
                 userLower === 'vuongwork' ||
-                userLower === 'vuongwork@vnu.edu.vn' ||
-                isAdminStorage
+                userLower === 'vuongwork@vnu.edu.vn'
             );
 
+            let isAdmin = Boolean(user && token) && (isRootLocal || isAdminStorage || Boolean(storedRole));
+            let resolvedRole = isRootLocal ? 'super_admin' : (storedRole || (isAdmin ? 'super_admin' : ''));
+
+            // Kiểm tra trực tiếp quyền Admin & Role thực tế từ Backend trước khi mở Dashboard
+            if (user && token) {
+                try {
+                    const res = await fetch(`/api/v1/auth/check-admin?user=${encodeURIComponent(user)}&ou=${encodeURIComponent(unit)}`);
+                    if (res.ok) {
+                        const data = await res.json();
+                        isAdmin = Boolean(data.isAdmin);
+                        resolvedRole = data.adminRole || (isAdmin ? 'super_admin' : '');
+                        localStorage.setItem('vags_is_admin', isAdmin ? 'true' : 'false');
+                        localStorage.setItem('vags_admin_role', resolvedRole);
+                    }
+                } catch (err) {
+                    console.warn('Không thể kiểm tra check-admin từ máy chủ:', err);
+                }
+            }
+
             if (!isAdmin) {
+                currentAdminRole = '';
                 // Khóa chặt chẽ toàn bộ giao diện, hiển thị màn hình khóa RBAC Gate
                 document.getElementById('authGate').style.display = 'flex';
                 document.getElementById('dashboardMain').style.display = 'none';
@@ -1409,27 +1683,47 @@
                 if (user) {
                     const msgEl = document.getElementById('authGateMsg');
                     if (msgEl) {
-                        msgEl.innerHTML = `<span style="color:#f87171;font-weight:700;">⚠️ Tài khoản <b>${user}</b> (${(unit || 'canbo').toUpperCase()}) không có quyền Quản trị!</span><br>Khu vực này chỉ dành riêng cho Cán bộ Quản trị thuộc <b>Phòng Quản trị & Kế hoạch (PQTKT)</b> / <b>Trung tâm Quản trị Đại học số (TTQTDHS)</b>.`;
+                        msgEl.innerHTML = `<span style="color:#f87171;font-weight:700;">⚠️ Tài khoản <b>${escapeHtml(user)}</b> (${escapeHtml((unit || 'canbo').toUpperCase())}) không có quyền Quản trị!</span><br>Khu vực này chỉ dành riêng cho Cán bộ Quản trị thuộc <b>Phòng Quản trị & Kế hoạch (PQTKT)</b> / <b>Trung tâm Quản trị Đại học số (TTQTDHS)</b> hoặc tài khoản được cấp quyền thủ công.`;
                     }
                 }
                 return false;
             }
+
+            currentAdminRole = resolvedRole || 'super_admin';
+            localStorage.setItem('vags_is_admin', 'true');
+            localStorage.setItem('vags_admin_role', currentAdminRole);
+
+            applyRoleRestrictions(currentAdminRole);
 
             // Đã xác thực Quản trị viên hợp lệ
             document.getElementById('authGate').style.display = 'none';
             document.getElementById('dashboardMain').style.display = 'block';
 
             const name = localStorage.getItem('vags_name') || user || 'Quản trị viên';
-            document.getElementById('adminNameTxt').innerText = `${name} (${(unit || 'DUAC').toUpperCase()})`;
+            const displayUnit = (unit || (currentAdminRole === 'super_admin' ? 'PQTKT' : 'VNU')).toUpperCase();
+            const adminNameEl = document.getElementById('adminNameTxt');
+            if (adminNameEl) adminNameEl.innerText = `${name} (${displayUnit})`;
+
+            const sidebarUserEl = document.getElementById('sidebarUserName');
+            if (sidebarUserEl) sidebarUserEl.innerText = name;
+            const sidebarUnitEl = document.getElementById('sidebarUserUnit');
+            if (sidebarUnitEl) sidebarUnitEl.innerText = `${user} • ${displayUnit}`;
+
             return true;
         }
 
         // 2. Tab Navigation Switcher
         function switchTab(tabId) {
-            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            if (currentAdminRole === 'report_viewer' && tabId !== 'csdl') {
+                tabId = 'csdl';
+            }
+
+            document.querySelectorAll('.admin-sidebar .tab-btn').forEach(b => b.classList.remove('active'));
             document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
 
-            const targetBtn = Array.from(document.querySelectorAll('.tab-btn')).find(b => (b.getAttribute('onclick') || '').includes(tabId));
+            const targetBtn = Array.from(document.querySelectorAll('.admin-sidebar .tab-btn')).find(b =>
+                b.dataset.tab === tabId || (b.getAttribute('onclick') || '').includes(`'${tabId}'`)
+            );
             if (targetBtn) targetBtn.classList.add('active');
 
             const targetPane = document.getElementById('pane-' + tabId);
@@ -1437,6 +1731,209 @@
 
             if (tabId === 'csdl') {
                 loadCsdlStats();
+            } else if (tabId === 'users') {
+                loadManualAdmins();
+            }
+        }
+
+        // 2b. Quản Lý Tài Khoản Admin Thủ Công & Phân Quyền (RBAC)
+        function showManualAdminStatus(msg, isError = false) {
+            const box = document.getElementById('manualAdminStatus');
+            if (!box) return;
+            box.className = 'status show';
+            box.style.background = isError ? '#fef2f2' : '#ecfdf5';
+            box.style.color = isError ? '#dc2626' : '#059669';
+            box.style.borderColor = isError ? '#fecaca' : '#a7f3d0';
+            box.innerText = msg;
+            clearTimeout(box._hideTimer);
+            box._hideTimer = setTimeout(() => {
+                box.className = 'status';
+            }, 4500);
+        }
+
+        function formatAdminDate(dateStr) {
+            if (!dateStr) return '—';
+            const dt = new Date(dateStr);
+            if (Number.isNaN(dt.getTime())) return String(dateStr);
+            return dt.toLocaleString('vi-VN');
+        }
+
+        function renderManualAdmins(list) {
+            manualAdminsCache = Array.isArray(list) ? list : [];
+            const tbody = document.getElementById('manualAdminsTableBody');
+            if (!tbody) return;
+
+            if (manualAdminsCache.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--muted);">Chưa có tài khoản Admin thủ công nào được cấp quyền. Sử dụng biểu mẫu phía trên để cấp quyền cho cán bộ.</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = manualAdminsCache.map((acc, idx) => {
+                const username = acc.username || '';
+                const email = acc.email || (username ? `${username}@vnu.edu.vn` : '');
+                const fullName = acc.fullName || '—';
+                const unit = (acc.unit || 'VNU').toUpperCase();
+                const isSuper = (acc.role || '').toLowerCase() === 'super_admin';
+                const roleBadge = isSuper
+                    ? `<span style="display:inline-flex;align-items:center;gap:4px;background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700;white-space:nowrap;">👑 Admin Toàn Quyền</span>`
+                    : `<span style="display:inline-flex;align-items:center;gap:4px;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700;white-space:nowrap;">👁️ Admin Xem Báo Cáo</span>`;
+                const switchBtnLabel = isSuper ? 'Hạ xuống Xem báo cáo' : 'Chuyển sang Toàn quyền';
+                const switchBtnStyle = isSuper
+                    ? 'background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;'
+                    : 'background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0;';
+
+                return `
+                    <tr>
+                        <td style="color:var(--muted);font-weight:700;">${idx + 1}</td>
+                        <td>
+                            <div style="font-weight:800;color:#0f172a;">${escapeHtml(username)}</div>
+                            <div style="font-size:11px;color:#64748b;">${escapeHtml(email)}</div>
+                        </td>
+                        <td>
+                            <div style="font-weight:600;color:#1e293b;">${escapeHtml(fullName)}</div>
+                            <div style="font-size:11px;font-weight:700;color:#0284c7;">${escapeHtml(unit)}</div>
+                        </td>
+                        <td>${roleBadge}</td>
+                        <td>
+                            <div style="font-size:12px;font-weight:600;color:#334155;">${escapeHtml(acc.addedBy || 'admin')}</div>
+                            <div style="font-size:11px;color:#64748b;">${escapeHtml(formatAdminDate(acc.createdAt))}</div>
+                        </td>
+                        <td style="text-align:right;white-space:nowrap;">
+                            <button onclick="toggleManualAdminRole(${idx})" class="btn-table" style="${switchBtnStyle}margin-right:6px;">
+                                ${switchBtnLabel}
+                            </button>
+                            <button onclick="deleteManualAdmin(${idx})" class="btn-table danger">
+                                Xóa quyền
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        async function loadManualAdmins() {
+            if (currentAdminRole === 'report_viewer') return;
+            try {
+                const res = await fetch('/api/v1/admin/accounts');
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const data = await res.json();
+
+                const rootBox = document.getElementById('rootAdminsNoticeList');
+                if (rootBox && Array.isArray(data.rootAdmins) && data.rootAdmins.length > 0) {
+                    rootBox.innerHTML = data.rootAdmins.map(item => {
+                        const text = typeof item === 'string' ? item : (item.label || item.identifier || '');
+                        const title = typeof item === 'object' && item ? (item.identifier || '') : '';
+                        return `<span class="ou-chip" style="background:#ecfdf5;color:#065f46;border-color:#a7f3d0;" title="${escapeHtml(title)}">${escapeHtml(text)}</span>`;
+                    }).join('');
+                }
+
+                renderManualAdmins(data.manualAdmins || []);
+            } catch (err) {
+                console.error('Lỗi nạp danh sách admin thủ công:', err);
+                const tbody = document.getElementById('manualAdminsTableBody');
+                if (tbody) {
+                    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:20px;color:#dc2626;">Không thể nạp danh sách Admin thủ công (${escapeHtml(err.message)}).</td></tr>`;
+                }
+            }
+        }
+
+        async function upsertManualAdminPayload(payload) {
+            const res = await fetch('/api/v1/admin/accounts', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || data.ok === false) {
+                throw new Error(data.message || `HTTP ${res.status}`);
+            }
+            renderManualAdmins(data.manualAdmins || []);
+            return data;
+        }
+
+        async function saveManualAdminAccount() {
+            const userInp = document.getElementById('adminAccUsername');
+            const fullNameInp = document.getElementById('adminAccFullName');
+            const unitInp = document.getElementById('adminAccUnit');
+            const roleSel = document.getElementById('adminAccRole');
+            const btn = document.getElementById('btnSaveManualAdmin');
+
+            const rawInput = (userInp?.value || '').trim();
+            if (!rawInput) {
+                showManualAdminStatus('Vui lòng nhập tên tài khoản hoặc email VNU của cán bộ.', true);
+                userInp?.focus();
+                return;
+            }
+
+            const cleanUser = rawInput.includes('@')
+                ? rawInput.split('@')[0].trim().toLowerCase()
+                : rawInput.toLowerCase();
+            const email = rawInput.includes('@') ? rawInput.toLowerCase() : `${cleanUser}@vnu.edu.vn`;
+
+            const payload = {
+                username: cleanUser,
+                email: email,
+                fullName: (fullNameInp?.value || '').trim(),
+                unit: (unitInp?.value || '').trim(),
+                role: roleSel?.value || 'report_viewer',
+                addedBy: localStorage.getItem('vags_user') || 'admin'
+            };
+
+            const oldTxt = btn ? btn.innerText : '';
+            if (btn) { btn.disabled = true; btn.innerText = '⏳ Đang lưu...'; }
+
+            try {
+                const data = await upsertManualAdminPayload(payload);
+                if (userInp) userInp.value = '';
+                if (fullNameInp) fullNameInp.value = '';
+                if (unitInp) unitInp.value = '';
+                showManualAdminStatus(`✓ ${data.message || `Đã cấp quyền cho tài khoản ${cleanUser}`}`);
+            } catch (err) {
+                showManualAdminStatus(`✗ Lỗi lưu tài khoản Admin: ${err.message}`, true);
+            } finally {
+                if (btn) { btn.disabled = false; btn.innerText = oldTxt; }
+            }
+        }
+
+        async function toggleManualAdminRole(idx) {
+            const acc = manualAdminsCache[idx];
+            if (!acc) return;
+            const nextRole = (acc.role || '').toLowerCase() === 'super_admin' ? 'report_viewer' : 'super_admin';
+            const nextLabel = nextRole === 'super_admin' ? 'Admin Toàn Quyền' : 'Admin Xem Báo Cáo';
+            if (!confirm(`Chuyển vai trò của tài khoản "${acc.username}" sang "${nextLabel}"?`)) return;
+
+            try {
+                const data = await upsertManualAdminPayload({
+                    username: acc.username,
+                    email: acc.email || `${acc.username}@vnu.edu.vn`,
+                    fullName: acc.fullName || '',
+                    unit: acc.unit || '',
+                    role: nextRole,
+                    addedBy: localStorage.getItem('vags_user') || acc.addedBy || 'admin'
+                });
+                showManualAdminStatus(`✓ ${data.message || `Đã cập nhật vai trò ${acc.username} thành ${nextLabel}`}`);
+            } catch (err) {
+                showManualAdminStatus(`✗ Lỗi đổi vai trò: ${err.message}`, true);
+            }
+        }
+
+        async function deleteManualAdmin(idx) {
+            const acc = manualAdminsCache[idx];
+            if (!acc || !acc.username) return;
+            if (!confirm(`Xác nhận XÓA quyền Admin thủ công của tài khoản "${acc.username}"?`)) return;
+
+            try {
+                const res = await fetch(`/api/v1/admin/accounts/${encodeURIComponent(acc.username)}`, {
+                    method: 'DELETE'
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok || data.ok === false) {
+                    throw new Error(data.message || `HTTP ${res.status}`);
+                }
+                renderManualAdmins(data.manualAdmins || []);
+                showManualAdminStatus(`✓ ${data.message || `Đã xóa quyền Admin của ${acc.username}`}`);
+            } catch (err) {
+                showManualAdminStatus(`✗ Lỗi xóa quyền Admin: ${err.message}`, true);
             }
         }
 
@@ -2186,6 +2683,7 @@
             localStorage.removeItem('vags_name');
             localStorage.removeItem('vags_member_type');
             localStorage.removeItem('vags_is_admin');
+            localStorage.removeItem('vags_admin_role');
             window.location.href = '/';
         }
 
@@ -3129,13 +3627,18 @@
                 return;
             }
 
-            if (checkAdminAuth()) {
-                await loadRules();
-                await fetchMetrics();
-                await fetchAnalyticsData();
-                initSse();
-                setInterval(fetchMetrics, 5000);
-                setInterval(fetchAnalyticsData, 5000);
+            if (await checkAdminAuth()) {
+                if (currentAdminRole === 'report_viewer') {
+                    switchTab('csdl');
+                } else {
+                    await loadRules();
+                    await loadManualAdmins();
+                    await fetchMetrics();
+                    await fetchAnalyticsData();
+                    initSse();
+                    setInterval(fetchMetrics, 5000);
+                    setInterval(fetchAnalyticsData, 5000);
+                }
             }
         });
     </script>
