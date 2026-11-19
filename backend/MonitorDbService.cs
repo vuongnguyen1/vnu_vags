@@ -1,6 +1,8 @@
 using System.Collections.Concurrent;
+using System.Net;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Channels;
 using Microsoft.Data.Sqlite;
 
@@ -38,9 +40,33 @@ public class ActiveUserSession
 
 public class MonitorDbService
 {
+    private static readonly Regex SafeUsernameRegex = new(@"^[a-zA-Z0-9._@-]{2,64}$", RegexOptions.Compiled);
+    private static readonly Regex SafeUnitRegex = new(@"^[a-zA-Z0-9._ -]{1,32}$", RegexOptions.Compiled);
+    private static readonly Regex SafeMemberTypeRegex = new(@"^[a-z0-9_-]{1,32}$", RegexOptions.Compiled);
+
     private readonly string _connectionString;
     private readonly Channel<ConnectionLogItem> _logChannel = Channel.CreateUnbounded<ConnectionLogItem>();
+    private readonly object _activeMapLock = new();
     public readonly ConcurrentDictionary<string, ActiveUserSession> ActiveIpUserMap = new();
+
+    public static bool IsValidUsername(string? username)
+    {
+        if (string.IsNullOrWhiteSpace(username)) return false;
+        return SafeUsernameRegex.IsMatch(username.Trim());
+    }
+
+    public static bool IsValidUnit(string? unit)
+    {
+        if (string.IsNullOrWhiteSpace(unit)) return false;
+        return SafeUnitRegex.IsMatch(unit.Trim());
+    }
+
+    private static string SanitizeMemberType(string? memberType)
+    {
+        if (string.IsNullOrWhiteSpace(memberType)) return "canbo";
+        var clean = memberType.Trim().ToLowerInvariant();
+        return SafeMemberTypeRegex.IsMatch(clean) ? clean : "canbo";
+    }
 
     public MonitorDbService(string dbPath)
     {
@@ -129,29 +155,37 @@ public class MonitorDbService
         try
         {
             using var cmdLoad = conn.CreateCommand();
-            cmdLoad.CommandText = "SELECT client_ip, username, unit, member_type, first_seen, last_seen, total_requests, is_proxy_enabled FROM active_sessions WHERE last_seen >= $cutoff AND username != 'Khách (Chưa xác thực)';";
+            cmdLoad.CommandText = "SELECT client_ip, username, unit, member_type, first_seen, last_seen, total_requests, is_proxy_enabled FROM active_sessions WHERE last_seen >= $cutoff AND username != 'Khách (Chưa xác thực)' ORDER BY last_seen DESC;";
             cmdLoad.Parameters.AddWithValue("$cutoff", DateTime.UtcNow.AddMinutes(-15).ToString("O"));
             using var r = cmdLoad.ExecuteReader();
             while (r.Read())
             {
-                var ip = r.GetString(0);
-                var uname = r.GetString(1);
-                if (!string.IsNullOrWhiteSpace(ip) && !string.IsNullOrWhiteSpace(uname))
+                var ip = r.GetString(0).Trim();
+                var uname = r.GetString(1).Trim();
+                if (!string.IsNullOrWhiteSpace(ip) && IsValidUsername(uname))
                 {
+                    var rawUnit = r.IsDBNull(2) ? "VNU" : r.GetString(2);
+                    var safeUnit = IsValidUnit(rawUnit) ? rawUnit.Trim().ToUpperInvariant() : "VNU";
+                    var safeMtype = SanitizeMemberType(r.IsDBNull(3) ? null : r.GetString(3));
                     DateTime.TryParse(r.GetString(4), out var fs);
                     DateTime.TryParse(r.GetString(5), out var ls);
                     var pEnabled = r.IsDBNull(7) || r.GetInt32(7) == 1;
-                    ActiveIpUserMap[ip] = new ActiveUserSession
+                    lock (_activeMapLock)
                     {
-                        ClientIp = ip,
-                        Username = uname,
-                        Unit = r.IsDBNull(2) ? "VNU" : r.GetString(2),
-                        MemberType = r.IsDBNull(3) ? "canbo" : r.GetString(3),
-                        FirstSeen = fs == default ? DateTime.UtcNow : fs,
-                        LastSeen = ls == default ? DateTime.UtcNow : ls,
-                        TotalRequests = r.IsDBNull(6) ? 1 : r.GetInt64(6),
-                        ProxyEnabled = pEnabled
-                    };
+                        var countForUser = ActiveIpUserMap.Values.Count(s => string.Equals(s.Username, uname, StringComparison.OrdinalIgnoreCase));
+                        if (countForUser >= 5) continue;
+                        ActiveIpUserMap[ip] = new ActiveUserSession
+                        {
+                            ClientIp = ip,
+                            Username = uname,
+                            Unit = safeUnit,
+                            MemberType = safeMtype,
+                            FirstSeen = fs == default ? DateTime.UtcNow : fs,
+                            LastSeen = ls == default ? DateTime.UtcNow : ls,
+                            TotalRequests = r.IsDBNull(6) ? 1 : r.GetInt64(6),
+                            ProxyEnabled = pEnabled
+                        };
+                    }
                 }
             }
         }
@@ -160,35 +194,70 @@ public class MonitorDbService
 
     public void RegisterUserActivity(string clientIp, string username, string unit = "VNU", string memberType = "canbo", bool proxyEnabled = true)
     {
-        if (string.IsNullOrWhiteSpace(clientIp) || clientIp == "unknown" || clientIp.StartsWith("127.") || clientIp.StartsWith("172.23.")) return;
-        if (string.IsNullOrWhiteSpace(username) || username == "Cán bộ VNU") return;
-
+        if (string.IsNullOrWhiteSpace(clientIp)) return;
         var cleanIp = clientIp.Trim();
-        var cleanUser = username.Trim();
-        var cleanUnit = string.IsNullOrWhiteSpace(unit) ? "VNU" : unit.Trim().ToUpperInvariant();
+        if (cleanIp.StartsWith("::ffff:", StringComparison.OrdinalIgnoreCase)) cleanIp = cleanIp.Substring(7);
+        if (cleanIp == "unknown" || cleanIp == "::1" || cleanIp.StartsWith("127.") || cleanIp.StartsWith("172.23.")) return;
+        if (!IPAddress.TryParse(cleanIp, out var parsedIp)) return;
+        if (parsedIp.IsIPv4MappedToIPv6)
+        {
+            parsedIp = parsedIp.MapToIPv4();
+            cleanIp = parsedIp.ToString();
+        }
+        if (IPAddress.IsLoopback(parsedIp) || cleanIp.StartsWith("172.23.")) return;
 
-        ActiveIpUserMap.AddOrUpdate(cleanIp,
-            ip => new ActiveUserSession
+        if (string.IsNullOrWhiteSpace(username) || username == "Cán bộ VNU") return;
+        var cleanUser = username.Trim();
+        if (!IsValidUsername(cleanUser)) return;
+
+        var cleanUnit = string.IsNullOrWhiteSpace(unit) ? "VNU" : unit.Trim().ToUpperInvariant();
+        if (!IsValidUnit(cleanUnit)) return;
+
+        var cleanMemberType = SanitizeMemberType(memberType);
+        var now = DateTime.UtcNow;
+        var evictedIps = new List<string>();
+
+        lock (_activeMapLock)
+        {
+            ActiveIpUserMap.AddOrUpdate(cleanIp,
+                ip => new ActiveUserSession
+                {
+                    Username = cleanUser,
+                    ClientIp = cleanIp,
+                    Unit = cleanUnit,
+                    MemberType = cleanMemberType,
+                    FirstSeen = now,
+                    LastSeen = now,
+                    TotalRequests = 1,
+                    ProxyEnabled = proxyEnabled
+                },
+                (ip, existing) =>
+                {
+                    existing.Username = cleanUser;
+                    existing.Unit = cleanUnit;
+                    existing.MemberType = cleanMemberType;
+                    existing.LastSeen = now;
+                    existing.ProxyEnabled = proxyEnabled;
+                    existing.TotalRequests++;
+                    return existing;
+                });
+
+            var userEntries = ActiveIpUserMap
+                .Where(kvp => string.Equals(kvp.Value.Username, cleanUser, StringComparison.OrdinalIgnoreCase))
+                .OrderBy(kvp => string.Equals(kvp.Key, cleanIp, StringComparison.Ordinal) ? 1 : 0)
+                .ThenBy(kvp => kvp.Value.LastSeen)
+                .ToList();
+
+            while (userEntries.Count > 5)
             {
-                Username = cleanUser,
-                ClientIp = cleanIp,
-                Unit = cleanUnit,
-                MemberType = memberType,
-                FirstSeen = DateTime.UtcNow,
-                LastSeen = DateTime.UtcNow,
-                TotalRequests = 1,
-                ProxyEnabled = proxyEnabled
-            },
-            (ip, existing) =>
-            {
-                existing.Username = cleanUser;
-                existing.Unit = cleanUnit;
-                existing.MemberType = memberType;
-                existing.LastSeen = DateTime.UtcNow;
-                existing.ProxyEnabled = proxyEnabled;
-                existing.TotalRequests++;
-                return existing;
-            });
+                var oldest = userEntries[0];
+                userEntries.RemoveAt(0);
+                if (ActiveIpUserMap.TryRemove(oldest.Key, out _))
+                {
+                    evictedIps.Add(oldest.Key);
+                }
+            }
+        }
 
         // Async update active_sessions table in SQLite
         Task.Run(async () =>
@@ -209,25 +278,97 @@ public class MonitorDbService
                         last_seen = excluded.last_seen,
                         is_proxy_enabled = excluded.is_proxy_enabled,
                         total_requests = active_sessions.total_requests + 1;
-
-                    UPDATE connections_log 
-                    SET username = $user, unit = $unit 
-                    WHERE client_ip = $ip AND (username LIKE 'Khách%' OR username = '') AND timestamp >= $cutoff;
                 ";
                 var sessionKey = $"{cleanUser}_{cleanIp}";
                 cmd.Parameters.AddWithValue("$key", sessionKey);
                 cmd.Parameters.AddWithValue("$user", cleanUser);
                 cmd.Parameters.AddWithValue("$ip", cleanIp);
                 cmd.Parameters.AddWithValue("$unit", cleanUnit);
-                cmd.Parameters.AddWithValue("$mtype", memberType);
-                cmd.Parameters.AddWithValue("$first", DateTime.UtcNow.ToString("O"));
-                cmd.Parameters.AddWithValue("$last", DateTime.UtcNow.ToString("O"));
+                cmd.Parameters.AddWithValue("$mtype", cleanMemberType);
+                cmd.Parameters.AddWithValue("$first", now.ToString("O"));
+                cmd.Parameters.AddWithValue("$last", now.ToString("O"));
                 cmd.Parameters.AddWithValue("$enabled", proxyEnabled ? 1 : 0);
-                cmd.Parameters.AddWithValue("$cutoff", DateTime.UtcNow.AddMinutes(-30).ToString("O"));
                 await cmd.ExecuteNonQueryAsync();
+
+                foreach (var evIp in evictedIps)
+                {
+                    using var cmdEvict = conn.CreateCommand();
+                    cmdEvict.CommandText = "DELETE FROM active_sessions WHERE username = $user COLLATE NOCASE AND client_ip = $evIp;";
+                    cmdEvict.Parameters.AddWithValue("$user", cleanUser);
+                    cmdEvict.Parameters.AddWithValue("$evIp", evIp);
+                    await cmdEvict.ExecuteNonQueryAsync();
+                }
             }
             catch { }
         });
+    }
+
+    public bool HasActiveSessionForUser(string clientIp, string username)
+    {
+        if (string.IsNullOrWhiteSpace(clientIp) || string.IsNullOrWhiteSpace(username)) return false;
+        var cleanIp = clientIp.Trim();
+        var cleanUser = username.Trim();
+
+        if (ActiveIpUserMap.TryGetValue(cleanIp, out var sess))
+        {
+            if (string.Equals(sess.Username, cleanUser, StringComparison.OrdinalIgnoreCase) &&
+                DateTime.UtcNow - sess.LastSeen < TimeSpan.FromHours(12))
+            {
+                return true;
+            }
+        }
+
+        try
+        {
+            using var conn = new SqliteConnection(_connectionString);
+            conn.Open();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "SELECT last_seen FROM active_sessions WHERE client_ip = $ip AND LOWER(username) = LOWER($user) ORDER BY last_seen DESC LIMIT 1;";
+            cmd.Parameters.AddWithValue("$ip", cleanIp);
+            cmd.Parameters.AddWithValue("$user", cleanUser);
+            var lsRaw = cmd.ExecuteScalar()?.ToString();
+            if (!string.IsNullOrEmpty(lsRaw) && DateTime.TryParse(lsRaw, out var ls))
+            {
+                return DateTime.UtcNow - ls < TimeSpan.FromHours(12);
+            }
+        }
+        catch { }
+
+        return false;
+    }
+
+    public string? GetLatestKnownMemberType(string username, string? clientIp = null)
+    {
+        if (string.IsNullOrWhiteSpace(username)) return null;
+        var cleanUser = username.Trim();
+
+        if (!string.IsNullOrWhiteSpace(clientIp) && ActiveIpUserMap.TryGetValue(clientIp.Trim(), out var ipSess))
+        {
+            if (string.Equals(ipSess.Username, cleanUser, StringComparison.OrdinalIgnoreCase) &&
+                DateTime.UtcNow - ipSess.LastSeen < TimeSpan.FromHours(12) &&
+                !string.IsNullOrWhiteSpace(ipSess.MemberType))
+            {
+                return ipSess.MemberType;
+            }
+        }
+
+        try
+        {
+            using var conn = new SqliteConnection(_connectionString);
+            conn.Open();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "SELECT member_type FROM active_sessions WHERE LOWER(username) = LOWER($user) ORDER BY last_seen DESC LIMIT 1;";
+            cmd.Parameters.AddWithValue("$user", cleanUser);
+            var mt = cmd.ExecuteScalar()?.ToString();
+            if (!string.IsNullOrWhiteSpace(mt)) return mt.Trim().ToLowerInvariant();
+        }
+        catch { }
+
+        if (KnownUserMappings.TryGetValue(cleanUser, out var mapped))
+        {
+            return mapped.memberType;
+        }
+        return null;
     }
 
     public void UpdateUserProxyStatus(string clientIp, string username, bool isProxyEnabled)
@@ -266,8 +407,15 @@ public class MonitorDbService
     {
         if (string.IsNullOrWhiteSpace(clientIp)) return;
         var cleanIp = clientIp.Trim();
-        if (cleanIp.StartsWith("::ffff:")) cleanIp = cleanIp.Substring(7);
         if (cleanIp.StartsWith("[") && cleanIp.Contains("]")) cleanIp = cleanIp.Substring(1, cleanIp.IndexOf(']') - 1);
+        if (IPAddress.TryParse(cleanIp, out var parsed))
+        {
+            cleanIp = parsed.IsIPv4MappedToIPv6 ? parsed.MapToIPv4().ToString() : parsed.ToString();
+        }
+        else if (cleanIp.StartsWith("::ffff:", StringComparison.OrdinalIgnoreCase))
+        {
+            cleanIp = cleanIp.Substring(7);
+        }
 
         ActiveIpUserMap.TryRemove(cleanIp, out _);
 
@@ -338,8 +486,9 @@ public class MonitorDbService
         {
             var u = authHeaderUser.Trim();
             var unit = string.IsNullOrWhiteSpace(authHeaderUnit) ? "VNU" : authHeaderUnit.Trim().ToUpperInvariant();
-            RegisterUserActivity(clientIp, u, unit, authHeaderMemberType ?? "canbo");
-            return (u, unit, authHeaderMemberType ?? "canbo");
+            var mt = SanitizeMemberType(authHeaderMemberType);
+            RegisterUserActivity(clientIp, u, unit, mt);
+            return (u, unit, mt);
         }
 
         var cleanIp = clientIp.Trim();
@@ -364,22 +513,26 @@ public class MonitorDbService
             using var r = cmd.ExecuteReader();
             if (r.Read())
             {
-                var u = r.GetString(0);
-                var un = r.IsDBNull(1) ? "VNU" : r.GetString(1);
-                var mt = r.IsDBNull(2) ? "canbo" : r.GetString(2);
+                var u = r.GetString(0).Trim();
+                var rawUn = r.IsDBNull(1) ? "VNU" : r.GetString(1);
+                var un = IsValidUnit(rawUn) ? rawUn.Trim().ToUpperInvariant() : "VNU";
+                var mt = SanitizeMemberType(r.IsDBNull(2) ? null : r.GetString(2));
                 DateTime.TryParse(r.GetString(3), out var ls);
-                if (DateTime.UtcNow - ls < TimeSpan.FromHours(12))
+                if (IsValidUsername(u) && DateTime.UtcNow - ls < TimeSpan.FromHours(12))
                 {
-                    ActiveIpUserMap[cleanIp] = new ActiveUserSession
+                    lock (_activeMapLock)
                     {
-                        ClientIp = cleanIp,
-                        Username = u,
-                        Unit = un,
-                        MemberType = mt,
-                        FirstSeen = ls,
-                        LastSeen = DateTime.UtcNow,
-                        TotalRequests = (r.IsDBNull(4) ? 1 : r.GetInt64(4)) + 1
-                    };
+                        ActiveIpUserMap[cleanIp] = new ActiveUserSession
+                        {
+                            ClientIp = cleanIp,
+                            Username = u,
+                            Unit = un,
+                            MemberType = mt,
+                            FirstSeen = ls,
+                            LastSeen = DateTime.UtcNow,
+                            TotalRequests = (r.IsDBNull(4) ? 1 : r.GetInt64(4)) + 1
+                        };
+                    }
                     return (u, un, mt);
                 }
             }
@@ -577,6 +730,7 @@ public class MonitorDbService
 
     public async Task<List<object>> GetTopUrlsAsync(int limit = 10)
     {
+        limit = Math.Clamp(limit, 1, 5000);
         using var conn = new SqliteConnection(_connectionString);
         await conn.OpenAsync();
 
@@ -607,6 +761,7 @@ public class MonitorDbService
 
     public async Task<List<object>> GetTopUsersAsync(int limit = 10)
     {
+        limit = Math.Clamp(limit, 1, 5000);
         using var conn = new SqliteConnection(_connectionString);
         await conn.OpenAsync();
 
@@ -639,6 +794,7 @@ public class MonitorDbService
 
     public async Task<List<object>> GetTopIpsAsync(int limit = 10)
     {
+        limit = Math.Clamp(limit, 1, 5000);
         using var conn = new SqliteConnection(_connectionString);
         await conn.OpenAsync();
 
@@ -680,6 +836,7 @@ public class MonitorDbService
 
     public async Task<List<object>> GetTopBandwidthUrlsAsync(int limit = 10)
     {
+        limit = Math.Clamp(limit, 1, 5000);
         using var conn = new SqliteConnection(_connectionString);
         await conn.OpenAsync();
 
@@ -719,6 +876,8 @@ public class MonitorDbService
 
     public async Task<(List<object> logs, int total)> GetAuditLogsAsync(string? search, string? user, string? ip, string? domain, string? status, string? allowed, int limit = 50, int offset = 0)
     {
+        limit = Math.Clamp(limit, 1, 5000);
+        offset = Math.Max(0, offset);
         using var conn = new SqliteConnection(_connectionString);
         await conn.OpenAsync();
 
@@ -799,6 +958,8 @@ public class MonitorDbService
 
     public async Task<(List<object> domains, int total)> GetDomainBreakdownAsync(string? search, string? category, int limit = 50, int offset = 0)
     {
+        limit = Math.Clamp(limit, 1, 5000);
+        offset = Math.Max(0, offset);
         using var conn = new SqliteConnection(_connectionString);
         await conn.OpenAsync();
 
@@ -860,8 +1021,20 @@ public class MonitorDbService
         return (list, total);
     }
 
+    private static string CsvSafe(string? value)
+    {
+        var s = value ?? "";
+        if (s.Length > 0 && (s[0] == '=' || s[0] == '+' || s[0] == '-' || s[0] == '@' || s[0] == '\t' || s[0] == '\r'))
+        {
+            s = "'" + s;
+        }
+        s = s.Replace("\r", " ").Replace("\n", " ").Replace("\"", "\"\"");
+        return $"\"{s}\"";
+    }
+
     public async Task<string> ExportAuditLogsCsvAsync(int limit = 1000)
     {
+        limit = Math.Clamp(limit, 1, 10000);
         using var conn = new SqliteConnection(_connectionString);
         await conn.OpenAsync();
 
@@ -880,7 +1053,17 @@ public class MonitorDbService
         using var r = await cmd.ExecuteReaderAsync();
         while (await r.ReadAsync())
         {
-            sb.AppendLine($"\"{r.GetString(0)}\",\"{r.GetString(1)}\",\"{r.GetString(2)}\",\"{r.GetString(3)}\",\"{r.GetString(4)}\",{r.GetInt32(5)},{(r.GetInt32(6) == 1 ? "YES" : "NO")},{r.GetInt64(7)},{r.GetInt64(8)},\"{r.GetString(9).Replace("\"", "\"\"")}\"");
+            var ts = CsvSafe(r.IsDBNull(0) ? "" : r.GetString(0));
+            var ip = CsvSafe(r.IsDBNull(1) ? "" : r.GetString(1));
+            var user = CsvSafe(r.IsDBNull(2) ? "" : r.GetString(2));
+            var unit = CsvSafe(r.IsDBNull(3) ? "" : r.GetString(3));
+            var host = CsvSafe(r.IsDBNull(4) ? "" : r.GetString(4));
+            var port = r.GetInt32(5);
+            var allowedStr = r.GetInt32(6) == 1 ? "YES" : "NO";
+            var bSent = r.GetInt64(7);
+            var bRecv = r.GetInt64(8);
+            var reason = CsvSafe(r.IsDBNull(9) ? "" : r.GetString(9));
+            sb.AppendLine($"{ts},{ip},{user},{unit},{host},{port},{allowedStr},{bSent},{bRecv},{reason}");
         }
 
         return sb.ToString();
@@ -950,13 +1133,63 @@ public class MonitorDbService
         conn.Open();
 
         using var cmd = conn.CreateCommand();
-        cmd.CommandText = "SELECT id FROM proxy_app_keys WHERE LOWER(username) = $u AND app_key = $k LIMIT 1;";
+        cmd.CommandText = "SELECT app_key FROM proxy_app_keys WHERE LOWER(username) = $u LIMIT 1;";
         cmd.Parameters.AddWithValue("$u", cleanUser);
-        cmd.Parameters.AddWithValue("$k", cleanKey);
-        var obj = cmd.ExecuteScalar();
-        if (obj != null)
+        var storedKey = cmd.ExecuteScalar()?.ToString();
+        if (!string.IsNullOrEmpty(storedKey))
         {
+            var storedBytes = Encoding.UTF8.GetBytes(storedKey);
+            var providedBytes = Encoding.UTF8.GetBytes(cleanKey);
+            if (storedBytes.Length != providedBytes.Length || !CryptographicOperations.FixedTimeEquals(storedBytes, providedBytes))
+            {
+                return false;
+            }
+
             unit = (cleanUser == "phongnd" || cleanUser == "vuongwork" || cleanUser == "vuongwork@vnu.edu.vn" || cleanUser == "admin" || cleanUser.Contains("pqtkt")) ? "PQTKT" : "CANBO";
+            if (KnownUserMappings.TryGetValue(cleanUser, out var mapped))
+            {
+                unit = mapped.unit;
+                memberType = mapped.memberType;
+            }
+
+            try
+            {
+                using var cmdSess = conn.CreateCommand();
+                cmdSess.CommandText = "SELECT unit, member_type FROM active_sessions WHERE LOWER(username) = $u ORDER BY last_seen DESC LIMIT 1;";
+                cmdSess.Parameters.AddWithValue("$u", cleanUser);
+                using var rs = cmdSess.ExecuteReader();
+                if (rs.Read())
+                {
+                    var sUnit = rs.IsDBNull(0) ? "" : rs.GetString(0).Trim();
+                    var sMtype = rs.IsDBNull(1) ? "" : rs.GetString(1).Trim().ToLowerInvariant();
+                    if (!string.IsNullOrWhiteSpace(sUnit) && (!string.Equals(sUnit, "VNU", StringComparison.OrdinalIgnoreCase) || unit == "CANBO"))
+                    {
+                        unit = sUnit.ToUpperInvariant();
+                    }
+                    if (!string.IsNullOrWhiteSpace(sMtype))
+                    {
+                        memberType = SanitizeMemberType(sMtype);
+                    }
+                }
+            }
+            catch { }
+
+            var latestMemSess = ActiveIpUserMap.Values
+                .Where(s => string.Equals(s.Username, cleanUser, StringComparison.OrdinalIgnoreCase))
+                .OrderByDescending(s => s.LastSeen)
+                .FirstOrDefault();
+            if (latestMemSess != null)
+            {
+                if (!string.IsNullOrWhiteSpace(latestMemSess.Unit) && (!string.Equals(latestMemSess.Unit, "VNU", StringComparison.OrdinalIgnoreCase) || unit == "CANBO"))
+                {
+                    unit = latestMemSess.Unit.ToUpperInvariant();
+                }
+                if (!string.IsNullOrWhiteSpace(latestMemSess.MemberType))
+                {
+                    memberType = SanitizeMemberType(latestMemSess.MemberType);
+                }
+            }
+
             using var cmdUpdate = conn.CreateCommand();
             cmdUpdate.CommandText = "UPDATE proxy_app_keys SET last_used_at = $now WHERE LOWER(username) = $u;";
             cmdUpdate.Parameters.AddWithValue("$now", DateTime.UtcNow.ToString("O"));
@@ -969,10 +1202,10 @@ public class MonitorDbService
 
     private static string GenerateSecureKey()
     {
-        var bytes = new byte[8];
+        var bytes = new byte[12];
         RandomNumberGenerator.Fill(bytes);
         var hex = Convert.ToHexString(bytes).ToLowerInvariant();
-        return $"vags-{hex.Substring(0, 4)}-{hex.Substring(4, 4)}-{hex.Substring(8, 4)}";
+        return $"vags-{hex.Substring(0, 4)}-{hex.Substring(4, 4)}-{hex.Substring(8, 4)}-{hex.Substring(12, 4)}-{hex.Substring(16, 4)}-{hex.Substring(20, 4)}";
     }
 
     public static readonly Dictionary<string, (string unit, string memberType)> KnownUserMappings = new(StringComparer.OrdinalIgnoreCase)

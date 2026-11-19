@@ -2519,10 +2519,14 @@
                     vagsAdminRole: effectiveAdminRole
                 };
                 window.dispatchEvent(new CustomEvent('VAGS_SSO_SYNC', { detail: sessionData }));
-                window.postMessage({ type: 'VAGS_SSO_SYNC', data: sessionData }, '*');
+                window.postMessage({ type: 'VAGS_SSO_SYNC', data: sessionData }, window.location.origin);
+
+                const bearerHeader = token ? { 'Authorization': `Bearer ${token}` } : {};
 
                 // Làm mới quyền Admin theo thời gian thực từ Backend (hỗ trợ cấp/thu hồi quyền thủ công không cần đăng nhập lại)
-                fetch(`/api/v1/auth/check-admin?user=${encodeURIComponent(user)}&ou=${encodeURIComponent(unit)}`)
+                fetch(`/api/v1/auth/check-admin?user=${encodeURIComponent(user)}&ou=${encodeURIComponent(unit)}`, {
+                    headers: bearerHeader
+                })
                     .then(res => res.ok ? res.json() : null)
                     .then(data => {
                         if (!data) return;
@@ -2540,7 +2544,7 @@
                                 vagsAdminRole: liveRole
                             };
                             window.dispatchEvent(new CustomEvent('VAGS_SSO_SYNC', { detail: updatedSessionData }));
-                            window.postMessage({ type: 'VAGS_SSO_SYNC', data: updatedSessionData }, '*');
+                            window.postMessage({ type: 'VAGS_SSO_SYNC', data: updatedSessionData }, window.location.origin);
                         }
                     })
                     .catch(() => { });
@@ -2548,7 +2552,7 @@
                 // Gửi Heartbeat ngay lập tức khi tải trang để định danh IP người dùng trong hệ thống
                 fetch('/api/v1/user/heartbeat', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...bearerHeader },
                     body: JSON.stringify({ user: user, unit: unit || 'VNU', memberType: memberType || 'canbo' })
                 }).catch(() => { });
 
@@ -2582,7 +2586,10 @@
         async function loadUserProxyKey(user) {
             if (!user) return;
             try {
-                const res = await fetch(`/api/v1/user/proxy-key?user=${encodeURIComponent(user)}`);
+                const token = localStorage.getItem('vags_token') || '';
+                const res = await fetch(`/api/v1/user/proxy-key?user=${encodeURIComponent(user)}`, {
+                    headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+                });
                 if (res.ok) {
                     const data = await res.json();
                     const key = data ? (data.proxyKey || data.key) : null;
@@ -2608,9 +2615,13 @@
             }
             if (!confirm('Bạn có chắc chắn muốn cấp lại Mật khẩu ứng dụng Proxy mới? Mật khẩu cũ trên các thiết bị sẽ hết hạn.')) return;
             try {
+                const token = localStorage.getItem('vags_token') || '';
                 const res = await fetch('/api/v1/user/proxy-key/regenerate', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+                    },
                     body: JSON.stringify({ user })
                 });
                 if (res.ok) {
@@ -2620,6 +2631,9 @@
                         document.getElementById('displayProxyKey').textContent = key;
                         alert('Đã tạo thành công Mật khẩu ứng dụng Proxy mới: ' + key);
                     }
+                } else {
+                    const errData = await res.json().catch(() => ({}));
+                    alert(errData.message || 'Phiên đăng nhập đã hết hạn hoặc không hợp lệ. Vui lòng đăng nhập lại VNU SSO.');
                 }
             } catch (e) {
                 alert('Lỗi tạo mã: ' + e.message);
@@ -2641,7 +2655,7 @@
             const isEnabled = document.documentElement.getAttribute('data-vags-enabled') === 'true';
 
             // Gửi Ping và đợi Pong từ Extension Content Script
-            window.postMessage({ type: 'VAGS_EXTENSION_PING' }, '*');
+            window.postMessage({ type: 'VAGS_EXTENSION_PING' }, window.location.origin);
             setTimeout(() => {
                 if (!isExtensionDetected) {
                     if (hasDomAttr) {
@@ -2710,6 +2724,7 @@
         }
 
         window.addEventListener('message', (event) => {
+            if (!event || event.source !== window || event.origin !== window.location.origin) return;
             if (event.data && (event.data.type === 'VAGS_EXTENSION_PONG' || event.data.type === 'VAGS_EXTENSION_STATUS')) {
                 const info = event.data;
                 if (!info.enabled) {
@@ -2835,27 +2850,37 @@
             return { verifier, challenge };
         }
 
+        function generateOAuthState() {
+            const arr = new Uint8Array(24);
+            window.crypto.getRandomValues(arr);
+            return Array.from(arr, b => b.toString(16).padStart(2, '0')).join('');
+        }
+
         async function triggerKeycloakLogin() {
             try {
                 const pkce = await generatePkce();
+                const state = generateOAuthState();
                 sessionStorage.setItem('pkce_code_verifier', pkce.verifier);
                 localStorage.setItem('pkce_code_verifier', pkce.verifier);
+                sessionStorage.setItem('vags_oauth_state', state);
 
                 const clientId = 'vags-gateway';
                 const redirectUri = encodeURIComponent(window.location.origin + '/auth/callback');
-                const authUrl = `https://idp.vnu.edu.vn/auth/realms/vnu/protocol/openid-connect/auth?client_id=${clientId}&response_type=code&scope=openid%20profile%20email&redirect_uri=${redirectUri}&state=vags_sso&code_challenge=${pkce.challenge}&code_challenge_method=S256`;
+                const authUrl = `https://idp.vnu.edu.vn/auth/realms/vnu/protocol/openid-connect/auth?client_id=${clientId}&response_type=code&scope=openid%20profile%20email&redirect_uri=${redirectUri}&state=${encodeURIComponent(state)}&code_challenge=${encodeURIComponent(pkce.challenge)}&code_challenge_method=S256`;
                 window.location.href = authUrl;
             } catch (err) {
                 console.error('PKCE error', err);
-                const clientId = 'vags-gateway';
-                const redirectUri = encodeURIComponent(window.location.origin + '/auth/callback');
-                window.location.href = `https://idp.vnu.edu.vn/auth/realms/vnu/protocol/openid-connect/auth?client_id=${clientId}&response_type=code&scope=openid%20profile%20email&redirect_uri=${redirectUri}&state=vags_sso`;
+                alert('Không thể khởi tạo phiên đăng nhập bảo mật PKCE. Vui lòng sử dụng trình duyệt hỗ trợ Web Crypto trên HTTPS.');
             }
         }
 
         async function handleLogout(forceIdpLogout = false) {
+            const token = localStorage.getItem('vags_token') || '';
             try {
-                await fetch('/api/v1/auth/logout', { method: 'POST' });
+                await fetch('/api/v1/auth/logout', {
+                    method: 'POST',
+                    headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+                });
             } catch (e) { }
 
             localStorage.removeItem('vags_token');
@@ -2865,10 +2890,11 @@
             localStorage.removeItem('vags_member_type');
             localStorage.removeItem('vags_is_admin');
             localStorage.removeItem('vags_admin_role');
+            localStorage.removeItem('pkce_code_verifier');
             sessionStorage.clear();
 
             window.dispatchEvent(new CustomEvent('VAGS_SSO_LOGOUT'));
-            window.postMessage({ type: 'VAGS_SSO_LOGOUT' }, '*');
+            window.postMessage({ type: 'VAGS_SSO_LOGOUT' }, window.location.origin);
             checkSession();
 
             // Nếu người dùng muốn kết thúc hoàn toàn cả phiên VNU Keycloak IDP để đổi tài khoản

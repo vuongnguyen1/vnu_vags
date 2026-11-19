@@ -7,7 +7,7 @@
     if (window.top !== window) return;
 
     // --- PHẦN 1: ĐỒNG BỘ PHIÊN SSO (Trên thamkhao.vnu.edu.vn & vags.vnu.edu.vn) ---
-    if (window.location.hostname === "thamkhao.vnu.edu.vn" || window.location.hostname === "vags.vnu.edu.vn" || window.location.hostname.endsWith(".vnu.edu.vn")) {
+    if (window.location.hostname === "thamkhao.vnu.edu.vn" || window.location.hostname === "vags.vnu.edu.vn") {
         try {
             document.documentElement.setAttribute("data-vags-extension", "installed");
             
@@ -24,7 +24,7 @@
                             enabled: isEnabled,
                             user: user,
                             isLoggedIn: !!user
-                        }, "*");
+                        }, window.location.origin || "https://thamkhao.vnu.edu.vn");
                     });
                 } catch (e) { }
             }
@@ -39,7 +39,8 @@
             });
 
             window.addEventListener("message", (event) => {
-                if (event && event.data && event.data.type === "VAGS_EXTENSION_PING") {
+                if (!event || event.source !== window || (event.origin !== "https://thamkhao.vnu.edu.vn" && event.origin !== "https://vags.vnu.edu.vn")) return;
+                if (event.data && event.data.type === "VAGS_EXTENSION_PING") {
                     broadcastStatusToPage();
                 }
             });
@@ -84,9 +85,10 @@
         });
 
         window.addEventListener("message", (event) => {
-            if (event && event.data && event.data.type === "VAGS_SSO_SYNC") {
+            if (!event || event.source !== window || (event.origin !== "https://thamkhao.vnu.edu.vn" && event.origin !== "https://vags.vnu.edu.vn")) return;
+            if (event.data && event.data.type === "VAGS_SSO_SYNC") {
                 sendSessionToExtension(event.data.data);
-            } else if (event && event.data && event.data.type === "VAGS_SSO_LOGOUT") {
+            } else if (event.data && event.data.type === "VAGS_SSO_LOGOUT") {
                 try { chrome.runtime.sendMessage({ action: "CLEAR_SESSION" }); } catch (e) { }
             }
         });
@@ -102,7 +104,7 @@
                     localStorage.removeItem("vags_member_type");
                     localStorage.removeItem("vags_is_admin");
                     sessionStorage.clear();
-                    window.postMessage({ type: "VAGS_SSO_LOGOUT" }, "*");
+                    window.postMessage({ type: "VAGS_SSO_LOGOUT" }, window.location.origin || "https://thamkhao.vnu.edu.vn");
                     document.documentElement.setAttribute("data-vags-enabled", "false");
                     window.location.reload();
                 } catch (e) { }

@@ -10,6 +10,7 @@ using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Connections;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
@@ -23,9 +24,15 @@ var rulesFilePath = Path.Combine(dataDir, "rules.json");
 var certChainPath = Environment.GetEnvironmentVariable("VAGS_CERT_FILE") ?? "/app/certs/fullchain.pem";
 var certKeyPath = Environment.GetEnvironmentVariable("VAGS_KEY_FILE") ?? "/app/certs/privkey.pem";
 var webRootPath = Environment.GetEnvironmentVariable("VAGS_WEBROOT") ?? "/app/wwwroot";
-var keycloakAuthority = Environment.GetEnvironmentVariable("VAGS_KEYCLOAK_AUTHORITY") ?? "https://idp.vnu.edu.vn/auth/realms/vnu";
+var keycloakAuthority = (Environment.GetEnvironmentVariable("VAGS_KEYCLOAK_AUTHORITY") ?? "https://idp.vnu.edu.vn/auth/realms/vnu").TrimEnd('/');
 var keycloakClientId = Environment.GetEnvironmentVariable("VAGS_KEYCLOAK_CLIENT_ID") ?? "vags-gateway";
-var keycloakClientSecret = Environment.GetEnvironmentVariable("VAGS_KEYCLOAK_CLIENT_SECRET") ?? "6m1VxNOdAaiN9Jsz1lrnQ006OvDFOnbk";
+var keycloakClientSecret = Environment.GetEnvironmentVariable("VAGS_KEYCLOAK_CLIENT_SECRET") ?? "";
+
+var sessionSecretSource = Environment.GetEnvironmentVariable("VAGS_SESSION_SECRET");
+if (string.IsNullOrWhiteSpace(sessionSecretSource)) sessionSecretSource = keycloakClientSecret;
+byte[] sessionSigningKey = !string.IsNullOrWhiteSpace(sessionSecretSource)
+    ? SHA256.HashData(Encoding.UTF8.GetBytes("vags-session-key:" + sessionSecretSource.Trim()))
+    : RandomNumberGenerator.GetBytes(32);
 
 var serverIp = Environment.GetEnvironmentVariable("VAGS_SERVER_IP") ?? "112.137.142.30";
 var primaryDomain = Environment.GetEnvironmentVariable("VAGS_PRIMARY_DOMAIN") ?? "vags.vnu.edu.vn";
@@ -103,28 +110,48 @@ bool CheckMaintenanceMode(RuleStoreModel rStore)
     return envMaintenance || flagMaintenance || rStore.MaintenanceMode;
 }
 
+string ExtractHostOnly(string? rawHost)
+{
+    if (string.IsNullOrWhiteSpace(rawHost)) return "";
+    var s = rawHost.Trim();
+    if (s.StartsWith('['))
+    {
+        var closeBracket = s.IndexOf(']');
+        if (closeBracket > 1) return s.Substring(1, closeBracket - 1).Trim().ToLowerInvariant();
+    }
+    var firstColon = s.IndexOf(':');
+    if (firstColon > 0 && firstColon == s.LastIndexOf(':'))
+    {
+        s = s.Substring(0, firstColon);
+    }
+    return s.Trim().TrimEnd('.').ToLowerInvariant();
+}
+
 bool IsVagsSelfHost(string h, RuleStoreModel rStore)
 {
     if (string.IsNullOrWhiteSpace(h)) return false;
-    var cleanHost = h.Split(':')[0].Trim().ToLowerInvariant();
-    if (cleanHost == serverIp.ToLowerInvariant() || cleanHost == "112.137.142.30" || cleanHost == "112.137.133.14" || cleanHost == "127.0.0.1" || cleanHost == "localhost")
+    var cleanHost = ExtractHostOnly(h);
+    if (string.IsNullOrEmpty(cleanHost)) return false;
+    if (cleanHost == serverIp.ToLowerInvariant() || cleanHost == "112.137.142.30" || cleanHost == "112.137.133.14" || cleanHost == "127.0.0.1" || cleanHost == "::1" || cleanHost == "localhost")
         return true;
-    if (cleanHost == primaryDomain.ToLowerInvariant() || cleanHost.EndsWith("." + primaryDomain.ToLowerInvariant()))
+    var cleanPrimary = primaryDomain.Trim().TrimEnd('.').ToLowerInvariant();
+    if (!string.IsNullOrEmpty(cleanPrimary) && (cleanHost == cleanPrimary || cleanHost.EndsWith("." + cleanPrimary)))
         return true;
-    var hostFromRules = (rStore?.ProxyHost ?? "").ToLowerInvariant();
+    var hostFromRules = (rStore?.ProxyHost ?? "").Trim().TrimEnd('.').ToLowerInvariant();
     if (!string.IsNullOrEmpty(hostFromRules) && (cleanHost == hostFromRules || cleanHost.EndsWith("." + hostFromRules)))
         return true;
     foreach (var alias in domainAliases)
     {
-        if (cleanHost == alias.ToLowerInvariant() || cleanHost.EndsWith("." + alias.ToLowerInvariant()))
+        var cleanAlias = alias.Trim().TrimEnd('.').ToLowerInvariant();
+        if (!string.IsNullOrEmpty(cleanAlias) && (cleanHost == cleanAlias || cleanHost.EndsWith("." + cleanAlias)))
             return true;
     }
     if (rStore?.DomainAliases != null)
     {
         foreach (var alias in rStore.DomainAliases)
         {
-            var cleanAlias = alias.ToLowerInvariant();
-            if (cleanHost == cleanAlias || cleanHost.EndsWith("." + cleanAlias))
+            var cleanAlias = (alias ?? "").Trim().TrimEnd('.').ToLowerInvariant();
+            if (!string.IsNullOrEmpty(cleanAlias) && (cleanHost == cleanAlias || cleanHost.EndsWith("." + cleanAlias)))
                 return true;
         }
     }
@@ -134,33 +161,122 @@ bool IsVagsSelfHost(string h, RuleStoreModel rStore)
 var monitorDb = new MonitorDbService(Path.Combine(dataDir, "vags_monitor.db"));
 var sseClients = new ConcurrentDictionary<Guid, SseClientInfo>();
 var proxyLogs = new ConcurrentQueue<ProxyLogEntry>();
+var secLogLock = new object();
+var activeUserTunnels = new ConcurrentDictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+var verifiedSessionTokens = new ConcurrentDictionary<string, VerifiedSessionEntry>(StringComparer.Ordinal);
+var userSessionRevokedAfter = new ConcurrentDictionary<string, DateTimeOffset>(StringComparer.OrdinalIgnoreCase);
+var revokedTokenJtis = new ConcurrentDictionary<string, DateTimeOffset>(StringComparer.Ordinal);
+var jwksLock = new SemaphoreSlim(1, 1);
+List<(string? Kid, RSAParameters Params)> jwksKeysCache = new();
+DateTimeOffset jwksFetchedAt = DateTimeOffset.MinValue;
+DateTimeOffset jwksLastAttemptAt = DateTimeOffset.MinValue;
+IHttpClientFactory? jwksHttpClientFactory = null;
+bool isDevelopmentEnv = false;
+
 long totalProxyRequests = 0;
 long allowedProxyRequests = 0;
 long blockedProxyRequests = 0;
+
+bool IsTrustedProxyAddress(IPAddress? addr)
+{
+    if (addr == null) return false;
+    if (addr.IsIPv4MappedToIPv6) addr = addr.MapToIPv4();
+    if (IPAddress.IsLoopback(addr)) return true;
+    if (addr.AddressFamily == AddressFamily.InterNetwork)
+    {
+        var b = addr.GetAddressBytes();
+        if (b[0] == 172 && b[1] >= 16 && b[1] <= 31) return true;
+    }
+    return false;
+}
 
 string CleanIp(string? ip)
 {
     if (string.IsNullOrWhiteSpace(ip)) return "unknown";
     var s = ip.Trim();
-    if (s.StartsWith("[") && s.Contains("]"))
+
+    if (IPAddress.TryParse(s, out var directAddr))
+    {
+        return directAddr.IsIPv4MappedToIPv6 ? directAddr.MapToIPv4().ToString() : directAddr.ToString();
+    }
+
+    if (IPEndPoint.TryParse(s, out var ep))
+    {
+        var addr = ep.Address;
+        return addr.IsIPv4MappedToIPv6 ? addr.MapToIPv4().ToString() : addr.ToString();
+    }
+
+    if (s.StartsWith('['))
     {
         var closeBracket = s.IndexOf(']');
-        s = s.Substring(1, closeBracket - 1);
+        if (closeBracket > 1)
+        {
+            var inner = s.Substring(1, closeBracket - 1);
+            if (IPAddress.TryParse(inner, out var bracketAddr))
+            {
+                return bracketAddr.IsIPv4MappedToIPv6 ? bracketAddr.MapToIPv4().ToString() : bracketAddr.ToString();
+            }
+        }
     }
-    if (s.StartsWith("::ffff:")) s = s.Substring(7);
-    if (s.Contains(':') && !s.Contains("::")) s = s.Split(':')[0];
-    return s;
+
+    var firstColon = s.IndexOf(':');
+    if (firstColon > 0 && firstColon == s.LastIndexOf(':'))
+    {
+        var hostPart = s.Substring(0, firstColon);
+        if (IPAddress.TryParse(hostPart, out var v4Addr))
+        {
+            return v4Addr.IsIPv4MappedToIPv6 ? v4Addr.MapToIPv4().ToString() : v4Addr.ToString();
+        }
+    }
+
+    return "unknown";
 }
 
 string GetRealClientIp(HttpContext http)
 {
-    var xReal = http.Request.Headers["X-Real-IP"].FirstOrDefault();
-    if (!string.IsNullOrWhiteSpace(xReal)) return CleanIp(xReal);
-    var xFwd = http.Request.Headers["X-Forwarded-For"].FirstOrDefault();
-    if (!string.IsNullOrWhiteSpace(xFwd)) return CleanIp(xFwd.Split(',')[0]);
-    if (http.Items.TryGetValue("RealClientIp", out var rip) && rip is string srip && !string.IsNullOrWhiteSpace(srip)) return CleanIp(srip);
-    var rem = http.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+    if (http.Items.TryGetValue("RealClientIp", out var rip) && rip is string srip && !string.IsNullOrWhiteSpace(srip))
+    {
+        var cleaned = CleanIp(srip);
+        if (cleaned != "unknown") return cleaned;
+    }
+
+    var remoteAddr = http.Connection.RemoteIpAddress;
+    if (IsTrustedProxyAddress(remoteAddr))
+    {
+        var xReal = http.Request.Headers["X-Real-IP"].FirstOrDefault();
+        if (!string.IsNullOrWhiteSpace(xReal))
+        {
+            var cleaned = CleanIp(xReal);
+            if (cleaned != "unknown") return cleaned;
+        }
+        var xFwd = http.Request.Headers["X-Forwarded-For"].FirstOrDefault();
+        if (!string.IsNullOrWhiteSpace(xFwd))
+        {
+            var parts = xFwd.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            for (int i = parts.Length - 1; i >= 0; i--)
+            {
+                var cleaned = CleanIp(parts[i]);
+                if (cleaned != "unknown" && !(IPAddress.TryParse(cleaned, out var pAddr) && IsTrustedProxyAddress(pAddr)))
+                {
+                    return cleaned;
+                }
+            }
+            if (parts.Length > 0)
+            {
+                var cleanedFirst = CleanIp(parts[0]);
+                if (cleanedFirst != "unknown") return cleanedFirst;
+            }
+        }
+    }
+
+    var rem = remoteAddr?.ToString() ?? "unknown";
     return CleanIp(rem);
+}
+
+string SanitizeLogField(string? val)
+{
+    if (string.IsNullOrEmpty(val)) return "";
+    return val.Replace("\r", " ").Replace("\n", " ").Replace("\"", "'");
 }
 
 void AddProxyLog(string clientIp, string targetHost, int targetPort, bool allowed, string reason, string matchedRule, string user = "Khách (Chưa xác thực)", string unit = "VNU", string memberType = "canbo", long bytesSent = 0, long bytesReceived = 0, long durationMs = 0)
@@ -169,18 +285,22 @@ void AddProxyLog(string clientIp, string targetHost, int targetPort, bool allowe
     if (allowed) Interlocked.Increment(ref allowedProxyRequests);
     else Interlocked.Increment(ref blockedProxyRequests);
 
-    var cleanUser = string.IsNullOrWhiteSpace(user) ? "Khách (Chưa xác thực)" : user;
-    var cleanUnit = string.IsNullOrWhiteSpace(unit) ? "VNU" : unit;
-    var cleanMtype = string.IsNullOrWhiteSpace(memberType) ? "canbo" : memberType;
+    var cleanUser = string.IsNullOrWhiteSpace(user) ? "Khách (Chưa xác thực)" : SanitizeLogField(user);
+    var cleanUnit = string.IsNullOrWhiteSpace(unit) ? "VNU" : SanitizeLogField(unit);
+    var cleanMtype = string.IsNullOrWhiteSpace(memberType) ? "canbo" : SanitizeLogField(memberType);
+    var safeIp = SanitizeLogField(clientIp);
+    var safeHost = SanitizeLogField(targetHost);
+    var safeReason = SanitizeLogField(reason);
+    var safeRule = SanitizeLogField(matchedRule);
 
     proxyLogs.Enqueue(new ProxyLogEntry
     {
         Timestamp = DateTime.UtcNow.ToString("O"),
-        ClientIp = clientIp,
-        Target = $"{targetHost}:{targetPort}",
+        ClientIp = safeIp,
+        Target = $"{safeHost}:{targetPort}",
         Allowed = allowed,
-        Reason = reason,
-        MatchedRule = matchedRule,
+        Reason = safeReason,
+        MatchedRule = safeRule,
         User = cleanUser,
         Unit = cleanUnit,
         MemberType = cleanMtype
@@ -191,15 +311,15 @@ void AddProxyLog(string clientIp, string targetHost, int targetPort, bool allowe
     monitorDb.EnqueueLog(new ConnectionLogItem
     {
         Timestamp = DateTime.UtcNow,
-        ClientIp = clientIp,
+        ClientIp = safeIp,
         Username = cleanUser,
         Unit = cleanUnit,
         MemberType = cleanMtype,
-        TargetHost = targetHost,
+        TargetHost = safeHost,
         TargetPort = targetPort,
         Allowed = allowed,
-        Reason = reason,
-        MatchedRule = matchedRule,
+        Reason = safeReason,
+        MatchedRule = safeRule,
         BytesSent = bytesSent,
         BytesReceived = bytesReceived,
         DurationMs = durationMs
@@ -209,8 +329,11 @@ void AddProxyLog(string clientIp, string targetHost, int targetPort, bool allowe
     {
         try
         {
-            var secLine = $"{DateTime.UtcNow:yyyy-MM-ddTHH:mm:ss.fffZ} vags-gateway[security]: BLOCKED client_ip={clientIp} user=\"{cleanUser}\" unit=\"{cleanUnit}\" target=\"{targetHost}:{targetPort}\" rule=\"{matchedRule}\" reason=\"{reason}\"\n";
-            File.AppendAllText(Path.Combine(dataDir, "security.log"), secLine);
+            var secLine = $"{DateTime.UtcNow:yyyy-MM-ddTHH:mm:ss.fffZ} vags-gateway[security]: BLOCKED client_ip={safeIp} user=\"{cleanUser}\" unit=\"{cleanUnit}\" target=\"{safeHost}:{targetPort}\" rule=\"{safeRule}\" reason=\"{safeReason}\"\n";
+            lock (secLogLock)
+            {
+                File.AppendAllText(Path.Combine(dataDir, "security.log"), secLine);
+            }
         }
         catch { }
     }
@@ -220,8 +343,9 @@ void AddProxyLog(string clientIp, string targetHost, int targetPort, bool allowe
 bool ShExpMatch(string host, string pattern)
 {
     if (string.IsNullOrWhiteSpace(pattern)) return false;
-    var p = pattern.Trim().ToLowerInvariant();
-    var h = host.Trim().ToLowerInvariant();
+    var p = pattern.Trim().TrimEnd('.').ToLowerInvariant();
+    var h = (host ?? "").Trim().TrimEnd('.').ToLowerInvariant();
+    if (string.IsNullOrEmpty(p) || string.IsNullOrEmpty(h)) return false;
     if (p == h) return true;
     if (p.StartsWith("*.") && h == p.Substring(2)) return true;
 
@@ -229,15 +353,114 @@ bool ShExpMatch(string host, string pattern)
     return Regex.IsMatch(h, regexPattern, RegexOptions.IgnoreCase);
 }
 
+bool TryParseConnectAuthority(string? rawAuthority, out string host, out int port)
+{
+    host = string.Empty;
+    port = 0;
+    if (string.IsNullOrWhiteSpace(rawAuthority)) return false;
+
+    foreach (var ch in rawAuthority)
+    {
+        if (char.IsWhiteSpace(ch) || ch == '@' || ch == '/' || ch == '\\' || ch == '?' || ch == '#' || ch < 0x20 || ch == 0x7F)
+            return false;
+    }
+
+    var s = rawAuthority.Trim();
+    if (s.StartsWith('['))
+    {
+        var closeBracket = s.IndexOf(']');
+        if (closeBracket <= 1) return false;
+        var inner = s.Substring(1, closeBracket - 1);
+        if (!IPAddress.TryParse(inner, out var ip6) || ip6.AddressFamily != AddressFamily.InterNetworkV6)
+            return false;
+
+        var remainder = s.Substring(closeBracket + 1);
+        if (!remainder.StartsWith(':')) return false;
+        var portPart = remainder.Substring(1);
+        if (portPart.Length == 0 || !portPart.All(char.IsAsciiDigit)) return false;
+        if (!int.TryParse(portPart, NumberStyles.None, CultureInfo.InvariantCulture, out port) || port < 1 || port > 65535)
+            return false;
+
+        host = ip6.ToString();
+        return true;
+    }
+
+    var colonIdx = s.IndexOf(':');
+    if (colonIdx <= 0 || colonIdx != s.LastIndexOf(':')) return false;
+
+    var rawHostPart = s.Substring(0, colonIdx);
+    var portStr = s.Substring(colonIdx + 1);
+    if (portStr.Length == 0 || !portStr.All(char.IsAsciiDigit)) return false;
+    if (!int.TryParse(portStr, NumberStyles.None, CultureInfo.InvariantCulture, out port) || port < 1 || port > 65535)
+        return false;
+
+    if (rawHostPart.EndsWith("..", StringComparison.Ordinal)) return false;
+    var normalizedHost = rawHostPart.Trim().TrimEnd('.').ToLowerInvariant();
+    if (normalizedHost.Length == 0 || normalizedHost.Length > 253) return false;
+    if (normalizedHost.StartsWith('.') || normalizedHost.Contains("..")) return false;
+    foreach (var c in normalizedHost)
+    {
+        if (!((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '.' || c == '-' || c == '_'))
+            return false;
+    }
+    if (!char.IsLetterOrDigit(normalizedHost[0]) || !char.IsLetterOrDigit(normalizedHost[^1]))
+        return false;
+
+    host = normalizedHost;
+    return true;
+}
+
+bool IsForbiddenTargetIp(IPAddress ip)
+{
+    if (ip.IsIPv4MappedToIPv6) ip = ip.MapToIPv4();
+
+    if (IPAddress.TryParse(serverIp, out var srvIp))
+    {
+        var normSrv = srvIp.IsIPv4MappedToIPv6 ? srvIp.MapToIPv4() : srvIp;
+        if (ip.Equals(normSrv)) return true;
+    }
+    if (ip.Equals(IPAddress.Parse("112.137.142.30")) || ip.Equals(IPAddress.Parse("112.137.133.14")))
+        return true;
+
+    if (IPAddress.IsLoopback(ip)) return true;
+
+    if (ip.AddressFamily == AddressFamily.InterNetwork)
+    {
+        var b = ip.GetAddressBytes();
+        if (b[0] == 0) return true; // 0.0.0.0/8 unspecified
+        if (b[0] == 127) return true; // 127.0.0.0/8 loopback
+        if (b[0] == 10) return true; // 10.0.0.0/8 RFC1918
+        if (b[0] == 100 && (b[1] & 0xC0) == 64) return true; // 100.64.0.0/10 CGNAT
+        if (b[0] == 169 && b[1] == 254) return true; // 169.254.0.0/16 link-local / metadata
+        if (b[0] == 172 && b[1] >= 16 && b[1] <= 31) return true; // 172.16.0.0/12 RFC1918
+        if (b[0] == 192 && b[1] == 168) return true; // 192.168.0.0/16 RFC1918
+        if (b[0] >= 224) return true; // 224.0.0.0/4 multicast + 240.0.0.0/4 reserved
+        return false;
+    }
+
+    if (ip.AddressFamily == AddressFamily.InterNetworkV6)
+    {
+        if (ip.Equals(IPAddress.IPv6Any) || ip.Equals(IPAddress.IPv6Loopback)) return true;
+        if (ip.IsIPv6LinkLocal || ip.IsIPv6Multicast || ip.IsIPv6SiteLocal) return true;
+        var b = ip.GetAddressBytes();
+        if (b[0] == 0xfe && (b[1] & 0xc0) == 0x80) return true; // fe80::/10 link-local
+        if ((b[0] & 0xfe) == 0xfc) return true; // fc00::/7 ULA
+        if (b[0] == 0xff) return true; // ff00::/8 multicast
+        return false;
+    }
+
+    return true;
+}
+
 RouteDecision EvaluateHost(string rawHost, RuleStoreModel currentRules, string? user = null)
 {
-    var host = (rawHost ?? "").Split(':')[0].Trim().ToLowerInvariant();
+    var host = ExtractHostOnly(rawHost);
     var proxyDirective = $"{currentRules.ProxyScheme} {currentRules.ProxyHost}:{currentRules.ProxyPort}";
 
-    // -1. Máy chủ VAGS & IP Cổng: Luôn cho phép chuyển tiếp nội bộ để truy cập /admin và tài nguyên cổng
+    // -1. Máy chủ VAGS & IP Cổng: Kết nối trực tiếp (DIRECT), không bao giờ tunnel qua chính nó
     if (IsVagsSelfHost(host, currentRules))
     {
-        return new RouteDecision(host, "PROXY", proxyDirective, primaryDomain, "vagsServer", true, "Máy chủ Cổng VAGS nội bộ (Admin & Portal)");
+        return new RouteDecision(host, "DIRECT", "DIRECT", primaryDomain, "vagsServerBypass", false, "Máy chủ Cổng VAGS kết nối trực tiếp (DIRECT)");
     }
 
     // 0. High-Bandwidth Blacklist (YouTube, Facebook, TikTok, etc.) -> ALWAYS DIRECT
@@ -249,34 +472,26 @@ RouteDecision EvaluateHost(string rawHost, RuleStoreModel currentRules, string? 
         }
     }
 
-    // 1. User Specific Overrides (e.g. phongnd -> idp.vnu.edu.vn)
-    if (currentRules.UserOverrides?.UserSpecificRules != null)
+    // 1. User Specific Overrides (chỉ áp dụng cho đúng tài khoản đã xác thực, không leak sang user khác)
+    if (!string.IsNullOrWhiteSpace(user) && currentRules.UserOverrides?.UserSpecificRules != null)
     {
-        if (!string.IsNullOrWhiteSpace(user))
+        var u = user.Trim().ToLowerInvariant();
+        UserRuleConfig? uConfig = null;
+        foreach (var kvp in currentRules.UserOverrides.UserSpecificRules)
         {
-            var u = user.Trim().ToLowerInvariant();
-            if (currentRules.UserOverrides.UserSpecificRules.TryGetValue(u, out var uConfig))
+            if (string.Equals(kvp.Key?.Trim(), u, StringComparison.OrdinalIgnoreCase))
             {
-                foreach (var pattern in uConfig.ProxyDomains ?? new List<string>())
-                {
-                    if (ShExpMatch(host, pattern))
-                    {
-                        return new RouteDecision(host, "PROXY", proxyDirective, pattern, "userOverride", true, $"Đặc quyền Proxy theo tài khoản ngoại lệ ({u})");
-                    }
-                }
+                uConfig = kvp.Value;
+                break;
             }
         }
-        else
+        if (uConfig != null)
         {
-            // If user identity is not passed in raw CONNECT headers, match against any configured user-specific proxy domain
-            foreach (var kvp in currentRules.UserOverrides.UserSpecificRules)
+            foreach (var pattern in uConfig.ProxyDomains ?? new List<string>())
             {
-                foreach (var pattern in kvp.Value.ProxyDomains ?? new List<string>())
+                if (ShExpMatch(host, pattern))
                 {
-                    if (ShExpMatch(host, pattern))
-                    {
-                        return new RouteDecision(host, "PROXY", proxyDirective, pattern, "userOverride", true, $"Đặc quyền Proxy theo cấu hình ngoại lệ ({kvp.Key})");
-                    }
+                    return new RouteDecision(host, "PROXY", proxyDirective, pattern, "userOverride", true, $"Đặc quyền Proxy theo tài khoản ngoại lệ ({u})");
                 }
             }
         }
@@ -318,16 +533,347 @@ RouteDecision EvaluateHost(string rawHost, RuleStoreModel currentRules, string? 
     return new RouteDecision(host, "DIRECT", "DIRECT", "*", "default", false, "Domain not in VAGS Academic Whitelist");
 }
 
-bool ValidateProxyAuth(string? authHeader, RuleStoreModel currentRules, out string authNote, out string? username, out string? unit, out string? memberType)
-{
-    username = null;
-    unit = null;
-    memberType = "canbo";
+string Base64UrlEncode(byte[] data) =>
+    Convert.ToBase64String(data).TrimEnd('=').Replace('+', '-').Replace('/', '_');
 
+bool TryBase64UrlDecode(string? input, out byte[] bytes)
+{
+    bytes = Array.Empty<byte>();
+    if (string.IsNullOrWhiteSpace(input)) return false;
+    try
+    {
+        var s = input.Trim().Replace('-', '+').Replace('_', '/');
+        switch (s.Length % 4)
+        {
+            case 2: s += "=="; break;
+            case 3: s += "="; break;
+            case 1: return false;
+        }
+        bytes = Convert.FromBase64String(s);
+        return bytes.Length > 0;
+    }
+    catch
+    {
+        return false;
+    }
+}
+
+bool IsUserDenied(string? username)
+{
+    if (string.IsNullOrWhiteSpace(username)) return false;
+    var u = username.Trim();
+    lock (ruleLock)
+    {
+        return ruleStore.UserOverrides?.Denied?.Contains(u, StringComparer.OrdinalIgnoreCase) == true;
+    }
+}
+
+bool IsTokenRevokedForUser(string? username, DateTimeOffset issuedAtUtc)
+{
+    if (string.IsNullOrWhiteSpace(username)) return false;
+    if (userSessionRevokedAfter.TryGetValue(username.Trim(), out var revokedAfter) && issuedAtUtc <= revokedAfter)
+        return true;
+    var clean = NormalizeUsername(username);
+    if (!string.IsNullOrEmpty(clean) && userSessionRevokedAfter.TryGetValue(clean, out var revokedClean) && issuedAtUtc <= revokedClean)
+        return true;
+    return false;
+}
+
+void RevokeUserTokens(string? username)
+{
+    if (string.IsNullOrWhiteSpace(username)) return;
+    var u = username.Trim();
+    var clean = NormalizeUsername(u);
+    var now = DateTimeOffset.UtcNow;
+    userSessionRevokedAfter[u] = now;
+    if (!string.IsNullOrEmpty(clean)) userSessionRevokedAfter[clean] = now;
+
+    foreach (var kvp in verifiedSessionTokens.ToArray())
+    {
+        var entryUser = kvp.Value.Username;
+        if (string.Equals(entryUser, u, StringComparison.OrdinalIgnoreCase) ||
+            (!string.IsNullOrEmpty(clean) && string.Equals(NormalizeUsername(entryUser), clean, StringComparison.OrdinalIgnoreCase)))
+        {
+            verifiedSessionTokens.TryRemove(kvp.Key, out _);
+        }
+    }
+}
+
+string CreateSignedSessionToken(string username, string name, string email, string unit, string memberType, bool isAdmin, string adminRole)
+{
+    var now = DateTimeOffset.UtcNow;
+    var iat = now.ToUnixTimeSeconds();
+    var exp = now.AddHours(12).ToUnixTimeSeconds();
+    var jti = Guid.NewGuid().ToString("N");
+    var header = Base64UrlEncode(Encoding.UTF8.GetBytes("{\"alg\":\"HS256\",\"typ\":\"JWT\"}"));
+    var payloadObj = new
+    {
+        jti = jti,
+        sub = username,
+        preferred_username = username,
+        name = name,
+        email = email,
+        iss = "https://vags.vnu.edu.vn/vags-sess",
+        aud = "vags-gateway",
+        token_use = "vags-sess",
+        organizational_unit = unit,
+        vnu_admin_unit = unit,
+        vnu_member_type = string.IsNullOrWhiteSpace(memberType) ? "canbo" : memberType,
+        member_type = string.IsNullOrWhiteSpace(memberType) ? "canbo" : memberType,
+        role = isAdmin ? "vags-admin" : "vnu-academic-faculty",
+        isAdmin = isAdmin,
+        adminRole = adminRole,
+        iat = iat,
+        exp = exp
+    };
+    var payload = Base64UrlEncode(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(payloadObj)));
+    var signingInput = Encoding.ASCII.GetBytes($"{header}.{payload}");
+    var sig = Base64UrlEncode(HMACSHA256.HashData(sessionSigningKey, signingInput));
+    return $"{header}.{payload}.{sig}";
+}
+
+async Task<bool> VerifyKeycloakRs256SignatureAsync(string headerB64, string payloadB64, byte[] sigBytes, string? kid)
+{
+    async Task<List<(string? Kid, RSAParameters Params)>> GetKeysAsync(bool forceRefresh)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var current = jwksKeysCache;
+        if (!forceRefresh && current.Count > 0 && now - jwksFetchedAt < TimeSpan.FromHours(6))
+        {
+            return current;
+        }
+        if (forceRefresh && now - jwksLastAttemptAt < TimeSpan.FromSeconds(60))
+        {
+            return current;
+        }
+
+        await jwksLock.WaitAsync();
+        try
+        {
+            now = DateTimeOffset.UtcNow;
+            if (!forceRefresh && jwksKeysCache.Count > 0 && now - jwksFetchedAt < TimeSpan.FromHours(6))
+                return jwksKeysCache;
+            if (forceRefresh && now - jwksLastAttemptAt < TimeSpan.FromSeconds(60))
+                return jwksKeysCache;
+
+            jwksLastAttemptAt = now;
+            var client = jwksHttpClientFactory != null ? jwksHttpClientFactory.CreateClient() : new HttpClient();
+            client.Timeout = TimeSpan.FromSeconds(5);
+            var certsUrl = $"{keycloakAuthority}/protocol/openid-connect/certs";
+            using var resp = await client.GetAsync(certsUrl);
+            if (!resp.IsSuccessStatusCode) return jwksKeysCache;
+
+            var json = await resp.Content.ReadAsStringAsync();
+            using var jwksDoc = JsonDocument.Parse(json);
+            if (!jwksDoc.RootElement.TryGetProperty("keys", out var keysArr) || keysArr.ValueKind != JsonValueKind.Array)
+                return jwksKeysCache;
+
+            var loaded = new List<(string? Kid, RSAParameters Params)>();
+            foreach (var k in keysArr.EnumerateArray())
+            {
+                var kty = k.TryGetProperty("kty", out var ktyEl) ? ktyEl.GetString() : null;
+                var use = k.TryGetProperty("use", out var useEl) ? useEl.GetString() : null;
+                var alg = k.TryGetProperty("alg", out var algEl) ? algEl.GetString() : null;
+                if (!string.Equals(kty, "RSA", StringComparison.OrdinalIgnoreCase)) continue;
+                if (!string.IsNullOrEmpty(use) && !string.Equals(use, "sig", StringComparison.OrdinalIgnoreCase)) continue;
+                if (!string.IsNullOrEmpty(alg) && !string.Equals(alg, "RS256", StringComparison.OrdinalIgnoreCase)) continue;
+
+                var keyId = k.TryGetProperty("kid", out var kidEl) ? kidEl.GetString() : null;
+                var nStr = k.TryGetProperty("n", out var nEl) ? nEl.GetString() : null;
+                var eStr = k.TryGetProperty("e", out var eEl) ? eEl.GetString() : null;
+                if (TryBase64UrlDecode(nStr, out var nBytes) && TryBase64UrlDecode(eStr, out var eBytes))
+                {
+                    loaded.Add((keyId, new RSAParameters { Modulus = nBytes, Exponent = eBytes }));
+                }
+            }
+
+            if (loaded.Count > 0)
+            {
+                jwksKeysCache = loaded;
+                jwksFetchedAt = now;
+            }
+            return jwksKeysCache;
+        }
+        catch
+        {
+            return jwksKeysCache;
+        }
+        finally
+        {
+            jwksLock.Release();
+        }
+    }
+
+    var signedBytes = Encoding.ASCII.GetBytes($"{headerB64}.{payloadB64}");
+    var keys = await GetKeysAsync(false);
+    if (!string.IsNullOrEmpty(kid) && !keys.Any(k => string.Equals(k.Kid, kid, StringComparison.Ordinal)))
+    {
+        keys = await GetKeysAsync(true);
+    }
+
+    var candidates = !string.IsNullOrEmpty(kid)
+        ? keys.Where(k => string.Equals(k.Kid, kid, StringComparison.Ordinal)).ToList()
+        : keys;
+
+    foreach (var candidate in candidates)
+    {
+        try
+        {
+            using var rsa = RSA.Create();
+            rsa.ImportParameters(candidate.Params);
+            if (rsa.VerifyData(signedBytes, sigBytes, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1))
+                return true;
+        }
+        catch { }
+    }
+    return false;
+}
+
+async Task<VerifiedTokenIdentity?> TryVerifyBearerTokenAsync(string? rawToken)
+{
+    if (string.IsNullOrWhiteSpace(rawToken)) return null;
+    var token = rawToken.Trim();
+    if (token.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+        token = token.Substring(7).Trim();
+    if (string.IsNullOrWhiteSpace(token)) return null;
+
+    // (b) Check verified session token cache (populated by /auth/exchange)
+    if (verifiedSessionTokens.TryGetValue(token, out var cached))
+    {
+        if (DateTimeOffset.UtcNow <= cached.ExpiresAtUtc &&
+            !IsTokenRevokedForUser(cached.Username, cached.IssuedAtUtc) &&
+            !IsUserDenied(cached.Username))
+        {
+            return new VerifiedTokenIdentity(cached.Username, cached.Email, cached.Unit, cached.MemberType, cached.Jti);
+        }
+        verifiedSessionTokens.TryRemove(token, out _);
+    }
+
+    var parts = token.Split('.');
+    if (parts.Length != 3) return null;
+    if (!TryBase64UrlDecode(parts[0], out var headerBytes) ||
+        !TryBase64UrlDecode(parts[1], out var payloadBytes) ||
+        !TryBase64UrlDecode(parts[2], out var sigBytes))
+    {
+        return null;
+    }
+
+    try
+    {
+        using var headerDoc = JsonDocument.Parse(headerBytes);
+        var hRoot = headerDoc.RootElement;
+        var alg = hRoot.TryGetProperty("alg", out var algEl) ? (algEl.GetString() ?? "") : "";
+        var kid = hRoot.TryGetProperty("kid", out var kidEl) ? kidEl.GetString() : null;
+
+        using var payloadDoc = JsonDocument.Parse(payloadBytes);
+        var pRoot = payloadDoc.RootElement;
+
+        if (!pRoot.TryGetProperty("exp", out var expEl) || !expEl.TryGetInt64(out var expUnix))
+            return null;
+        var nowUnix = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        if (nowUnix > expUnix) return null;
+
+        if (pRoot.TryGetProperty("nbf", out var nbfEl) && nElTryInt64(nbfEl, out var nbfUnix) && nowUnix + 30 < nbfUnix)
+            return null;
+
+        var iss = pRoot.TryGetProperty("iss", out var issEl) ? (issEl.GetString() ?? "").TrimEnd('/') : "";
+        var jti = pRoot.TryGetProperty("jti", out var jtiEl) ? jtiEl.GetString() : null;
+        if (!string.IsNullOrEmpty(jti) && revokedTokenJtis.ContainsKey(jti))
+            return null;
+
+        if (string.Equals(alg, "HS256", StringComparison.Ordinal))
+        {
+            var tokenUse = pRoot.TryGetProperty("token_use", out var tuEl) ? tuEl.GetString() : "";
+            if (!string.Equals(iss, "https://vags.vnu.edu.vn/vags-sess", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(tokenUse, "vags-sess", StringComparison.OrdinalIgnoreCase))
+            {
+                return null;
+            }
+            var expectedSig = HMACSHA256.HashData(sessionSigningKey, Encoding.ASCII.GetBytes($"{parts[0]}.{parts[1]}"));
+            if (sigBytes.Length != expectedSig.Length || !CryptographicOperations.FixedTimeEquals(expectedSig, sigBytes))
+                return null;
+        }
+        else if (string.Equals(alg, "RS256", StringComparison.Ordinal))
+        {
+            if (string.IsNullOrEmpty(iss) || !string.Equals(iss, keycloakAuthority, StringComparison.OrdinalIgnoreCase))
+                return null;
+
+            bool audOk = false;
+            if (pRoot.TryGetProperty("azp", out var azpEl) && string.Equals(azpEl.GetString(), keycloakClientId, StringComparison.OrdinalIgnoreCase))
+                audOk = true;
+            if (!audOk && pRoot.TryGetProperty("aud", out var audEl))
+            {
+                if (audEl.ValueKind == JsonValueKind.String && string.Equals(audEl.GetString(), keycloakClientId, StringComparison.OrdinalIgnoreCase))
+                    audOk = true;
+                else if (audEl.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var a in audEl.EnumerateArray())
+                    {
+                        if (a.ValueKind == JsonValueKind.String && string.Equals(a.GetString(), keycloakClientId, StringComparison.OrdinalIgnoreCase))
+                        {
+                            audOk = true;
+                            break;
+                        }
+                    }
+                }
+            }
+            if (!audOk) return null;
+
+            if (!await VerifyKeycloakRs256SignatureAsync(parts[0], parts[1], sigBytes, kid))
+                return null;
+        }
+        else
+        {
+            return null;
+        }
+
+        string? username = pRoot.TryGetProperty("preferred_username", out var puEl) ? puEl.GetString() : null;
+        if (string.IsNullOrWhiteSpace(username) && pRoot.TryGetProperty("sub", out var subEl))
+            username = subEl.GetString();
+        if (string.IsNullOrWhiteSpace(username)) return null;
+        username = username.Trim();
+
+        var email = pRoot.TryGetProperty("email", out var emEl) ? (emEl.GetString() ?? "") : "";
+        if (string.IsNullOrWhiteSpace(email))
+            email = username.Contains('@') ? username : $"{username}@vnu.edu.vn";
+
+        var unit = pRoot.TryGetProperty("organizational_unit", out var ouEl) ? (ouEl.GetString() ?? "") : "";
+        if (string.IsNullOrWhiteSpace(unit) && pRoot.TryGetProperty("vnu_admin_unit", out var vauEl))
+            unit = vauEl.GetString() ?? "";
+
+        var memberType = pRoot.TryGetProperty("vnu_member_type", out var mtEl) ? (mtEl.GetString() ?? "") : "";
+        if (string.IsNullOrWhiteSpace(memberType) && pRoot.TryGetProperty("member_type", out var mtEl2))
+            memberType = mtEl2.GetString() ?? "";
+        if (string.IsNullOrWhiteSpace(memberType) && pRoot.TryGetProperty("role", out var rEl))
+        {
+            var rVal = rEl.GetString() ?? "";
+            if (string.Equals(rVal, "sinhvien", StringComparison.OrdinalIgnoreCase) || string.Equals(rVal, "nguoihoc", StringComparison.OrdinalIgnoreCase))
+                memberType = rVal.ToLowerInvariant();
+        }
+        if (string.IsNullOrWhiteSpace(memberType)) memberType = "canbo";
+
+        var issuedAtUtc = pRoot.TryGetProperty("iat", out var iatEl) && iatEl.TryGetInt64(out var iatUnix)
+            ? DateTimeOffset.FromUnixTimeSeconds(iatUnix)
+            : DateTimeOffset.UtcNow;
+
+        if (IsTokenRevokedForUser(username, issuedAtUtc)) return null;
+        if (IsUserDenied(username)) return null;
+
+        return new VerifiedTokenIdentity(username, email.Trim(), unit.Trim(), memberType.Trim().ToLowerInvariant(), jti);
+    }
+    catch
+    {
+        return null;
+    }
+
+    static bool nElTryInt64(JsonElement el, out long val) => el.TryGetInt64(out val);
+}
+
+async Task<(bool Ok, string AuthNote, string? Username, string? Unit, string? MemberType)> ValidateProxyAuthAsync(string? authHeader, RuleStoreModel currentRules)
+{
     if (string.IsNullOrWhiteSpace(authHeader))
     {
-        authNote = "Missing Proxy-Authorization";
-        return false;
+        return (false, "Missing Proxy-Authorization", null, null, null);
     }
 
     var token = authHeader.Trim();
@@ -342,89 +888,59 @@ bool ValidateProxyAuth(string? authHeader, RuleStoreModel currentRules, out stri
                 var user = raw.Substring(0, colonIdx).Trim();
                 var pass = raw.Substring(colonIdx + 1).Trim();
 
-                // 1. Kiểm tra Mật khẩu ứng dụng (Proxy Access Key) trong SQLite
+                if (!MonitorDbService.IsValidUsername(user))
+                {
+                    return (false, "Invalid username format", null, null, null);
+                }
+
+                bool isDenied;
+                lock (ruleLock)
+                {
+                    isDenied = (currentRules.UserOverrides?.Denied?.Contains(user, StringComparer.OrdinalIgnoreCase) == true);
+                }
+                if (isDenied)
+                {
+                    return (false, $"Account locked/denied ({user})", null, null, null);
+                }
+
                 if (monitorDb.ValidateAppKey(user, pass, out var uUnit, out var uMember))
                 {
-                    username = user;
-                    unit = uUnit;
-                    memberType = uMember;
-                    authNote = $"App Password (user={username}, unit={unit})";
-                    return true;
-                }
-
-                // 2. Đặc cách cho admin phongnd/vuongwork/admin với token hoặc key
-                if ((user.Equals("phongnd", StringComparison.OrdinalIgnoreCase) ||
-                     user.Equals("vuongwork", StringComparison.OrdinalIgnoreCase) ||
-                     user.Equals("vuongwork@vnu.edu.vn", StringComparison.OrdinalIgnoreCase) ||
-                     user.Equals("admin", StringComparison.OrdinalIgnoreCase)) &&
-                    (pass.Contains("pqtkt") || pass.Contains("vnu") || pass.StartsWith("vags-") || pass.Length >= 8))
-                {
-                    username = user;
-                    unit = "PQTKT";
-                    memberType = "canbo";
-                    authNote = $"Admin Access Key ({username})";
-                    return true;
+                    return (true, $"App Password (user={user}, unit={uUnit})", user, uUnit, uMember);
                 }
             }
         }
         catch { }
+
+        return (false, "Invalid Basic Proxy-Authorization credentials", null, null, null);
     }
 
-    if (token.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
-        token = token.Substring(7).Trim();
-
-    // Verify JWT structure and issuer (Keycloak VNU or VAGS Demo JWT)
-    var parts = token.Split('.');
-    if (parts.Length == 3)
+    var identity = await TryVerifyBearerTokenAsync(token);
+    if (identity != null)
     {
-        try
-        {
-            var payloadPadded = parts[1].Replace('-', '+').Replace('_', '/');
-            switch (payloadPadded.Length % 4)
-            {
-                case 2: payloadPadded += "=="; break;
-                case 3: payloadPadded += "="; break;
-            }
-            var payloadJson = Encoding.UTF8.GetString(Convert.FromBase64String(payloadPadded));
-            using var doc = JsonDocument.Parse(payloadJson);
-            var root = doc.RootElement;
-            var iss = root.TryGetProperty("iss", out var issEl) ? issEl.GetString() : "";
-            var exp = root.TryGetProperty("exp", out var expEl) && expEl.TryGetInt64(out var expVal) ? expVal : long.MaxValue;
-            if (root.TryGetProperty("preferred_username", out var puEl))
-                username = puEl.GetString();
-            else if (root.TryGetProperty("sub", out var subEl))
-                username = subEl.GetString();
-
-            if (root.TryGetProperty("organizational_unit", out var ouEl))
-                unit = ouEl.GetString();
-            else if (root.TryGetProperty("vnu_admin_unit", out var vauEl))
-                unit = vauEl.GetString();
-
-            if (root.TryGetProperty("vnu_member_type", out var mtEl))
-                memberType = mtEl.GetString();
-            else if (root.TryGetProperty("member_type", out var mtEl2))
-                memberType = mtEl2.GetString();
-            else if (root.TryGetProperty("role", out var rEl))
-                memberType = rEl.GetString();
-
-            if (string.IsNullOrEmpty(memberType)) memberType = "canbo";
-
-            if (DateTimeOffset.UtcNow.ToUnixTimeSeconds() > exp)
-            {
-                authNote = "JWT token expired";
-                return false;
-            }
-            if (!string.IsNullOrEmpty(iss) && (iss.Contains("vnu.edu.vn", StringComparison.OrdinalIgnoreCase) || iss.Contains("vags", StringComparison.OrdinalIgnoreCase)))
-            {
-                authNote = $"Verified JWT (user={username}, memberType={memberType}, iss={iss})";
-                return true;
-            }
-        }
-        catch { }
+        return (true, $"Verified Token (user={identity.Username}, memberType={identity.MemberType})", identity.Username, identity.Unit, identity.MemberType);
     }
 
-    authNote = "Invalid JWT token for VNU Keycloak SSO";
-    return false;
+    return (false, "Invalid or expired Proxy-Authorization token", null, null, null);
+}
+
+async Task WriteConnectErrorAsync(PipeWriter output, int statusCode, string reasonPhrase, string body, CancellationToken ct)
+{
+    try
+    {
+        var bodyBytes = Encoding.UTF8.GetBytes(body);
+        var header = $"HTTP/1.1 {statusCode} {reasonPhrase}\r\n" +
+                     "Proxy-Agent: VAGS-Gateway/2.2\r\n" +
+                     "Content-Type: text/plain; charset=utf-8\r\n" +
+                     $"Content-Length: {bodyBytes.Length}\r\n" +
+                     "Connection: close\r\n\r\n";
+        var headerBytes = Encoding.ASCII.GetBytes(header);
+        var payload = new byte[headerBytes.Length + bodyBytes.Length];
+        Buffer.BlockCopy(headerBytes, 0, payload, 0, headerBytes.Length);
+        Buffer.BlockCopy(bodyBytes, 0, payload, headerBytes.Length, bodyBytes.Length);
+        await output.WriteAsync(payload, ct);
+        await output.FlushAsync(ct);
+    }
+    catch { }
 }
 
 // Kestrel Connection Middleware that transparently handles HTTP CONNECT tunneling
@@ -488,17 +1004,24 @@ async Task HandleConnectionAsync(ConnectionContext connectionContext, Connection
     var lines = headerBlock.Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries);
     if (lines.Length == 0) return;
 
-    var requestLineParts = lines[0].Split(' ', StringSplitOptions.RemoveEmptyEntries);
-    if (requestLineParts.Length < 2) return;
-
-    var authority = requestLineParts[1];
-    var targetHost = authority;
-    var targetPort = 443;
-    if (authority.Contains(':'))
+    var rawClientIp = connectionContext.RemoteEndPoint?.ToString() ?? "unknown";
+    if (connectionContext.Items.TryGetValue("RealClientIp", out var rIpObj) && rIpObj is string rIp && !string.IsNullOrWhiteSpace(rIp))
     {
-        var hp = authority.Split(':', 2);
-        targetHost = hp[0];
-        if (!int.TryParse(hp[1], out targetPort)) targetPort = 443;
+        rawClientIp = rIp;
+    }
+    var clientIp = CleanIp(rawClientIp);
+
+    var requestLineParts = lines[0].Split(' ', StringSplitOptions.RemoveEmptyEntries);
+    if (requestLineParts.Length < 2 || requestLineParts.Length > 3 ||
+        !requestLineParts[0].Equals("CONNECT", StringComparison.OrdinalIgnoreCase) ||
+        (requestLineParts.Length == 3 && !requestLineParts[2].StartsWith("HTTP/", StringComparison.OrdinalIgnoreCase)) ||
+        !TryParseConnectAuthority(requestLineParts[1], out var targetHost, out var targetPort))
+    {
+        AddProxyLog(clientIp, requestLineParts.Length >= 2 ? requestLineParts[1] : "", 0, false, "Malformed CONNECT authority (RFC 9110)", "invalid_connect_authority");
+        await WriteConnectErrorAsync(output, 400, "Bad Request",
+            "Bad Request: Invalid CONNECT authority.\r\n",
+            connectionContext.ConnectionClosed);
+        return;
     }
 
     string? proxyAuth = null;
@@ -510,276 +1033,325 @@ async Task HandleConnectionAsync(ConnectionContext connectionContext, Connection
             proxyAuth = line.Substring("Authorization:".Length).Trim();
     }
 
-    var rawClientIp = connectionContext.RemoteEndPoint?.ToString() ?? "unknown";
-    if (connectionContext.Items.TryGetValue("RealClientIp", out var rIpObj) && rIpObj is string rIp && !string.IsNullOrWhiteSpace(rIp))
+    RuleStoreModel currentRules;
+    lock (ruleLock)
     {
-        rawClientIp = rIp;
+        currentRules = ruleStore;
     }
-    var clientIp = CleanIp(rawClientIp);
 
-    // 1. Inspect Proxy Auth if provided to identify user override privileges
+    // 1. Inspect Proxy Auth if provided
     string? authUser = null;
     string? authUnit = null;
     string? authMemberType = null;
-    string authNote = "Academic Access";
-    bool isAuthenticated = false;
-
     if (!string.IsNullOrWhiteSpace(proxyAuth))
     {
-        if (ValidateProxyAuth(proxyAuth, ruleStore, out var authReason, out var identifiedUser, out var identifiedUnit, out var identifiedMemberType))
+        var authRes = await ValidateProxyAuthAsync(proxyAuth, currentRules);
+        if (!authRes.Ok)
         {
-            authNote = authReason;
-            authUser = identifiedUser;
-            authUnit = identifiedUnit;
-            authMemberType = identifiedMemberType;
-            isAuthenticated = true;
+            AddProxyLog(clientIp, targetHost, targetPort, false,
+                $"Từ chối: {authRes.AuthNote}", "invalid_proxy_auth", "Khách (Chưa xác thực)", "Khách");
+            await WriteConnectErrorAsync(output, 403, "Forbidden",
+                "Blocked by VAGS Gateway: Thông tin xác thực Proxy không hợp lệ hoặc tài khoản đã bị khoá.\r\n",
+                connectionContext.ConnectionClosed);
+            return;
         }
+        authUser = authRes.Username;
+        authUnit = authRes.Unit;
+        authMemberType = authRes.MemberType;
     }
 
-    // A. PHÂN QUYỀN VÀ BẢO VỆ DANH TÍNH CÁN BỘ ĐHQGHN
-    // Tự động phân giải tài khoản thật từ IP Client hoặc token
+    // A. Phân giải danh tính người dùng từ Token hoặc IP Session đã xác thực
     var (resolvedUser, resolvedUnit, resolvedMemberType) = monitorDb.ResolveUser(clientIp, authUser, authUnit, authMemberType);
     var isUserAuthenticated = !string.IsNullOrEmpty(resolvedUser) && resolvedUser != "Khách (Chưa xác thực)";
-    var isOverrideUser = isUserAuthenticated && (ruleStore.UserOverrides?.Allowed?.Contains(resolvedUser) == true);
-    var isTargetVagsPortal = IsVagsSelfHost(targetHost, ruleStore);
+    var logUser = isUserAuthenticated ? resolvedUser : "Khách (Chưa xác thực)";
+    var logUnit = string.IsNullOrEmpty(resolvedUnit) ? "VNU" : resolvedUnit;
+    var logMemberType = string.IsNullOrEmpty(resolvedMemberType) ? (isUserAuthenticated ? "canbo" : "guest") : resolvedMemberType;
 
     // Kiểm tra Chế độ Bảo trì (Maintenance Mode / Đóng cổng VAGS)
-    if (CheckMaintenanceMode(ruleStore) && !isTargetVagsPortal)
+    if (CheckMaintenanceMode(currentRules))
     {
-        AddProxyLog(clientIp, targetHost, targetPort, false, "Hệ thống đang bảo trì", "maintenance_mode", resolvedUser, resolvedUnit);
-        var msg503 = "HTTP/1.1 503 Service Unavailable\r\n" +
-            "Proxy-Agent: VAGS-Gateway/2.2\r\n" +
-            "Content-Type: text/plain; charset=utf-8\r\n" +
-            "Connection: close\r\n\r\n" +
-            "Blocked by VAGS Gateway: Hệ thống Cổng VAGS đang tạm thời bảo trì để nâng cấp hạ tầng 1Gbps. Trình duyệt vui lòng chuyển sang kết nối trực tiếp (DIRECT).\r\n";
-        var resp503 = Encoding.ASCII.GetBytes(msg503);
-        await output.WriteAsync(resp503, connectionContext.ConnectionClosed);
-        await output.FlushAsync(connectionContext.ConnectionClosed);
+        AddProxyLog(clientIp, targetHost, targetPort, false, "Hệ thống đang bảo trì", "maintenance_mode", logUser, logUnit, logMemberType);
+        await WriteConnectErrorAsync(output, 503, "Service Unavailable",
+            "Blocked by VAGS Gateway: Hệ thống Cổng VAGS đang tạm thời bảo trì để nâng cấp hạ tầng 1Gbps. Trình duyệt vui lòng chuyển sang kết nối trực tiếp (DIRECT).\r\n",
+            connectionContext.ConnectionClosed);
         return;
     }
 
-    // BẢO VỆ AN TOÀN: Chặn tuyệt đối tunnel vào Loopback, Docker và Mạng nội bộ cụm máy chủ
-    var isLocalOrInternal = targetHost.Equals("localhost", StringComparison.OrdinalIgnoreCase) ||
-                            targetHost.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase) ||
-                            targetHost.Equals("::1", StringComparison.OrdinalIgnoreCase) ||
-                            targetHost.EndsWith(".docker.internal", StringComparison.OrdinalIgnoreCase) ||
-                            targetHost.Equals("host.docker.internal", StringComparison.OrdinalIgnoreCase) ||
-                            targetHost.StartsWith("10.") ||
-                            targetHost.StartsWith("192.168.") ||
-                            (targetHost.StartsWith("172.") && !IsVagsSelfHost(targetHost, ruleStore));
-    if (isLocalOrInternal)
+    // Chặn tuyệt đối CONNECT tự trỏ vào cổng VAGS (tránh loop HAProxy / SSRF nội bộ)
+    if (IsVagsSelfHost(targetHost, currentRules))
     {
-        AddProxyLog(clientIp, targetHost, targetPort, false, "Từ chối Proxy tới địa chỉ Loopback / Nội bộ / Docker (Bắt buộc Bypass)", "internal_loopback_bypass", resolvedUser, resolvedUnit);
-        var msg403 = "HTTP/1.1 403 Forbidden\r\n" +
-            "Proxy-Agent: VAGS-Gateway/2.1\r\n" +
-            "Content-Type: text/plain; charset=utf-8\r\n" +
-            "Connection: close\r\n\r\n" +
-            "Blocked by VAGS Gateway: Địa chỉ Loopback / Nội bộ / Docker không được phép đi qua Proxy VAGS. Trình duyệt phải kết nối trực tiếp (DIRECT).\r\n";
-        var resp403 = Encoding.ASCII.GetBytes(msg403);
-        await output.WriteAsync(resp403, connectionContext.ConnectionClosed);
-        await output.FlushAsync(connectionContext.ConnectionClosed);
+        AddProxyLog(clientIp, targetHost, targetPort, false, "Từ chối CONNECT vào chính Cổng VAGS (Phải truy cập trực tiếp HTTPS)", "vags_self_bypass", logUser, logUnit, logMemberType);
+        await WriteConnectErrorAsync(output, 403, "Forbidden",
+            "Blocked by VAGS Gateway: Không cho phép tunnel qua chính máy chủ VAGS. Vui lòng truy cập trực tiếp.\r\n",
+            connectionContext.ConnectionClosed);
+        return;
+    }
+
+    // Chỉ cho phép cổng HTTPS 443 qua HTTP CONNECT
+    if (targetPort != 443)
+    {
+        AddProxyLog(clientIp, targetHost, targetPort, false, $"Từ chối cổng {targetPort} (Chỉ cho phép HTTPS port 443)", "non_443_port_blocked", logUser, logUnit, logMemberType);
+        await WriteConnectErrorAsync(output, 403, "Forbidden",
+            $"Blocked by VAGS Gateway: Chỉ cho phép kết nối HTTPS cổng 443 qua Proxy VAGS (Port {targetPort} bị từ chối).\r\n",
+            connectionContext.ConnectionClosed);
         return;
     }
 
     // Chuyển hướng kiểm tra IP của Extension cũ (Chrome Web Store) từ api4.ipify.org sang /api/v1/ip-check nội bộ
     if (targetHost.EndsWith("ipify.org", StringComparison.OrdinalIgnoreCase))
     {
-        var respIpify = Encoding.ASCII.GetBytes(
-            "HTTP/1.1 403 Forbidden\r\n" +
-            "Proxy-Agent: VAGS-Gateway/2.2\r\n" +
-            "Connection: close\r\n\r\n");
-        await output.WriteAsync(respIpify, connectionContext.ConnectionClosed);
-        await output.FlushAsync(connectionContext.ConnectionClosed);
+        await WriteConnectErrorAsync(output, 403, "Forbidden", "", connectionContext.ConnectionClosed);
+        return;
+    }
+
+    // BẢO VỆ AN TOÀN: Chặn tuyệt đối tunnel vào Loopback, Docker và Mạng nội bộ cụm máy chủ
+    var isLocalOrInternal = targetHost.Equals("localhost", StringComparison.OrdinalIgnoreCase) ||
+                            targetHost.EndsWith(".localhost", StringComparison.OrdinalIgnoreCase) ||
+                            targetHost.EndsWith(".local", StringComparison.OrdinalIgnoreCase) ||
+                            targetHost.EndsWith(".internal", StringComparison.OrdinalIgnoreCase) ||
+                            targetHost.EndsWith(".docker.internal", StringComparison.OrdinalIgnoreCase) ||
+                            targetHost.Equals("host.docker.internal", StringComparison.OrdinalIgnoreCase) ||
+                            (IPAddress.TryParse(targetHost, out var rawTargetIp) && IsForbiddenTargetIp(rawTargetIp));
+    if (isLocalOrInternal)
+    {
+        AddProxyLog(clientIp, targetHost, targetPort, false, "Từ chối Proxy tới địa chỉ Loopback / Nội bộ / Docker (Bắt buộc Bypass)", "internal_loopback_bypass", logUser, logUnit, logMemberType);
+        await WriteConnectErrorAsync(output, 403, "Forbidden",
+            "Blocked by VAGS Gateway: Địa chỉ Loopback / Nội bộ / Docker không được phép đi qua Proxy VAGS. Trình duyệt phải kết nối trực tiếp (DIRECT).\r\n",
+            connectionContext.ConnectionClosed);
+        return;
+    }
+
+    // BẮT BUỘC XÁC THỰC DANH TÍNH (Chống Open Proxy tuyệt đối, không miễn trừ domain cloud nào)
+    if (!isUserAuthenticated)
+    {
+        AddProxyLog(clientIp, targetHost, targetPort, false,
+            "Từ chối truy cập: Chưa xác thực danh tính Cán bộ ĐHQGHN (Chống Open Proxy)",
+            "unauthenticated_client_blocked", "Khách (Chưa xác thực)", "Khách", "guest");
+        await WriteConnectErrorAsync(output, 403, "Forbidden",
+            "Blocked by VAGS Gateway: Bạn chưa đăng nhập tài khoản Cán bộ ĐHQGHN. Vui lòng truy cập https://vags.vnu.edu.vn để đăng nhập.\r\n",
+            connectionContext.ConnectionClosed);
         return;
     }
 
     // Kiểm tra tài khoản bị khoá (Admin Lock / Denied Override)
-    var isUserDenied = isUserAuthenticated && (ruleStore.UserOverrides?.Denied?.Contains(resolvedUser, StringComparer.OrdinalIgnoreCase) == true);
-    if (isUserDenied && !isTargetVagsPortal)
+    bool isUserDenied;
+    bool isOverrideUser;
+    lock (ruleLock)
     {
-        AddProxyLog(clientIp, targetHost, targetPort, false, "Tài khoản đã bị Quản trị viên KHOÁ quyền sử dụng Proxy VAGS", "user_locked", resolvedUser, resolvedUnit);
-        var msg403 = "HTTP/1.1 403 Forbidden\r\n" +
-            "Proxy-Agent: VAGS-Gateway/2.1\r\n" +
-            "Content-Type: text/plain; charset=utf-8\r\n" +
-            "Connection: close\r\n\r\n" +
-            "Blocked by VAGS Gateway: Tài khoản của bạn đã bị Quản trị viên khoá quyền sử dụng Proxy VAGS. Vui lòng liên hệ Quản trị viên ĐHQGHN để được hỗ trợ.\r\n";
-        var resp403 = Encoding.ASCII.GetBytes(msg403);
-        await output.WriteAsync(resp403, connectionContext.ConnectionClosed);
-        await output.FlushAsync(connectionContext.ConnectionClosed);
+        isUserDenied = currentRules.UserOverrides?.Denied?.Contains(resolvedUser, StringComparer.OrdinalIgnoreCase) == true;
+        isOverrideUser = currentRules.UserOverrides?.Allowed?.Contains(resolvedUser, StringComparer.OrdinalIgnoreCase) == true;
+    }
+    if (isUserDenied)
+    {
+        AddProxyLog(clientIp, targetHost, targetPort, false, "Tài khoản đã bị Quản trị viên KHOÁ quyền sử dụng Proxy VAGS", "user_locked", logUser, logUnit, logMemberType);
+        await WriteConnectErrorAsync(output, 403, "Forbidden",
+            "Blocked by VAGS Gateway: Tài khoản của bạn đã bị Quản trị viên khoá quyền sử dụng Proxy VAGS. Vui lòng liên hệ Quản trị viên ĐHQGHN để được hỗ trợ.\r\n",
+            connectionContext.ConnectionClosed);
         return;
     }
 
-    // Hạ tầng Cổng danh tính & Kênh cập nhật Chrome tự động:
-    // Cần cho phép kết nối để Chrome của máy cán bộ tải bản cập nhật Extension mới (v2.1.4) và kiểm tra Gmail,
-    // tránh tình trạng bị kẹt "con gà và quả trứng" (không update được Extension do bị chặn kết nối cập nhật).
-    var isCloudIdentityOrUpdate = ShExpMatch(targetHost, "*.google.com") || targetHost.Equals("google.com", StringComparison.OrdinalIgnoreCase) ||
-                                  ShExpMatch(targetHost, "*.googleapis.com") || ShExpMatch(targetHost, "*.gstatic.com") ||
-                                  ShExpMatch(targetHost, "*.googleusercontent.com") || ShExpMatch(targetHost, "*.gvt1.com") ||
-                                  ShExpMatch(targetHost, "*.gvt2.com") || ShExpMatch(targetHost, "*.microsoft.com") ||
-                                  ShExpMatch(targetHost, "*.live.com") || ShExpMatch(targetHost, "*.office.com");
-
-    var isAllowedInfrastructure = isTargetVagsPortal || isCloudIdentityOrUpdate;
-
-    // 2. Evaluate Whitelist / Blacklist Policy (with User Override support)
-    var decision = EvaluateHost(targetHost, ruleStore, authUser);
-
-    // BẢO VỆ AN TOÀN TUYỆT ĐỐI - CHỐNG LỢI DỤNG OPEN PROXY:
-    // Ngoại trừ Cổng VAGS và Hạ tầng cập nhật/xác thực danh tính Google/Microsoft của trường,
-    // MỌI KẾT NỐI QUA PROXY ĐẾN CÁC TRANG KHÁC BẮT BUỘC PHẢI LÀ CÁN BỘ ĐÃ XÁC THỰC DANH TÍNH!
-    if (!isAllowedInfrastructure && !isUserAuthenticated)
+    // Chặn tài khoản Sinh viên (trừ tài khoản nằm trong Allowed Override)
+    if (string.Equals(resolvedMemberType, "sinhvien", StringComparison.OrdinalIgnoreCase) && !isOverrideUser)
     {
-        // Ghi log từ chối kết nối
-        var isInvalidAuth = !string.IsNullOrWhiteSpace(proxyAuth);
-        var reason = isInvalidAuth 
-            ? "Từ chối: Mật khẩu Proxy không hợp lệ hoặc tài khoản chưa xác thực"
-            : "Từ chối truy cập: Chưa xác thực danh tính Cán bộ ĐHQGHN (Chống Open Proxy)";
-        var ruleCode = isInvalidAuth ? "invalid_proxy_auth" : "unauthenticated_client_blocked";
-
-        AddProxyLog(clientIp, targetHost, targetPort, false, reason, ruleCode, "Khách (Chưa xác thực)", "Khách");
-
-        // TUYỆT ĐỐI KHÔNG TRẢ 407 ĐỂ TRÁNH POPUP CHROME HỎI PASS
-        // Trả 403 Forbidden với thông báo rõ ràng không làm đứng trình duyệt
-        var msg403 = "HTTP/1.1 403 Forbidden\r\n" +
-            "Proxy-Agent: VAGS-Gateway/2.1\r\n" +
-            "Content-Type: text/plain; charset=utf-8\r\n" +
-            "Connection: close\r\n\r\n" +
-            "Blocked by VAGS Gateway: Bạn chưa đăng nhập tài khoản Cán bộ ĐHQGHN. Vui lòng truy cập https://vags.vnu.edu.vn để đăng nhập.\r\n";
-        var resp403 = Encoding.ASCII.GetBytes(msg403);
-        await output.WriteAsync(resp403, connectionContext.ConnectionClosed);
-        await output.FlushAsync(connectionContext.ConnectionClosed);
+        AddProxyLog(clientIp, targetHost, targetPort, false, "Tài khoản Sinh viên không có quyền sử dụng Proxy CSDL VAGS", "student_blocked", logUser, logUnit, logMemberType);
+        await WriteConnectErrorAsync(output, 403, "Forbidden",
+            "Blocked by VAGS Gateway: Tài khoản Sinh viên không được cấp quyền sử dụng Proxy VAGS.\r\n",
+            connectionContext.ConnectionClosed);
         return;
     }
 
-    // 3. Phân quyền cho Người dùng VNU đã xác thực (Mở quyền cho cả Cán bộ, Giảng viên và Sinh viên/Người học)
-    var logUser = string.IsNullOrEmpty(resolvedUser) ? "Khách (Chưa xác thực)" : resolvedUser;
-    var logUnit = string.IsNullOrEmpty(resolvedUnit) ? "VNU" : resolvedUnit;
-    var logMemberType = string.IsNullOrEmpty(resolvedMemberType) ? "canbo" : resolvedMemberType;
-
-    // B. Kiểm tra Blacklist (Băng thông cao / Game / Mạng xã hội):
-    // Đối với Cán bộ hợp lệ: Cho phép chuyển tiếp thông suốt các dịch vụ Google Workspace / Microsoft
-    // để không gây gián đoạn Gmail/Chat của cán bộ trong quá trình Extension đồng bộ
-    var isCloudIdentityOrWork = ShExpMatch(targetHost, "*.google.com") || targetHost.Equals("google.com", StringComparison.OrdinalIgnoreCase) ||
-                                ShExpMatch(targetHost, "*.googleapis.com") || ShExpMatch(targetHost, "*.gstatic.com") ||
-                                ShExpMatch(targetHost, "*.googleusercontent.com") || ShExpMatch(targetHost, "*.microsoft.com");
-
-    if (decision.MatchedCategory == "blacklist" && !isCloudIdentityOrWork)
+    // 2. Evaluate Whitelist / Blacklist Policy (dùng đúng resolvedUser đã xác thực)
+    RouteDecision decision;
+    lock (ruleLock)
     {
-        AddProxyLog(clientIp, targetHost, targetPort, false, "Tên miền trong Blacklist không được phép đi qua Proxy ĐHQGHN", "blacklist_blocked", resolvedUser, resolvedUnit);
-        var body = "Blocked by VAGS Gateway: Tên miền này nằm trong danh mục Blacklist và phải truy cập trực tiếp (DIRECT).\r\n";
-        var resp403 = Encoding.ASCII.GetBytes(
-            "HTTP/1.1 403 Forbidden\r\n" +
-            "Proxy-Agent: VAGS-Gateway/2.1\r\n" +
-            "Content-Type: text/plain; charset=utf-8\r\n" +
-            $"Content-Length: {Encoding.UTF8.GetByteCount(body)}\r\n" +
-            "Connection: close\r\n\r\n" + body);
-        await output.WriteAsync(resp403, connectionContext.ConnectionClosed);
-        await output.FlushAsync(connectionContext.ConnectionClosed);
+        decision = EvaluateHost(targetHost, currentRules, resolvedUser);
+    }
+
+    // Enforce strict policy allowlist BEFORE connecting upstream
+    if (!decision.AllowedForTunnel || !string.Equals(decision.Action, "PROXY", StringComparison.OrdinalIgnoreCase))
+    {
+        var blockCode = decision.MatchedCategory == "blacklist" ? "blacklist_blocked" : $"policy_blocked_{decision.MatchedCategory}";
+        AddProxyLog(clientIp, targetHost, targetPort, false, $"Chính sách định tuyến từ chối tunnel: {decision.Reason}", blockCode, logUser, logUnit, logMemberType);
+        await WriteConnectErrorAsync(output, 403, "Forbidden",
+            $"Blocked by VAGS Gateway: {decision.Reason} (Phải kết nối trực tiếp DIRECT).\r\n",
+            connectionContext.ConnectionClosed);
         return;
     }
 
-    // 3. Establish TCP tunnel to destination (Academic Publisher or loopback to VAGS itself)
-    TcpClient? tcpClient = null;
+    // Reject raw IP literals on CONNECT unless explicitly allowed in whitelist
+    IPAddress? explicitAllowedLiteralIp = null;
+    if (IPAddress.TryParse(targetHost, out var parsedLiteralIp))
+    {
+        var normLiteral = parsedLiteralIp.IsIPv4MappedToIPv6 ? parsedLiteralIp.MapToIPv4() : parsedLiteralIp;
+        bool explicitlyAllowed = !IsForbiddenTargetIp(normLiteral) &&
+                                 decision.MatchedRule != "*" &&
+                                 (decision.MatchedCategory == "userOverride" ||
+                                  decision.MatchedCategory == "internalWhitelist" ||
+                                  decision.MatchedCategory == "globalAcademicWhitelist");
+        if (!explicitlyAllowed)
+        {
+            AddProxyLog(clientIp, targetHost, targetPort, false, "Từ chối kết nối trực tiếp bằng địa chỉ IP (IP literal không nằm trong whitelist)", "ip_literal_blocked", logUser, logUnit, logMemberType);
+            await WriteConnectErrorAsync(output, 403, "Forbidden",
+                "Blocked by VAGS Gateway: Không cho phép CONNECT trực tiếp tới địa chỉ IP.\r\n",
+                connectionContext.ConnectionClosed);
+            return;
+        }
+        explicitAllowedLiteralIp = normLiteral;
+    }
+
+    // Enforce max 80 concurrent tunnels per resolvedUser
+    var tunnelUserKey = resolvedUser.Trim().ToLowerInvariant();
+    int currentUserTunnels = activeUserTunnels.AddOrUpdate(tunnelUserKey, 1, (_, c) => c + 1);
+    if (currentUserTunnels > 80)
+    {
+        activeUserTunnels.AddOrUpdate(tunnelUserKey, 0, (_, c) => Math.Max(0, c - 1));
+        AddProxyLog(clientIp, targetHost, targetPort, false, "Vượt giới hạn 80 kết nối đồng thời trên mỗi tài khoản", "rate_limit_tunnels", logUser, logUnit, logMemberType);
+        await WriteConnectErrorAsync(output, 429, "Too Many Requests",
+            "Blocked by VAGS Gateway: Vượt quá giới hạn 80 kết nối đồng thời trên mỗi tài khoản.\r\n",
+            connectionContext.ConnectionClosed);
+        return;
+    }
+
     try
     {
-        var connectHost = targetHost;
-        var connectPort = targetPort;
-        if (IsVagsSelfHost(targetHost, ruleStore))
-        {
-            connectHost = serverIp;
-            connectPort = 443;
-        }
-
-        Exception? lastConnectEx = null;
-        for (int attempt = 0; attempt < 2; attempt++)
-        {
-            TcpClient? attemptClient = null;
-            try
-            {
-                attemptClient = new TcpClient();
-                using var cts = CancellationTokenSource.CreateLinkedTokenSource(connectionContext.ConnectionClosed);
-                cts.CancelAfter(TimeSpan.FromSeconds(10));
-                await attemptClient.ConnectAsync(connectHost, connectPort, cts.Token);
-                tcpClient = attemptClient;
-                attemptClient = null;
-                break;
-            }
-            catch (OperationCanceledException) when (connectionContext.ConnectionClosed.IsCancellationRequested)
-            {
-                attemptClient?.Dispose();
-                return;
-            }
-            catch (SocketException sockEx) when (attempt == 0 && !connectionContext.ConnectionClosed.IsCancellationRequested)
-            {
-                attemptClient?.Dispose();
-                lastConnectEx = sockEx;
-                await Task.Delay(150, connectionContext.ConnectionClosed);
-            }
-            catch (Exception ex)
-            {
-                attemptClient?.Dispose();
-                lastConnectEx = ex;
-                break;
-            }
-        }
-
-        if (tcpClient == null)
-        {
-            if (connectionContext.ConnectionClosed.IsCancellationRequested)
-                return;
-            throw lastConnectEx ?? new SocketException((int)SocketError.HostNotFound);
-        }
-    }
-    catch (OperationCanceledException) when (connectionContext.ConnectionClosed.IsCancellationRequested)
-    {
-        tcpClient?.Dispose();
-        return;
-    }
-    catch (Exception ex)
-    {
-        tcpClient?.Dispose();
-        if (connectionContext.ConnectionClosed.IsCancellationRequested)
-            return;
-
-        AddProxyLog(clientIp, targetHost, targetPort, false, $"Upstream connect failed: {ex.Message}", decision.MatchedRule, logUser, logUnit, logMemberType);
+        // 3. Resolve DNS ONCE (anti-DNS-rebinding & SSRF) and establish TCP tunnel
+        TcpClient? tcpClient = null;
         try
         {
-            var resp502 = Encoding.ASCII.GetBytes(
-                "HTTP/1.1 502 Bad Gateway\r\n" +
-                "Proxy-Agent: VAGS-Gateway/1.0\r\n" +
-                "Connection: close\r\n\r\n");
-            await output.WriteAsync(resp502, connectionContext.ConnectionClosed);
-            await output.FlushAsync(connectionContext.ConnectionClosed);
+            IPAddress[] validIps;
+            if (explicitAllowedLiteralIp != null)
+            {
+                validIps = new[] { explicitAllowedLiteralIp };
+            }
+            else
+            {
+                using var dnsCts = CancellationTokenSource.CreateLinkedTokenSource(connectionContext.ConnectionClosed);
+                dnsCts.CancelAfter(TimeSpan.FromSeconds(10));
+                var resolvedAddrs = await Dns.GetHostAddressesAsync(targetHost, dnsCts.Token);
+                validIps = resolvedAddrs
+                    .Select(ip => ip.IsIPv4MappedToIPv6 ? ip.MapToIPv4() : ip)
+                    .ToArray();
+
+                if (validIps.Length == 0)
+                    throw new SocketException((int)SocketError.HostNotFound);
+
+                if (validIps.Any(IsForbiddenTargetIp))
+                {
+                    AddProxyLog(clientIp, targetHost, targetPort, false,
+                        "Từ chối tên miền phân giải ra IP nội bộ / Loopback / Metadata (Chống DNS Rebinding & SSRF)",
+                        "ssrf_dns_blocked", logUser, logUnit, logMemberType);
+                    await WriteConnectErrorAsync(output, 403, "Forbidden",
+                        "Blocked by VAGS Gateway: Tên miền đích phân giải ra địa chỉ IP nội bộ không hợp lệ.\r\n",
+                        connectionContext.ConnectionClosed);
+                    return;
+                }
+            }
+
+            var ipv4Ips = validIps.Where(ip => ip.AddressFamily == AddressFamily.InterNetwork).ToArray();
+            var ipv6Ips = validIps.Where(ip => ip.AddressFamily == AddressFamily.InterNetworkV6).ToArray();
+            var connectIps = ipv4Ips.Length > 0 ? ipv4Ips : ipv6Ips;
+            var connectFamily = ipv4Ips.Length > 0 ? AddressFamily.InterNetwork : AddressFamily.InterNetworkV6;
+
+            Exception? lastConnectEx = null;
+            for (int attempt = 0; attempt < 2; attempt++)
+            {
+                TcpClient? attemptClient = null;
+                try
+                {
+                    attemptClient = new TcpClient(connectFamily);
+                    using var cts = CancellationTokenSource.CreateLinkedTokenSource(connectionContext.ConnectionClosed);
+                    cts.CancelAfter(TimeSpan.FromSeconds(10));
+                    await attemptClient.ConnectAsync(connectIps, targetPort, cts.Token);
+                    tcpClient = attemptClient;
+                    attemptClient = null;
+                    break;
+                }
+                catch (OperationCanceledException) when (connectionContext.ConnectionClosed.IsCancellationRequested)
+                {
+                    attemptClient?.Dispose();
+                    return;
+                }
+                catch (SocketException sockEx) when (attempt == 0 && !connectionContext.ConnectionClosed.IsCancellationRequested)
+                {
+                    attemptClient?.Dispose();
+                    lastConnectEx = sockEx;
+                    await Task.Delay(150, connectionContext.ConnectionClosed);
+                }
+                catch (Exception ex)
+                {
+                    attemptClient?.Dispose();
+                    lastConnectEx = ex;
+                    break;
+                }
+            }
+
+            if (tcpClient == null)
+            {
+                if (connectionContext.ConnectionClosed.IsCancellationRequested)
+                    return;
+                throw lastConnectEx ?? new SocketException((int)SocketError.HostNotFound);
+            }
+        }
+        catch (OperationCanceledException) when (connectionContext.ConnectionClosed.IsCancellationRequested)
+        {
+            tcpClient?.Dispose();
+            return;
+        }
+        catch (Exception ex)
+        {
+            tcpClient?.Dispose();
+            if (connectionContext.ConnectionClosed.IsCancellationRequested)
+                return;
+
+            AddProxyLog(clientIp, targetHost, targetPort, false, $"Upstream connect failed: {ex.Message}", decision.MatchedRule, logUser, logUnit, logMemberType);
+            try
+            {
+                var resp502 = Encoding.ASCII.GetBytes(
+                    "HTTP/1.1 502 Bad Gateway\r\n" +
+                    "Proxy-Agent: VAGS-Gateway/2.2\r\n" +
+                    "Connection: close\r\n\r\n");
+                await output.WriteAsync(resp502, connectionContext.ConnectionClosed);
+                await output.FlushAsync(connectionContext.ConnectionClosed);
+            }
+            catch { }
+            return;
+        }
+
+        using var _ownedTcpClient = tcpClient;
+
+        var resp200 = Encoding.ASCII.GetBytes(
+            "HTTP/1.1 200 Connection Established\r\n" +
+            "Proxy-Agent: VAGS-Gateway/2.2 (vags.vnu.edu.vn)\r\n\r\n");
+        await output.WriteAsync(resp200, connectionContext.ConnectionClosed);
+        await output.FlushAsync(connectionContext.ConnectionClosed);
+
+        var connStart = DateTime.UtcNow;
+        using var upstreamStream = tcpClient.GetStream();
+        var clientInStream = input.AsStream();
+        var clientOutStream = output.AsStream();
+
+        var t1 = TrackStreamCopyAsync(clientInStream, upstreamStream, connectionContext.ConnectionClosed);
+        var t2 = TrackStreamCopyAsync(upstreamStream, clientOutStream, connectionContext.ConnectionClosed);
+        try
+        {
+            await Task.WhenAny(t1, t2);
         }
         catch { }
-        return;
+
+        long bytesSent = t1.IsCompleted ? t1.Result : 0;
+        long bytesReceived = t2.IsCompleted ? t2.Result : 0;
+        long durationMs = (long)(DateTime.UtcNow - connStart).TotalMilliseconds;
+
+        AddProxyLog(clientIp, targetHost, targetPort, true, decision.Reason, decision.MatchedRule, logUser, logUnit, logMemberType, bytesSent, bytesReceived, durationMs);
     }
-
-    using var _ownedTcpClient = tcpClient;
-
-    var resp200 = Encoding.ASCII.GetBytes(
-        "HTTP/1.1 200 Connection Established\r\n" +
-        "Proxy-Agent: VAGS-Gateway/1.0 (vags.vnu.edu.vn)\r\n\r\n");
-    await output.WriteAsync(resp200, connectionContext.ConnectionClosed);
-    await output.FlushAsync(connectionContext.ConnectionClosed);
-
-    var connStart = DateTime.UtcNow;
-    using var upstreamStream = tcpClient.GetStream();
-    var clientInStream = input.AsStream();
-    var clientOutStream = output.AsStream();
-
-    var t1 = TrackStreamCopyAsync(clientInStream, upstreamStream, connectionContext.ConnectionClosed);
-    var t2 = TrackStreamCopyAsync(upstreamStream, clientOutStream, connectionContext.ConnectionClosed);
-    try
+    finally
     {
-        await Task.WhenAny(t1, t2);
+        var remaining = activeUserTunnels.AddOrUpdate(tunnelUserKey, 0, (_, c) => Math.Max(0, c - 1));
+        if (remaining <= 0)
+        {
+            activeUserTunnels.TryRemove(new KeyValuePair<string, int>(tunnelUserKey, 0));
+        }
     }
-    catch { }
-
-    long bytesSent = t1.IsCompleted ? t1.Result : 0;
-    long bytesReceived = t2.IsCompleted ? t2.Result : 0;
-    long durationMs = (long)(DateTime.UtcNow - connStart).TotalMilliseconds;
-
-    AddProxyLog(clientIp, targetHost, targetPort, true, decision.Reason, decision.MatchedRule, logUser, logUnit, logMemberType, bytesSent, bytesReceived, durationMs);
 }
 
 async Task<long> TrackStreamCopyAsync(Stream source, Stream destination, CancellationToken ct)
@@ -810,6 +1382,13 @@ async Task HandleProxyProtocolAsync(ConnectionContext context, ConnectionDelegat
     var input = context.Transport.Input;
     try
     {
+        var remoteAddr = (context.RemoteEndPoint as IPEndPoint)?.Address;
+        if (!IsTrustedProxyAddress(remoteAddr))
+        {
+            await next(context);
+            return;
+        }
+
         var readResult = await input.ReadAsync(context.ConnectionClosed);
         var buffer = readResult.Buffer;
 
@@ -819,23 +1398,30 @@ async Task HandleProxyProtocolAsync(ConnectionContext context, ConnectionDelegat
             var prefix = Encoding.ASCII.GetString(prefixBytes);
             if (prefix.Equals("PROXY ", StringComparison.OrdinalIgnoreCase))
             {
-                var lineEnd = buffer.PositionOf((byte)'\n');
+                SequencePosition? lineEnd = buffer.PositionOf((byte)'\n');
+                while (lineEnd == null && !readResult.IsCompleted && buffer.Length < 256)
+                {
+                    input.AdvanceTo(buffer.Start, buffer.End);
+                    readResult = await input.ReadAsync(context.ConnectionClosed);
+                    buffer = readResult.Buffer;
+                    lineEnd = buffer.PositionOf((byte)'\n');
+                }
+
                 if (lineEnd != null)
                 {
                     var lineBytes = buffer.Slice(0, lineEnd.Value).ToArray();
                     var lineStr = Encoding.ASCII.GetString(lineBytes).Trim();
                     // PROXY TCP4 <client_ip> <server_ip> <client_port> <server_port>
                     var parts = lineStr.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-                    if (parts.Length >= 3)
+                    if (parts.Length >= 3 &&
+                        (parts[1].Equals("TCP4", StringComparison.OrdinalIgnoreCase) || parts[1].Equals("TCP6", StringComparison.OrdinalIgnoreCase)))
                     {
-                        var realIp = parts[2].Trim();
-                        if (realIp.Contains(':') && !realIp.Contains("::")) realIp = realIp.Split(':')[0];
-                        if (realIp.StartsWith("::ffff:")) realIp = realIp.Substring(7);
-                        context.Items["RealClientIp"] = realIp;
-                        if (IPAddress.TryParse(realIp, out var parsedIp))
+                        var realIp = CleanIp(parts[2]);
+                        if (realIp != "unknown" && IPAddress.TryParse(realIp, out var parsedIp))
                         {
+                            context.Items["RealClientIp"] = realIp;
                             int port = 0;
-                            if (parts.Length >= 5 && int.TryParse(parts[4], out var p)) port = p;
+                            if (parts.Length >= 5 && int.TryParse(parts[4], out var p) && p >= 0 && p <= 65535) port = p;
                             context.RemoteEndPoint = new IPEndPoint(parsedIp, port);
                         }
                     }
@@ -912,8 +1498,41 @@ builder.WebHost.ConfigureKestrel(serverOptions =>
 });
 
 var app = builder.Build();
+jwksHttpClientFactory = app.Services.GetRequiredService<IHttpClientFactory>();
+isDevelopmentEnv = app.Environment.IsDevelopment();
 
-app.UseCors(policy => policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
+var allowedCorsOrigins = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+{
+    "https://thamkhao.vnu.edu.vn",
+    "https://vags.vnu.edu.vn"
+};
+if (!string.IsNullOrWhiteSpace(primaryDomain))
+{
+    allowedCorsOrigins.Add($"https://{primaryDomain.Trim().TrimEnd('/')}");
+}
+
+app.Use(async (context, next) =>
+{
+    context.Response.Headers["X-Content-Type-Options"] = "nosniff";
+    context.Response.Headers["X-Frame-Options"] = "SAMEORIGIN";
+    context.Response.Headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
+    await next();
+});
+
+app.UseCors(policy => policy
+    .SetIsOriginAllowed(origin =>
+    {
+        if (string.IsNullOrWhiteSpace(origin)) return false;
+        if (allowedCorsOrigins.Contains(origin)) return true;
+        if (isDevelopmentEnv && Uri.TryCreate(origin, UriKind.Absolute, out var u))
+        {
+            return u.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase) ||
+                   u.Host.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase);
+        }
+        return false;
+    })
+    .AllowAnyMethod()
+    .AllowAnyHeader());
 
 if (Directory.Exists(webRootPath))
 {
@@ -928,7 +1547,9 @@ if (Directory.Exists(webRootPath))
     app.Use(async (context, next) =>
     {
         var path = context.Request.Path.Value ?? "";
-        if (CheckMaintenanceMode(ruleStore))
+        bool isMaint;
+        lock (ruleLock) { isMaint = CheckMaintenanceMode(ruleStore); }
+        if (isMaint)
         {
             if (!path.StartsWith("/admin", StringComparison.OrdinalIgnoreCase) &&
                 !path.StartsWith("/api/", StringComparison.OrdinalIgnoreCase) &&
@@ -998,6 +1619,88 @@ if (Directory.Exists(webRootPath))
     });
 }
 
+RuleStoreModel BuildPublicRulesProjection(RuleStoreModel src)
+{
+    var configuredInternal = (src.InternalWhitelist ?? new List<string>()).ToList();
+    var userOverridesCopy = new UserOverridesModel
+    {
+        Allowed = (src.UserOverrides?.Allowed ?? new List<string>()).ToList(),
+        Denied = (src.UserOverrides?.Denied ?? new List<string>()).ToList(),
+        UserSpecificRules = (src.UserOverrides?.UserSpecificRules ?? new Dictionary<string, UserRuleConfig>())
+            .ToDictionary(
+                kvp => kvp.Key,
+                kvp => new UserRuleConfig
+                {
+                    ProxyDomains = (kvp.Value?.ProxyDomains ?? new List<string>()).ToList(),
+                    DirectDomains = (kvp.Value?.DirectDomains ?? new List<string>()).ToList()
+                })
+    };
+
+    return new RuleStoreModel
+    {
+        Version = src.Version,
+        ProxyMode = src.ProxyMode,
+        MaintenanceMode = src.MaintenanceMode,
+        EnableLicProxy = src.EnableLicProxy,
+        Blacklist = (src.Blacklist ?? new List<string>()).ToList(),
+        InternalWhitelist = src.EnableLicProxy ? configuredInternal.ToList() : new List<string>(),
+        ConfiguredInternalWhitelist = configuredInternal,
+        GlobalAcademicWhitelist = (src.GlobalAcademicWhitelist ?? new List<string>()).ToList(),
+        AuthMode = src.AuthMode,
+        KeycloakAuthority = src.KeycloakAuthority,
+        ProxyHost = src.ProxyHost,
+        ProxyPort = src.ProxyPort,
+        ProxyScheme = src.ProxyScheme,
+        DomainAliases = (src.DomainAliases ?? new List<string>()).ToList(),
+        AllowedOUs = (src.AllowedOUs ?? new List<string>()).ToList(),
+        DisallowedOUs = (src.DisallowedOUs ?? new List<string>()).ToList(),
+        AllowedMemberTypes = (src.AllowedMemberTypes ?? new List<string>()).ToList(),
+        DisallowedMemberTypes = (src.DisallowedMemberTypes ?? new List<string>()).ToList(),
+        AdminOU = src.AdminOU,
+        UserOverrides = userOverridesCopy,
+        ManualAdmins = new List<AdminAccountEntry>(),
+        UpdatedAt = src.UpdatedAt
+    };
+}
+
+bool IsSameUser(string? a, string? b)
+{
+    if (string.IsNullOrWhiteSpace(a) || string.IsNullOrWhiteSpace(b)) return false;
+    var ca = a.Trim().ToLowerInvariant();
+    var cb = b.Trim().ToLowerInvariant();
+    if (ca == cb) return true;
+    if (ca.EndsWith("@vnu.edu.vn", StringComparison.Ordinal) && ca.Substring(0, ca.Length - 11) == cb) return true;
+    if (cb.EndsWith("@vnu.edu.vn", StringComparison.Ordinal) && cb.Substring(0, cb.Length - 11) == ca) return true;
+    return false;
+}
+
+async Task<(IResult? Error, VerifiedTokenIdentity? Identity, string AdminRole)> TryAuthorizeRequestAsync(HttpContext ctx, bool requireSuperAdmin = true, bool allowReportViewer = false)
+{
+    var authHeader = ctx.Request.Headers.Authorization.FirstOrDefault();
+    if (string.IsNullOrWhiteSpace(authHeader) || !authHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+    {
+        return (Results.Json(new { ok = false, error = "Unauthorized: Missing Bearer token" }, statusCode: 401), null, "");
+    }
+
+    var identity = await TryVerifyBearerTokenAsync(authHeader);
+    if (identity == null)
+    {
+        return (Results.Json(new { ok = false, error = "Unauthorized: Invalid or expired Bearer token" }, statusCode: 401), null, "");
+    }
+
+    var adminRole = ResolveAdminRole(identity.Username, identity.Email, identity.Unit);
+    if (requireSuperAdmin)
+    {
+        bool allowed = adminRole == "super_admin" || (allowReportViewer && adminRole == "report_viewer");
+        if (!allowed)
+        {
+            return (Results.Json(new { ok = false, error = "Forbidden: Insufficient permissions" }, statusCode: 403), identity, adminRole);
+        }
+    }
+
+    return (null, identity, adminRole);
+}
+
 // Phục vụ giao diện Quản trị viên (/admin -> admin.html)
 app.MapMethods("/admin", new[] { "GET", "HEAD" }, (HttpContext ctx) =>
 {
@@ -1040,30 +1743,47 @@ app.MapMethods("/vags-extension.crx", new[] { "GET", "HEAD" }, () =>
 // Phục vụ PAC Script động (Proxy Auto-Config) cho Firefox / OS / Extension
 app.MapMethods("/vags.pac", new[] { "GET", "HEAD" }, (HttpContext ctx) =>
 {
-    var proxyServer = $"{ruleStore.ProxyScheme} {ruleStore.ProxyHost}:{ruleStore.ProxyPort}";
-    var user = ctx.Request.Query["user"].ToString();
+    var rawUser = ctx.Request.Query["user"].ToString().Trim();
+    var user = MonitorDbService.IsValidUsername(rawUser) ? rawUser : "";
+
+    RuleStoreModel snap;
+    bool isMaint;
+    lock (ruleLock)
+    {
+        snap = BuildPublicRulesProjection(ruleStore);
+        isMaint = CheckMaintenanceMode(ruleStore);
+    }
+
+    var proxyServer = $"{snap.ProxyScheme} {snap.ProxyHost}:{snap.ProxyPort}";
 
     // Nếu đang ở Chế độ Bảo trì (Maintenance Mode), trả về PAC toàn bộ DIRECT
-    if (CheckMaintenanceMode(ruleStore))
+    if (isMaint)
     {
         return Results.Text("function FindProxyForURL(url, host) {\n    // VAGS Maintenance Mode Active -> Bypass All Direct\n    return 'DIRECT';\n}", "application/x-ns-proxy-autoconfig; charset=utf-8");
     }
 
     // Nếu tài khoản bị khoá, trả về PAC toàn bộ DIRECT
-    var isUserDenied = !string.IsNullOrWhiteSpace(user) && (ruleStore.UserOverrides?.Denied?.Contains(user, StringComparer.OrdinalIgnoreCase) == true);
+    var isUserDenied = !string.IsNullOrWhiteSpace(user) && (snap.UserOverrides?.Denied?.Contains(user, StringComparer.OrdinalIgnoreCase) == true);
     if (isUserDenied)
     {
         return Results.Text("function FindProxyForURL(url, host) { return 'DIRECT'; }", "application/x-ns-proxy-autoconfig; charset=utf-8");
     }
 
     var userProxyDomains = new List<string>();
-    if (!string.IsNullOrWhiteSpace(user) && ruleStore.UserOverrides?.UserSpecificRules != null && ruleStore.UserOverrides.UserSpecificRules.TryGetValue(user, out var uCfg))
+    if (!string.IsNullOrWhiteSpace(user) && snap.UserOverrides?.UserSpecificRules != null)
     {
-        userProxyDomains = uCfg.ProxyDomains ?? new List<string>();
+        foreach (var kvp in snap.UserOverrides.UserSpecificRules)
+        {
+            if (string.Equals(kvp.Key, user, StringComparison.OrdinalIgnoreCase))
+            {
+                userProxyDomains = kvp.Value.ProxyDomains ?? new List<string>();
+                break;
+            }
+        }
     }
 
     var isUserAuth = !string.IsNullOrWhiteSpace(user) && user != "Khách (Chưa xác thực)";
-    var isFullProxy = string.Equals(ruleStore.ProxyMode, "FULL_PROXY", StringComparison.OrdinalIgnoreCase);
+    var isFullProxy = string.Equals(snap.ProxyMode, "FULL_PROXY", StringComparison.OrdinalIgnoreCase);
     var defaultDirective = (isFullProxy && isUserAuth) ? proxyServer : "DIRECT";
 
     var pacBypasses = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
@@ -1075,30 +1795,33 @@ app.MapMethods("/vags.pac", new[] { "GET", "HEAD" }, (HttpContext ctx) =>
         "127.0.0.1",
         "localhost"
     };
-    if (!string.IsNullOrWhiteSpace(ruleStore.ProxyHost)) pacBypasses.Add(ruleStore.ProxyHost);
+    if (!string.IsNullOrWhiteSpace(snap.ProxyHost)) pacBypasses.Add(snap.ProxyHost);
     foreach (var a in domainAliases) pacBypasses.Add(a);
-    if (ruleStore.DomainAliases != null) foreach (var a in ruleStore.DomainAliases) pacBypasses.Add(a);
+    if (snap.DomainAliases != null) foreach (var a in snap.DomainAliases) pacBypasses.Add(a);
 
-    var pacBypassChecks = string.Join(" || ", pacBypasses.Select(b => $"lHost === '{b.ToLowerInvariant()}' || shExpMatch(lHost, '*.{b.ToLowerInvariant()}')"));
+    var safeBypasses = pacBypasses
+        .Select(b => (b ?? "").Trim().ToLowerInvariant())
+        .Where(b => Regex.IsMatch(b, @"^[a-z0-9.-]{1,253}$"));
+    var pacBypassChecks = string.Join(" || ", safeBypasses.Select(b => $"lHost === '{b}' || shExpMatch(lHost, '*.{b}')"));
 
     var pac = $@"function FindProxyForURL(url, host) {{
-    var lHost = host.toLowerCase();
+    var lHost = host.toLowerCase().replace(/\.+$/, '');
     if ({pacBypassChecks}) return 'DIRECT';
     if (shExpMatch(lHost, '*.google.com') || lHost === 'google.com' || shExpMatch(lHost, '*.googleapis.com') || shExpMatch(lHost, '*.gstatic.com') || shExpMatch(lHost, '*.googleusercontent.com')) return 'DIRECT';
     var userWL = {JsonSerializer.Serialize(userProxyDomains)};
     for (var u = 0; u < userWL.length; u++) {{
         if (shExpMatch(lHost, userWL[u])) return ""{proxyServer}"";
     }}
-    var blacklist = {JsonSerializer.Serialize(ruleStore.Blacklist)};
+    var blacklist = {JsonSerializer.Serialize(snap.Blacklist)};
     for (var i = 0; i < blacklist.length; i++) {{
         if (shExpMatch(lHost, blacklist[i])) return ""DIRECT"";
     }}
-    var internalWL = {(ruleStore.EnableLicProxy ? JsonSerializer.Serialize(ruleStore.InternalWhitelist) : "[]")};
+    var internalWL = {(snap.EnableLicProxy ? JsonSerializer.Serialize(snap.InternalWhitelist) : "[]")};
     for (var j = 0; j < internalWL.length; j++) {{
         if (shExpMatch(lHost, internalWL[j])) return ""{proxyServer}"";
     }}
     if (shExpMatch(lHost, ""*.vnu.edu.vn"") || lHost === ""vnu.edu.vn"") return ""DIRECT"";
-    var academicWL = {JsonSerializer.Serialize(ruleStore.GlobalAcademicWhitelist)};
+    var academicWL = {JsonSerializer.Serialize(snap.GlobalAcademicWhitelist)};
     for (var k = 0; k < academicWL.length; k++) {{
         if (shExpMatch(lHost, academicWL[k])) return ""{proxyServer}"";
     }}
@@ -1111,40 +1834,87 @@ app.MapMethods("/vags.pac", new[] { "GET", "HEAD" }, (HttpContext ctx) =>
 app.MapMethods("/auth/callback", new[] { "GET", "HEAD" }, () => Results.File(Path.Combine(webRootPath, "callback.html"), "text/html"));
 
 // 1. API Lấy tập luật hiện tại (Hỗ trợ cả route /rules và /rules/latest)
-app.MapGet("/api/v1/rules", () => Results.Json(ruleStore, jsonOptions));
-app.MapGet("/api/v1/rules/latest", () => Results.Json(ruleStore, jsonOptions));
+app.MapGet("/api/v1/rules", () =>
+{
+    RuleStoreModel projection;
+    lock (ruleLock) { projection = BuildPublicRulesProjection(ruleStore); }
+    return Results.Json(projection, jsonOptions);
+});
+app.MapGet("/api/v1/rules/latest", () =>
+{
+    RuleStoreModel projection;
+    lock (ruleLock) { projection = BuildPublicRulesProjection(ruleStore); }
+    return Results.Json(projection, jsonOptions);
+});
 
 // 2. API Kiểm tra phiên bản (Startup Catch-up)
-app.MapGet("/api/v1/rules/version", () => Results.Json(new
+app.MapGet("/api/v1/rules/version", () =>
 {
-    version = ruleStore.Version,
-    authMode = ruleStore.AuthMode,
-    proxy = $"{ruleStore.ProxyScheme} {ruleStore.ProxyHost}:{ruleStore.ProxyPort}",
-    updatedAt = ruleStore.UpdatedAt
-}, jsonOptions));
+    object versionInfo;
+    lock (ruleLock)
+    {
+        versionInfo = new
+        {
+            version = ruleStore.Version,
+            authMode = ruleStore.AuthMode,
+            proxy = $"{ruleStore.ProxyScheme} {ruleStore.ProxyHost}:{ruleStore.ProxyPort}",
+            updatedAt = ruleStore.UpdatedAt
+        };
+    }
+    return Results.Json(versionInfo, jsonOptions);
+});
 
 // 3. API Nhận SSE Stream Real-time từ Extension
 app.MapGet("/api/v1/rules/stream", async context =>
 {
+    var qUserRaw = context.Request.Query["user"].FirstOrDefault();
+    var qUnitRaw = context.Request.Query["unit"].FirstOrDefault();
+    var qProxyEnabledStr = context.Request.Query["proxyEnabled"].FirstOrDefault();
+    bool qProxyEnabled = string.Equals(qProxyEnabledStr, "true", StringComparison.OrdinalIgnoreCase);
+
+    var qUser = (qUserRaw ?? "").Trim();
+    bool hasRealUserParam = !string.IsNullOrWhiteSpace(qUser) && qUser != "Cán bộ VNU";
+    if (hasRealUserParam && !MonitorDbService.IsValidUsername(qUser))
+    {
+        context.Response.StatusCode = 400;
+        await context.Response.WriteAsync("Invalid username parameter");
+        return;
+    }
+    if (!string.IsNullOrWhiteSpace(qUnitRaw) && !MonitorDbService.IsValidUnit(qUnitRaw))
+    {
+        context.Response.StatusCode = 400;
+        await context.Response.WriteAsync("Invalid unit parameter");
+        return;
+    }
+
     context.Response.Headers.Append("Content-Type", "text/event-stream; charset=utf-8");
     context.Response.Headers.Append("Cache-Control", "no-cache, no-transform");
     context.Response.Headers.Append("Connection", "keep-alive");
     context.Response.Headers.Append("X-Accel-Buffering", "no");
 
     var clientId = Guid.NewGuid();
-    var qIp = context.Request.Query["clientIp"].FirstOrDefault();
-    var qUser = context.Request.Query["user"].FirstOrDefault();
-    var qUnit = context.Request.Query["unit"].FirstOrDefault();
-    var qProxyEnabledStr = context.Request.Query["proxyEnabled"].FirstOrDefault();
-    bool qProxyEnabled = string.Equals(qProxyEnabledStr, "true", StringComparison.OrdinalIgnoreCase);
-
     var rawIp = GetRealClientIp(context);
-    if (!string.IsNullOrWhiteSpace(qIp) && qIp.Trim() != "unknown" && !qIp.Contains("127.0.0.1") && !qIp.Contains("172.23."))
-        rawIp = CleanIp(qIp);
 
-    if (!string.IsNullOrWhiteSpace(qUser) && qUser != "Cán bộ VNU")
+    string effectiveUser = "Khách (Chưa xác thực)";
+    string effectiveUnit = "VNU";
+
+    if (hasRealUserParam)
     {
-        monitorDb.RegisterUserActivity(rawIp, qUser, qUnit ?? "VNU", "canbo", qProxyEnabled);
+        var unitVal = string.IsNullOrWhiteSpace(qUnitRaw) ? "VNU" : qUnitRaw.Trim();
+        var bearerId = await TryVerifyBearerTokenAsync(context.Request.Headers.Authorization.FirstOrDefault());
+        bool bearerMatches = bearerId != null && IsSameUser(qUser, bearerId.Username);
+        bool isPrivileged = !string.IsNullOrEmpty(ResolveAdminRole(qUser, qUser, unitVal));
+        bool hasSession = monitorDb.HasActiveSessionForUser(rawIp, qUser);
+
+        if (!isPrivileged || bearerMatches || hasSession)
+        {
+            var effectiveMemberType = bearerMatches
+                ? bearerId!.MemberType
+                : (string.Equals(monitorDb.GetLatestKnownMemberType(qUser, rawIp), "sinhvien", StringComparison.OrdinalIgnoreCase) ? "sinhvien" : "canbo");
+            monitorDb.RegisterUserActivity(rawIp, qUser, unitVal, effectiveMemberType, qProxyEnabled);
+            effectiveUser = qUser;
+            effectiveUnit = unitVal.ToUpperInvariant();
+        }
     }
 
     var clientInfo = new SseClientInfo
@@ -1154,21 +1924,25 @@ app.MapGet("/api/v1/rules/stream", async context =>
         ConnectedAt = DateTime.UtcNow.ToString("O"),
         RemoteIp = rawIp,
         UserAgent = context.Request.Headers["User-Agent"].FirstOrDefault() ?? "VAGS-Client",
-        User = !string.IsNullOrWhiteSpace(qUser) ? qUser : "Khách (Chưa xác thực)",
-        Unit = !string.IsNullOrWhiteSpace(qUnit) ? qUnit.ToUpperInvariant() : "VNU"
+        User = effectiveUser,
+        Unit = effectiveUnit
     };
 
     sseClients[clientId] = clientInfo;
 
     try
     {
-        var initMsg = JsonSerializer.Serialize(new
+        string initMsg;
+        lock (ruleLock)
         {
-            type = "CONNECTED",
-            clientId = clientId,
-            version = ruleStore.Version,
-            authMode = ruleStore.AuthMode
-        }, sseJsonOptions);
+            initMsg = JsonSerializer.Serialize(new
+            {
+                type = "CONNECTED",
+                clientId = clientId,
+                version = ruleStore.Version,
+                authMode = ruleStore.AuthMode
+            }, sseJsonOptions);
+        }
         await context.Response.WriteAsync($"event: CONNECTED\ndata: {initMsg}\n\n", context.RequestAborted);
         await context.Response.Body.FlushAsync(context.RequestAborted);
 
@@ -1196,34 +1970,39 @@ async Task<IResult> HandleSaveRulesAsync(RuleStoreModel newRules)
     newRules.Version = $"{now:yyyy.MM.dd.HHmmss}.{now.Millisecond:D3}";
     newRules.UpdatedAt = now.ToString("O");
 
-    if (newRules.Blacklist == null || newRules.Blacklist.Count == 0)
-        newRules.Blacklist = ruleStore.Blacklist;
-    if (newRules.InternalWhitelist == null || newRules.InternalWhitelist.Count == 0)
-        newRules.InternalWhitelist = ruleStore.InternalWhitelist;
-    if (newRules.GlobalAcademicWhitelist == null || newRules.GlobalAcademicWhitelist.Count == 0)
-        newRules.GlobalAcademicWhitelist = ruleStore.GlobalAcademicWhitelist;
-    if (string.IsNullOrWhiteSpace(newRules.ProxyMode))
-        newRules.ProxyMode = ruleStore.ProxyMode;
-    if (string.IsNullOrWhiteSpace(newRules.AuthMode))
-        newRules.AuthMode = ruleStore.AuthMode;
-    if (string.IsNullOrWhiteSpace(newRules.KeycloakAuthority))
-        newRules.KeycloakAuthority = ruleStore.KeycloakAuthority;
-    if (string.IsNullOrWhiteSpace(newRules.ProxyHost))
-        newRules.ProxyHost = "vags.vnu.edu.vn";
-    if (newRules.ProxyPort <= 0)
-        newRules.ProxyPort = 443;
-    if (string.IsNullOrWhiteSpace(newRules.ProxyScheme))
-        newRules.ProxyScheme = "HTTPS";
-    if (newRules.AllowedOUs == null || newRules.AllowedOUs.Count == 0)
-        newRules.AllowedOUs = ruleStore.AllowedOUs;
-    if (newRules.UserOverrides == null)
-        newRules.UserOverrides = ruleStore.UserOverrides;
-
     string serialized;
     string savedVersion;
     string savedUpdatedAt;
     lock (ruleLock)
     {
+        if (newRules.Blacklist == null || newRules.Blacklist.Count == 0)
+            newRules.Blacklist = ruleStore.Blacklist;
+        if (newRules.InternalWhitelist == null || newRules.InternalWhitelist.Count == 0)
+        {
+            newRules.InternalWhitelist = (newRules.ConfiguredInternalWhitelist != null && newRules.ConfiguredInternalWhitelist.Count > 0)
+                ? newRules.ConfiguredInternalWhitelist.ToList()
+                : ruleStore.InternalWhitelist;
+        }
+        newRules.ConfiguredInternalWhitelist = null;
+        if (newRules.GlobalAcademicWhitelist == null || newRules.GlobalAcademicWhitelist.Count == 0)
+            newRules.GlobalAcademicWhitelist = ruleStore.GlobalAcademicWhitelist;
+        if (string.IsNullOrWhiteSpace(newRules.ProxyMode))
+            newRules.ProxyMode = ruleStore.ProxyMode;
+        if (string.IsNullOrWhiteSpace(newRules.AuthMode))
+            newRules.AuthMode = ruleStore.AuthMode;
+        if (string.IsNullOrWhiteSpace(newRules.KeycloakAuthority))
+            newRules.KeycloakAuthority = ruleStore.KeycloakAuthority;
+        if (string.IsNullOrWhiteSpace(newRules.ProxyHost))
+            newRules.ProxyHost = "vags.vnu.edu.vn";
+        if (newRules.ProxyPort <= 0)
+            newRules.ProxyPort = 443;
+        if (string.IsNullOrWhiteSpace(newRules.ProxyScheme))
+            newRules.ProxyScheme = "HTTPS";
+        if (newRules.AllowedOUs == null || newRules.AllowedOUs.Count == 0)
+            newRules.AllowedOUs = ruleStore.AllowedOUs;
+        if (newRules.UserOverrides == null)
+            newRules.UserOverrides = ruleStore.UserOverrides;
+
         newRules.ManualAdmins = (ruleStore.ManualAdmins ?? new List<AdminAccountEntry>())
             .Select(a => new AdminAccountEntry
             {
@@ -1238,7 +2017,7 @@ async Task<IResult> HandleSaveRulesAsync(RuleStoreModel newRules)
             .ToList();
         ruleStore = newRules;
         SaveRules(ruleStore);
-        serialized = JsonSerializer.Serialize(ruleStore, sseJsonOptions);
+        serialized = JsonSerializer.Serialize(BuildPublicRulesProjection(ruleStore), sseJsonOptions);
         savedVersion = ruleStore.Version;
         savedUpdatedAt = ruleStore.UpdatedAt;
     }
@@ -1270,13 +2049,33 @@ async Task<IResult> HandleSaveRulesAsync(RuleStoreModel newRules)
     }, jsonOptions);
 }
 
-app.MapPost("/api/v1/admin/rules", (RuleStoreModel newRules) => HandleSaveRulesAsync(newRules));
-app.MapPost("/api/v1/rules", (RuleStoreModel newRules) => HandleSaveRulesAsync(newRules));
-
-// 5. API Kiểm thử Phân loại Routing cho 1 Domain bất kỳ (Hỗ trợ theo tài khoản User)
-app.MapPost("/api/v1/rules/evaluate", (EvaluateRequest req) =>
+app.MapPost("/api/v1/admin/rules", async (HttpContext ctx, RuleStoreModel newRules) =>
 {
-    var decision = EvaluateHost(req.Host ?? "", ruleStore, req.User);
+    var (authErr, _, _) = await TryAuthorizeRequestAsync(ctx, requireSuperAdmin: true);
+    if (authErr != null) return authErr;
+    return await HandleSaveRulesAsync(newRules);
+});
+app.MapPost("/api/v1/rules", async (HttpContext ctx, RuleStoreModel newRules) =>
+{
+    var (authErr, _, _) = await TryAuthorizeRequestAsync(ctx, requireSuperAdmin: true);
+    if (authErr != null) return authErr;
+    return await HandleSaveRulesAsync(newRules);
+});
+
+// 5. API Kiểm thử Phân loại Routing cho 1 Domain bất kỳ (Hỗ trợ theo tài khoản User nếu đã xác thực)
+app.MapPost("/api/v1/rules/evaluate", async (HttpContext ctx, EvaluateRequest req) =>
+{
+    string? evalUser = null;
+    if (!string.IsNullOrWhiteSpace(req.User))
+    {
+        var (authErr, identity, adminRole) = await TryAuthorizeRequestAsync(ctx, requireSuperAdmin: false);
+        if (authErr == null && identity != null && (adminRole == "super_admin" || IsSameUser(req.User, identity.Username)))
+        {
+            evalUser = req.User;
+        }
+    }
+    RouteDecision decision;
+    lock (ruleLock) { decision = EvaluateHost(req.Host ?? "", ruleStore, evalUser); }
     return Results.Json(decision, jsonOptions);
 });
 
@@ -1292,17 +2091,39 @@ app.MapGet("/api/v1/auth/keycloak-config", () => Results.Json(new
     adminOrganizationalUnit = "pqtkt"
 }, jsonOptions));
 
-// 6.1 API Đăng xuất - Thu hồi phiên hoạt động theo IP
-app.MapPost("/api/v1/auth/logout", (HttpContext context) =>
+// 6.1 API Đăng xuất - Thu hồi phiên hoạt động theo IP & Bearer token nếu có
+app.MapPost("/api/v1/auth/logout", async (HttpContext context) =>
 {
     var clientIp = GetRealClientIp(context);
     monitorDb.UnregisterUserActivity(clientIp);
+    var authHeader = context.Request.Headers.Authorization.FirstOrDefault();
+    if (!string.IsNullOrWhiteSpace(authHeader) && authHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+    {
+        var rawTok = authHeader.Substring(7).Trim();
+        verifiedSessionTokens.TryRemove(rawTok, out _);
+        var id = await TryVerifyBearerTokenAsync(authHeader);
+        if (id != null && !string.IsNullOrEmpty(id.Jti))
+        {
+            revokedTokenJtis[id.Jti] = DateTimeOffset.UtcNow;
+        }
+    }
     return Results.Json(new { ok = true, clientIp, message = "Đã thu hồi phiên cán bộ thành công." }, jsonOptions);
 });
-app.MapPost("/api/v1/user/logout", (HttpContext context) =>
+app.MapPost("/api/v1/user/logout", async (HttpContext context) =>
 {
     var clientIp = GetRealClientIp(context);
     monitorDb.UnregisterUserActivity(clientIp);
+    var authHeader = context.Request.Headers.Authorization.FirstOrDefault();
+    if (!string.IsNullOrWhiteSpace(authHeader) && authHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+    {
+        var rawTok = authHeader.Substring(7).Trim();
+        verifiedSessionTokens.TryRemove(rawTok, out _);
+        var id = await TryVerifyBearerTokenAsync(authHeader);
+        if (id != null && !string.IsNullOrEmpty(id.Jti))
+        {
+            revokedTokenJtis[id.Jti] = DateTimeOffset.UtcNow;
+        }
+    }
     return Results.Json(new { ok = true, clientIp, message = "Đã thu hồi phiên cán bộ thành công." }, jsonOptions);
 });
 
@@ -1382,12 +2203,36 @@ app.MapPost("/api/v1/auth/exchange", async (HttpContext context, ExchangeCodeReq
     if (string.IsNullOrWhiteSpace(req?.Code))
         return Results.BadRequest(new { error = "Thiếu authorization code từ Keycloak." });
 
+    var redirectUri = string.IsNullOrWhiteSpace(req.RedirectUri)
+        ? "https://vags.vnu.edu.vn/auth/callback"
+        : req.RedirectUri.Trim();
+
+    bool isAllowedRedirect = false;
+    if (Uri.TryCreate(redirectUri, UriKind.Absolute, out var redirUri))
+    {
+        var normalizedRedir = $"{redirUri.Scheme.ToLowerInvariant()}://{redirUri.Authority.ToLowerInvariant()}{redirUri.AbsolutePath}";
+        var cleanPrimary = primaryDomain.Trim().TrimEnd('/').ToLowerInvariant();
+        if (normalizedRedir == "https://thamkhao.vnu.edu.vn/auth/callback" ||
+            normalizedRedir == "https://vags.vnu.edu.vn/auth/callback" ||
+            (!string.IsNullOrEmpty(cleanPrimary) && normalizedRedir == $"https://{cleanPrimary}/auth/callback"))
+        {
+            isAllowedRedirect = true;
+        }
+        else if (isDevelopmentEnv &&
+                 (redirUri.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase) || redirUri.Host.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase)) &&
+                 redirUri.AbsolutePath == "/auth/callback")
+        {
+            isAllowedRedirect = true;
+        }
+    }
+    if (!isAllowedRedirect)
+    {
+        return Results.BadRequest(new { error = "RedirectUri không hợp lệ hoặc không thuộc danh sách tên miền VAGS cho phép." });
+    }
+
     var client = httpClientFactory.CreateClient();
     var tokenEndpoint = $"{keycloakAuthority}/protocol/openid-connect/token";
     var userinfoEndpoint = $"{keycloakAuthority}/protocol/openid-connect/userinfo";
-    var redirectUri = string.IsNullOrWhiteSpace(req.RedirectUri)
-        ? "https://vags.vnu.edu.vn/auth/callback"
-        : req.RedirectUri;
 
     var formParams = new Dictionary<string, string>
     {
@@ -1412,40 +2257,47 @@ app.MapPost("/api/v1/auth/exchange", async (HttpContext context, ExchangeCodeReq
 
     var tokenContent = await tokenResp.Content.ReadAsStringAsync();
     using var tokenDoc = JsonDocument.Parse(tokenContent);
-    var accessToken = tokenDoc.RootElement.TryGetProperty("access_token", out var atEl) ? atEl.GetString() : "";
-    var idToken = tokenDoc.RootElement.TryGetProperty("id_token", out var idtEl) ? idtEl.GetString() : "";
-    var expiresIn = tokenDoc.RootElement.TryGetProperty("expires_in", out var expEl) ? expEl.GetInt32() : 300;
+    var accessToken = tokenDoc.RootElement.TryGetProperty("access_token", out var atEl) ? (atEl.GetString() ?? "") : "";
+    var idToken = tokenDoc.RootElement.TryGetProperty("id_token", out var idtEl) ? (idtEl.GetString() ?? "") : "";
+    var expiresIn = tokenDoc.RootElement.TryGetProperty("expires_in", out var expEl) && expEl.TryGetInt32(out var expSec) ? expSec : 300;
 
-    // Lấy thông tin UserInfo từ Keycloak
+    if (string.IsNullOrWhiteSpace(accessToken))
+    {
+        return Results.Json(new { error = "Keycloak không trả về access_token hợp lệ" }, statusCode: 502);
+    }
+
+    // Lấy thông tin UserInfo từ Keycloak (fail closed nếu lỗi)
     var reqMessage = new HttpRequestMessage(HttpMethod.Get, userinfoEndpoint);
     reqMessage.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
     var userInfoResp = await client.SendAsync(reqMessage);
 
-    string username = "";
-    string name = "";
-    string email = "";
-    string organizationalUnit = "";
-    string memberType = "";
-
-    if (userInfoResp.IsSuccessStatusCode)
+    if (!userInfoResp.IsSuccessStatusCode)
     {
-        var userInfoContent = await userInfoResp.Content.ReadAsStringAsync();
-        using var userDoc = JsonDocument.Parse(userInfoContent);
-        var root = userDoc.RootElement;
-        username = root.TryGetProperty("preferred_username", out var puEl) ? puEl.GetString() ?? "" : "";
-        name = root.TryGetProperty("name", out var nEl) ? nEl.GetString() ?? "" : username;
-        email = root.TryGetProperty("email", out var eEl) ? eEl.GetString() ?? "" : $"{username}@vnu.edu.vn";
-        organizationalUnit = root.TryGetProperty("organizational_unit", out var ouEl) ? ouEl.GetString() ?? "" : "";
-        if (string.IsNullOrEmpty(organizationalUnit) && root.TryGetProperty("vnu_admin_unit", out var vauEl))
-            organizationalUnit = vauEl.GetString() ?? "";
-        memberType = root.TryGetProperty("vnu_member_type", out var mtEl) ? mtEl.GetString() ?? "" : "";
+        var failStatus = userInfoResp.StatusCode == HttpStatusCode.Unauthorized ? 401 : 502;
+        return Results.Json(new { error = "Không thể xác thực thông tin người dùng từ Keycloak UserInfo." }, statusCode: failStatus);
     }
 
-    // Đăng ký hoạt động và IP của Cán bộ vào hệ thống SQLite Monitor
-    var clientIp = GetRealClientIp(context);
-    if (!string.IsNullOrWhiteSpace(username))
+    var userInfoContent = await userInfoResp.Content.ReadAsStringAsync();
+    using var userDoc = JsonDocument.Parse(userInfoContent);
+    var root = userDoc.RootElement;
+    var username = root.TryGetProperty("preferred_username", out var puEl) ? (puEl.GetString() ?? "").Trim() : "";
+    if (string.IsNullOrWhiteSpace(username) && root.TryGetProperty("sub", out var subEl))
+        username = (subEl.GetString() ?? "").Trim();
+    if (string.IsNullOrWhiteSpace(username))
     {
-        monitorDb.RegisterUserActivity(clientIp, username, organizationalUnit, memberType);
+        return Results.Json(new { error = "Keycloak UserInfo thiếu preferred_username." }, statusCode: 401);
+    }
+
+    var name = root.TryGetProperty("name", out var nEl) ? (nEl.GetString() ?? username) : username;
+    var email = root.TryGetProperty("email", out var eEl) ? (eEl.GetString() ?? $"{username}@vnu.edu.vn") : $"{username}@vnu.edu.vn";
+    var organizationalUnit = root.TryGetProperty("organizational_unit", out var ouEl) ? (ouEl.GetString() ?? "") : "";
+    if (string.IsNullOrEmpty(organizationalUnit) && root.TryGetProperty("vnu_admin_unit", out var vauEl))
+        organizationalUnit = vauEl.GetString() ?? "";
+    var memberType = root.TryGetProperty("vnu_member_type", out var mtEl) ? (mtEl.GetString() ?? "") : "";
+
+    if (IsUserDenied(username))
+    {
+        return Results.Json(new { error = "Tài khoản đã bị Quản trị viên khoá quyền sử dụng Proxy VAGS." }, statusCode: 403);
     }
 
     // Phân quyền Quản trị viên (2 cấp: super_admin & report_viewer)
@@ -1457,12 +2309,38 @@ app.MapPost("/api/v1/auth/exchange", async (HttpContext context, ExchangeCodeReq
         organizationalUnit = "PQTKT";
     }
 
+    var safeDbUnit = MonitorDbService.IsValidUnit(organizationalUnit)
+        ? organizationalUnit.Trim()
+        : MonitorDbService.NormalizeUnit(organizationalUnit);
+    var effectiveMemberType = string.IsNullOrWhiteSpace(memberType) ? "canbo" : memberType.Trim().ToLowerInvariant();
+
+    // Đăng ký hoạt động và IP của Cán bộ vào hệ thống SQLite Monitor
+    var clientIp = GetRealClientIp(context);
+    monitorDb.RegisterUserActivity(clientIp, username, safeDbUnit, effectiveMemberType);
+
+    // Ký VAGS Session JWT (12 giờ) & lưu cache phiên đã xác thực
+    var sessionToken = CreateSignedSessionToken(username, name, email, organizationalUnit, effectiveMemberType, isAdmin, adminRole);
+    var nowUtc = DateTimeOffset.UtcNow;
+    if (verifiedSessionTokens.Count > 5000)
+    {
+        foreach (var kvp in verifiedSessionTokens.ToArray())
+        {
+            if (kvp.Value.ExpiresAtUtc < nowUtc) verifiedSessionTokens.TryRemove(kvp.Key, out _);
+        }
+    }
+    verifiedSessionTokens[sessionToken] = new VerifiedSessionEntry(
+        username, email, organizationalUnit, effectiveMemberType, null, nowUtc, nowUtc.AddHours(12));
+    verifiedSessionTokens[accessToken] = new VerifiedSessionEntry(
+        username, email, organizationalUnit, effectiveMemberType, null, nowUtc, nowUtc.AddSeconds(Math.Clamp(expiresIn, 60, 43200)));
+
     return Results.Json(new
     {
         success = true,
         accessToken = accessToken,
+        sessionToken = sessionToken,
         idToken = idToken,
         expiresIn = expiresIn,
+        sessionExpiresIn = 43200,
         user = username,
         name = name,
         email = email,
@@ -1474,14 +2352,26 @@ app.MapPost("/api/v1/auth/exchange", async (HttpContext context, ExchangeCodeReq
     }, jsonOptions);
 });
 
-// 7. API Cấp Token SSO Giả lập / Kiểm thử cho Extension & Dashboard (Dual-Mode)
-// User thuộc đơn vị 'pqtkt' (như phongnd) được cấp quyền Admin
+// 7. API Cấp Token SSO Giả lập / Kiểm thử cho Extension & Dashboard (Chỉ cho phép trong Development)
 app.MapPost("/api/v1/auth/demo-token", (HttpContext context, DemoTokenRequest? req) =>
 {
+    if (!isDevelopmentEnv)
+    {
+        return Results.Json(new { error = "Demo token endpoint is disabled in Production." }, statusCode: 404);
+    }
+
     var username = string.IsNullOrWhiteSpace(req?.Username) ? "phongnd" : req!.Username!.Trim();
+    if (!MonitorDbService.IsValidUsername(username))
+    {
+        return Results.BadRequest(new { error = "Tên tài khoản không hợp lệ." });
+    }
     var unit = string.IsNullOrWhiteSpace(req?.OrganizationalUnit)
         ? (username.Contains("phongnd", StringComparison.OrdinalIgnoreCase) ? "pqtkt" : "general")
         : req!.OrganizationalUnit!.Trim();
+    if (!MonitorDbService.IsValidUnit(unit))
+    {
+        return Results.BadRequest(new { error = "Đơn vị không hợp lệ." });
+    }
     var email = username.Contains('@') ? username : $"{username}@vnu.edu.vn";
     var adminRole = ResolveAdminRole(username, email, unit);
     bool isAdmin = !string.IsNullOrEmpty(adminRole);
@@ -1489,29 +2379,16 @@ app.MapPost("/api/v1/auth/demo-token", (HttpContext context, DemoTokenRequest? r
     var clientIp = GetRealClientIp(context);
     monitorDb.RegisterUserActivity(clientIp, username, unit, "canbo");
 
-    var header = Convert.ToBase64String(Encoding.UTF8.GetBytes("{\"alg\":\"HS256\",\"typ\":\"JWT\"}")).TrimEnd('=').Replace('+', '-').Replace('/', '_');
-    var exp = DateTimeOffset.UtcNow.AddHours(12).ToUnixTimeSeconds();
-    var payloadObj = new
-    {
-        sub = username,
-        preferred_username = username,
-        name = username == "phongnd" ? "Nguyễn Đức Phong (P. Quản trị & Kế hoạch)" : username,
-        email = email,
-        iss = "https://idp.vnu.edu.vn/auth/realms/vnu",
-        aud = "vags-gateway",
-        organizational_unit = unit,
-        vnu_admin_unit = unit,
-        role = isAdmin ? "vags-admin" : "vnu-academic-faculty",
-        isAdmin = isAdmin,
-        adminRole = adminRole,
-        exp = exp
-    };
-    var payload = Convert.ToBase64String(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(payloadObj))).TrimEnd('=').Replace('+', '-').Replace('/', '_');
-    var sig = Convert.ToBase64String(SHA256.HashData(Encoding.UTF8.GetBytes($"{header}.{payload}.vags-vnu-secret"))).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+    var displayName = username == "phongnd" ? "Nguyễn Đức Phong (P. Quản trị & Kế hoạch)" : username;
+    var sessionToken = CreateSignedSessionToken(username, displayName, email, unit, "canbo", isAdmin, adminRole);
+    var nowUtc = DateTimeOffset.UtcNow;
+    verifiedSessionTokens[sessionToken] = new VerifiedSessionEntry(
+        username, email, unit, "canbo", null, nowUtc, nowUtc.AddHours(12));
 
     return Results.Json(new
     {
-        accessToken = $"{header}.{payload}.{sig}",
+        accessToken = sessionToken,
+        sessionToken = sessionToken,
         tokenType = "Bearer",
         expiresIn = 43200,
         user = username,
@@ -1519,7 +2396,7 @@ app.MapPost("/api/v1/auth/demo-token", (HttpContext context, DemoTokenRequest? r
         organizationalUnit = unit,
         isAdmin = isAdmin,
         adminRole = adminRole,
-        issuer = "https://idp.vnu.edu.vn/auth/realms/vnu"
+        issuer = "https://vags.vnu.edu.vn/vags-sess"
     }, jsonOptions);
 });
 
@@ -1541,8 +2418,11 @@ app.MapGet("/api/v1/auth/check-admin", (HttpContext context) =>
 });
 
 // 7.2 API Danh sách tài khoản Admin gốc & Admin cấp quyền thủ công
-app.MapGet("/api/v1/admin/accounts", () =>
+app.MapGet("/api/v1/admin/accounts", async (HttpContext ctx) =>
 {
+    var (authErr, _, _) = await TryAuthorizeRequestAsync(ctx, requireSuperAdmin: true);
+    if (authErr != null) return authErr;
+
     var rootAdmins = new[]
     {
         new { identifier = "ou=pqtkt", label = "Phòng Quản trị & Kế hoạch (ou=pqtkt)", role = "super_admin", type = "ou" },
@@ -1568,8 +2448,11 @@ app.MapGet("/api/v1/admin/accounts", () =>
 });
 
 // 7.3 API Thêm mới hoặc cập nhật vai trò tài khoản Admin thủ công
-app.MapPost("/api/v1/admin/accounts", (ManualAdminUpsertRequest? req) =>
+app.MapPost("/api/v1/admin/accounts", async (HttpContext ctx, ManualAdminUpsertRequest? req) =>
 {
+    var (authErr, _, _) = await TryAuthorizeRequestAsync(ctx, requireSuperAdmin: true);
+    if (authErr != null) return authErr;
+
     if (req == null || (string.IsNullOrWhiteSpace(req.Username) && string.IsNullOrWhiteSpace(req.Email)))
     {
         return Results.BadRequest(new { ok = false, message = "Vui lòng nhập tên tài khoản hoặc email VNU." });
@@ -1584,7 +2467,7 @@ app.MapPost("/api/v1/admin/accounts", (ManualAdminUpsertRequest? req) =>
         cleanUser = NormalizeUsername(rawEmail);
     }
 
-    if (string.IsNullOrWhiteSpace(cleanUser))
+    if (string.IsNullOrWhiteSpace(cleanUser) || !MonitorDbService.IsValidUsername(cleanUser))
     {
         return Results.BadRequest(new { ok = false, message = "Tên tài khoản không hợp lệ." });
     }
@@ -1665,8 +2548,11 @@ app.MapPost("/api/v1/admin/accounts", (ManualAdminUpsertRequest? req) =>
 });
 
 // 7.4 API Thu hồi quyền Admin thủ công
-app.MapDelete("/api/v1/admin/accounts/{username}", (string username) =>
+app.MapDelete("/api/v1/admin/accounts/{username}", async (HttpContext ctx, string username) =>
 {
+    var (authErr, _, _) = await TryAuthorizeRequestAsync(ctx, requireSuperAdmin: true);
+    if (authErr != null) return authErr;
+
     var rawTarget = (username ?? "").Trim().ToLowerInvariant();
     var cleanTarget = NormalizeUsername(username);
     if (string.IsNullOrWhiteSpace(cleanTarget))
@@ -1724,57 +2610,93 @@ app.MapGet("/api/v1/ip-check", (HttpContext http) =>
 });
 
 // 8. API Báo cáo Tổng quan Admin Dashboard & Phân tích Lưu lượng SQLite
-app.MapGet("/api/v1/admin/dashboard", async () =>
+app.MapGet("/api/v1/admin/dashboard", async (HttpContext ctx) =>
 {
-    var data = await monitorDb.GetAnalyticsSummaryAsync(ruleStore.Version, ruleStore.ProxyMode, serverIp);
+    var (authErr, _, _) = await TryAuthorizeRequestAsync(ctx, requireSuperAdmin: true);
+    if (authErr != null) return authErr;
+
+    string ver, mode;
+    lock (ruleLock) { ver = ruleStore.Version; mode = ruleStore.ProxyMode; }
+    var data = await monitorDb.GetAnalyticsSummaryAsync(ver, mode, serverIp);
     return Results.Json(data, jsonOptions);
 });
 
-app.MapGet("/api/v1/admin/analytics", async () =>
+app.MapGet("/api/v1/admin/analytics", async (HttpContext ctx) =>
 {
-    var data = await monitorDb.GetAnalyticsSummaryAsync(ruleStore.Version, ruleStore.ProxyMode, serverIp);
+    var (authErr, _, _) = await TryAuthorizeRequestAsync(ctx, requireSuperAdmin: true);
+    if (authErr != null) return authErr;
+
+    string ver, mode;
+    lock (ruleLock) { ver = ruleStore.Version; mode = ruleStore.ProxyMode; }
+    var data = await monitorDb.GetAnalyticsSummaryAsync(ver, mode, serverIp);
     return Results.Json(data, jsonOptions);
 });
 
-app.MapGet("/api/v1/admin/top-urls", async (int? limit) =>
+app.MapGet("/api/v1/admin/top-urls", async (HttpContext ctx, int? limit) =>
 {
+    var (authErr, _, _) = await TryAuthorizeRequestAsync(ctx, requireSuperAdmin: true);
+    if (authErr != null) return authErr;
+
     var data = await monitorDb.GetTopUrlsAsync(limit ?? 10);
     return Results.Json(data, jsonOptions);
 });
 
-app.MapGet("/api/v1/admin/top-users", async (int? limit) =>
+app.MapGet("/api/v1/admin/top-users", async (HttpContext ctx, int? limit) =>
 {
+    var (authErr, _, _) = await TryAuthorizeRequestAsync(ctx, requireSuperAdmin: true);
+    if (authErr != null) return authErr;
+
     var data = await monitorDb.GetTopUsersAsync(limit ?? 10);
     return Results.Json(data, jsonOptions);
 });
 
-app.MapGet("/api/v1/admin/top-ips", async (int? limit) =>
+app.MapGet("/api/v1/admin/top-ips", async (HttpContext ctx, int? limit) =>
 {
+    var (authErr, _, _) = await TryAuthorizeRequestAsync(ctx, requireSuperAdmin: true);
+    if (authErr != null) return authErr;
+
     var data = await monitorDb.GetTopIpsAsync(limit ?? 10);
     return Results.Json(data, jsonOptions);
 });
 
-app.MapGet("/api/v1/admin/top-bandwidth-urls", async (int? limit) =>
+app.MapGet("/api/v1/admin/top-bandwidth-urls", async (HttpContext ctx, int? limit) =>
 {
+    var (authErr, _, _) = await TryAuthorizeRequestAsync(ctx, requireSuperAdmin: true);
+    if (authErr != null) return authErr;
+
     var data = await monitorDb.GetTopBandwidthUrlsAsync(limit ?? 10);
     return Results.Json(data, jsonOptions);
 });
 
-app.MapGet("/api/v1/admin/audit-logs", async (string? search, string? user, string? ip, string? domain, string? status, string? allowed, int? limit, int? offset) =>
+app.MapGet("/api/v1/admin/audit-logs", async (HttpContext ctx, string? search, string? user, string? ip, string? domain, string? status, string? allowed, int? limit, int? offset) =>
 {
-    var (logs, total) = await monitorDb.GetAuditLogsAsync(search, user, ip, domain, status, allowed, limit ?? 50, offset ?? 0);
-    return Results.Json(new { logs, total, limit = limit ?? 50, offset = offset ?? 0 }, jsonOptions);
+    var (authErr, _, _) = await TryAuthorizeRequestAsync(ctx, requireSuperAdmin: true);
+    if (authErr != null) return authErr;
+
+    var clampedLimit = Math.Clamp(limit ?? 50, 1, 5000);
+    var clampedOffset = Math.Max(0, offset ?? 0);
+    var (logs, total) = await monitorDb.GetAuditLogsAsync(search, user, ip, domain, status, allowed, clampedLimit, clampedOffset);
+    return Results.Json(new { logs, total, limit = clampedLimit, offset = clampedOffset }, jsonOptions);
 });
 
-app.MapGet("/api/v1/admin/domains-breakdown", async (string? search, string? category, int? limit, int? offset) =>
+app.MapGet("/api/v1/admin/domains-breakdown", async (HttpContext ctx, string? search, string? category, int? limit, int? offset) =>
 {
-    var (domains, total) = await monitorDb.GetDomainBreakdownAsync(search, category, limit ?? 50, offset ?? 0);
-    return Results.Json(new { domains, total, limit = limit ?? 50, offset = offset ?? 0 }, jsonOptions);
+    var (authErr, _, _) = await TryAuthorizeRequestAsync(ctx, requireSuperAdmin: true);
+    if (authErr != null) return authErr;
+
+    var clampedLimit = Math.Clamp(limit ?? 50, 1, 5000);
+    var clampedOffset = Math.Max(0, offset ?? 0);
+    var (domains, total) = await monitorDb.GetDomainBreakdownAsync(search, category, clampedLimit, clampedOffset);
+    return Results.Json(new { domains, total, limit = clampedLimit, offset = clampedOffset }, jsonOptions);
 });
 
-app.MapGet("/api/v1/admin/audit-logs/export", async (int? limit) =>
+app.MapGet("/api/v1/admin/audit-logs/export", async (HttpContext ctx, int? limit) =>
 {
+    var (authErr, _, _) = await TryAuthorizeRequestAsync(ctx, requireSuperAdmin: true);
+    if (authErr != null) return authErr;
+
     var csv = await monitorDb.ExportAuditLogsCsvAsync(limit ?? 1000);
+    ctx.Response.Headers.ContentDisposition = "attachment; filename=\"vags_audit_logs.csv\"";
     return Results.Content(csv, "text/csv; charset=utf-8", Encoding.UTF8);
 });
 
@@ -1834,14 +2756,15 @@ app.MapGet("/api/v1/analytics/csdl-stats", async (HttpContext ctx) =>
 
 app.MapGet("/api/v1/analytics/export-excel", async (HttpContext ctx) =>
 {
+    var (authErr, _, _) = await TryAuthorizeRequestAsync(ctx, requireSuperAdmin: true, allowReportViewer: true);
+    if (authErr != null) return authErr;
+
     var (from, to) = ParseVnuDateRange(ctx.Request.Query["from"], ctx.Request.Query["to"]);
 
     var statsObj = await monitorDb.GetCsdlMatrixStatsAsync(from, to);
     var statsJson = JsonSerializer.Serialize(statsObj);
     using var doc = JsonDocument.Parse(statsJson);
     var root = doc.RootElement;
-    var matrixEl = root.GetProperty("matrix");
-    var unitUsersEl = root.GetProperty("byUnitUsers");
 
     var vnNow = DateTime.UtcNow.AddHours(7);
     var fromDateDisplay = from.HasValue ? from.Value.AddHours(7).ToString("dd/MM/yyyy") : "08/11/2026";
@@ -1910,92 +2833,191 @@ app.MapGet("/api/v1/analytics/export-excel", async (HttpContext ctx) =>
 
 app.MapPost("/api/v1/admin/toggle-lic", async (HttpContext ctx) =>
 {
-    if (bool.TryParse(ctx.Request.Query["enable"], out var targetEnable))
-    {
-        ruleStore.EnableLicProxy = targetEnable;
-    }
-    else
-    {
-        ruleStore.EnableLicProxy = !ruleStore.EnableLicProxy;
-    }
-    ruleStore.Version = DateTime.UtcNow.ToString("yyyy.MM.dd.HHmmss");
-    ruleStore.UpdatedAt = DateTime.UtcNow.ToString("O");
-    SaveRules(ruleStore);
+    var (authErr, _, _) = await TryAuthorizeRequestAsync(ctx, requireSuperAdmin: true);
+    if (authErr != null) return authErr;
 
-    var rulesPayload = $"event: RULES_UPDATED\ndata: {JsonSerializer.Serialize(ruleStore, sseJsonOptions)}\n\n";
+    bool newEnableLic;
+    string newVer;
+    string serialized;
+    lock (ruleLock)
+    {
+        if (bool.TryParse(ctx.Request.Query["enable"], out var targetEnable))
+        {
+            ruleStore.EnableLicProxy = targetEnable;
+        }
+        else
+        {
+            ruleStore.EnableLicProxy = !ruleStore.EnableLicProxy;
+        }
+        SaveRules(ruleStore);
+        newEnableLic = ruleStore.EnableLicProxy;
+        newVer = ruleStore.Version;
+        serialized = JsonSerializer.Serialize(BuildPublicRulesProjection(ruleStore), sseJsonOptions);
+    }
+
+    var rulesPayload = $"event: RULES_UPDATED\ndata: {serialized}\n\n";
     foreach (var kvp in sseClients.ToArray())
     {
         try { await kvp.Value.Response.WriteAsync(rulesPayload); await kvp.Value.Response.Body.FlushAsync(); } catch { sseClients.TryRemove(kvp.Key, out _); }
     }
-    return Results.Json(new { success = true, enableLicProxy = ruleStore.EnableLicProxy, version = ruleStore.Version }, jsonOptions);
+    return Results.Json(new { success = true, enableLicProxy = newEnableLic, version = newVer }, jsonOptions);
 });
 
-// API Ghi nhận nhịp tim hoạt động (Heartbeat) của Cán bộ từ Extension
-app.MapPost("/api/v1/user/heartbeat", (HttpContext ctx, HeartbeatRequest? req) =>
+async Task<IResult> HandleUserHeartbeatAsync(HttpContext ctx, string? rawUser, string? rawUnit, string? rawMemberType, bool proxyEnabled)
 {
     var clientIp = GetRealClientIp(ctx);
+    var u = (rawUser ?? "").Trim();
+    var unit = string.IsNullOrWhiteSpace(rawUnit) ? "VNU" : rawUnit.Trim();
+    var memberType = string.IsNullOrWhiteSpace(rawMemberType) ? "canbo" : rawMemberType.Trim();
+
+    if (!string.IsNullOrWhiteSpace(u) && u != "Cán bộ VNU")
+    {
+        if (!MonitorDbService.IsValidUsername(u))
+        {
+            return Results.BadRequest(new { ok = false, error = "Invalid username format" });
+        }
+        if (!MonitorDbService.IsValidUnit(unit))
+        {
+            return Results.BadRequest(new { ok = false, error = "Invalid unit format" });
+        }
+
+        var authHeader = ctx.Request.Headers.Authorization.FirstOrDefault();
+        VerifiedTokenIdentity? bearerId = null;
+        bool bearerMatches = false;
+        if (!string.IsNullOrWhiteSpace(authHeader))
+        {
+            bearerId = await TryVerifyBearerTokenAsync(authHeader);
+            if (bearerId == null)
+            {
+                return Results.Json(new { ok = false, error = "Invalid Bearer token" }, statusCode: 401);
+            }
+            if (!IsSameUser(u, bearerId.Username))
+            {
+                return Results.Json(new { ok = false, error = "Bearer token does not match target user" }, statusCode: 403);
+            }
+            bearerMatches = true;
+        }
+
+        bool isPrivileged = !string.IsNullOrEmpty(ResolveAdminRole(u, u, unit));
+        if (isPrivileged && !bearerMatches && !monitorDb.HasActiveSessionForUser(clientIp, u))
+        {
+            return Results.Json(new { ok = false, error = "Authentication required for privileged account heartbeat" }, statusCode: 401);
+        }
+
+        var effectiveMemberType = bearerMatches
+            ? bearerId!.MemberType
+            : (string.Equals(monitorDb.GetLatestKnownMemberType(u, clientIp), "sinhvien", StringComparison.OrdinalIgnoreCase) ? "sinhvien" : memberType);
+
+        monitorDb.RegisterUserActivity(clientIp, u, unit, effectiveMemberType, proxyEnabled);
+    }
+
+    return Results.Json(new { ok = true, clientIp, user = u, proxyEnabled }, jsonOptions);
+}
+
+// API Ghi nhận nhịp tim hoạt động (Heartbeat) của Cán bộ từ Extension
+app.MapPost("/api/v1/user/heartbeat", async (HttpContext ctx, HeartbeatRequest? req) =>
+{
     var u = req?.User ?? ctx.Request.Query["user"].FirstOrDefault() ?? "";
     var unit = req?.Unit ?? ctx.Request.Query["unit"].FirstOrDefault() ?? "VNU";
     var memberType = req?.MemberType ?? ctx.Request.Query["memberType"].FirstOrDefault() ?? "canbo";
     var proxyEnabled = req?.ProxyEnabled == true;
-    if (!string.IsNullOrWhiteSpace(u) && u != "Cán bộ VNU")
-    {
-        monitorDb.RegisterUserActivity(clientIp, u, unit, memberType, proxyEnabled);
-    }
-    return Results.Json(new { ok = true, clientIp, user = u, proxyEnabled });
+    return await HandleUserHeartbeatAsync(ctx, u, unit, memberType, proxyEnabled);
 });
 
 // API Cập nhật trạng thái Bật/Tắt Proxy tức thì của Extension
-app.MapPost("/api/v1/user/status", (HttpContext ctx, UserStatusRequest? req) =>
+app.MapPost("/api/v1/user/status", async (HttpContext ctx, UserStatusRequest? req) =>
 {
     var clientIp = GetRealClientIp(ctx);
-    var u = req?.User ?? "";
+    var u = (req?.User ?? "").Trim();
     var proxyEnabled = req?.ProxyEnabled == true;
     if (!string.IsNullOrWhiteSpace(u) && u != "Cán bộ VNU")
     {
+        if (!MonitorDbService.IsValidUsername(u))
+        {
+            return Results.BadRequest(new { ok = false, error = "Invalid username format" });
+        }
+
+        var authHeader = ctx.Request.Headers.Authorization.FirstOrDefault();
+        bool bearerMatches = false;
+        if (!string.IsNullOrWhiteSpace(authHeader))
+        {
+            var bearerId = await TryVerifyBearerTokenAsync(authHeader);
+            if (bearerId == null)
+                return Results.Json(new { ok = false, error = "Invalid Bearer token" }, statusCode: 401);
+            if (!IsSameUser(u, bearerId.Username))
+                return Results.Json(new { ok = false, error = "Bearer token does not match target user" }, statusCode: 403);
+            bearerMatches = true;
+        }
+
+        bool isPrivileged = !string.IsNullOrEmpty(ResolveAdminRole(u, u, ""));
+        if (isPrivileged && !bearerMatches && !monitorDb.HasActiveSessionForUser(clientIp, u))
+        {
+            return Results.Json(new { ok = false, error = "Authentication required for privileged account status update" }, statusCode: 401);
+        }
+
         monitorDb.UpdateUserProxyStatus(clientIp, u, proxyEnabled);
     }
-    return Results.Json(new { ok = true, clientIp, user = u, proxyEnabled });
+    return Results.Json(new { ok = true, clientIp, user = u, proxyEnabled }, jsonOptions);
 });
 
-app.MapGet("/api/v1/user/heartbeat", (HttpContext ctx) =>
+app.MapGet("/api/v1/user/heartbeat", async (HttpContext ctx) =>
 {
-    var clientIp = GetRealClientIp(ctx);
     var u = ctx.Request.Query["user"].FirstOrDefault() ?? "";
     var unit = ctx.Request.Query["unit"].FirstOrDefault() ?? "VNU";
     var memberType = ctx.Request.Query["memberType"].FirstOrDefault() ?? "canbo";
     var isEnabled = !string.Equals(ctx.Request.Query["proxyEnabled"], "false", StringComparison.OrdinalIgnoreCase);
-    if (!string.IsNullOrWhiteSpace(u) && u != "Cán bộ VNU")
-    {
-        monitorDb.RegisterUserActivity(clientIp, u, unit, memberType, isEnabled);
-    }
-    return Results.Json(new { ok = true, clientIp, user = u, proxyEnabled = isEnabled });
+    return await HandleUserHeartbeatAsync(ctx, u, unit, memberType, isEnabled);
 });
 
 // 9. API Trạng thái Hệ thống & Giám sát Real-time
-app.MapGet("/api/v1/health", () => Results.Json(new
+app.MapGet("/api/v1/health", () =>
 {
-    status = CheckMaintenanceMode(ruleStore) ? "maintenance" : "healthy",
-    version = ruleStore.Version,
-    proxyMode = ruleStore.ProxyMode,
-    egressIp = serverIp,
-    primaryDomain = primaryDomain,
-    maintenanceMode = CheckMaintenanceMode(ruleStore)
-}, jsonOptions));
+    bool isMaint;
+    string ver, mode;
+    lock (ruleLock)
+    {
+        isMaint = CheckMaintenanceMode(ruleStore);
+        ver = ruleStore.Version;
+        mode = ruleStore.ProxyMode;
+    }
+    return Results.Json(new
+    {
+        status = isMaint ? "maintenance" : "healthy",
+        version = ver,
+        proxyMode = mode,
+        egressIp = serverIp,
+        primaryDomain = primaryDomain,
+        maintenanceMode = isMaint
+    }, jsonOptions);
+});
 
-app.MapGet("/api/v1/status", () =>
+app.MapGet("/api/v1/status", async (HttpContext ctx) =>
 {
+    var (authErr, _, _) = await TryAuthorizeRequestAsync(ctx, requireSuperAdmin: true);
+    if (authErr != null) return authErr;
+
+    bool isMaint;
+    string ver, authMode, kcAuth, proxyEndpoint;
+    lock (ruleLock)
+    {
+        isMaint = CheckMaintenanceMode(ruleStore);
+        ver = ruleStore.Version;
+        authMode = ruleStore.AuthMode;
+        kcAuth = ruleStore.KeycloakAuthority;
+        proxyEndpoint = $"{ruleStore.ProxyScheme} {ruleStore.ProxyHost}:{ruleStore.ProxyPort}";
+    }
+
     return Results.Json(new
     {
         service = "VNU Academic Gateway (VAGS)",
         domain = primaryDomain,
         serverIp = serverIp,
         domainAliases = domainAliases,
-        maintenanceMode = CheckMaintenanceMode(ruleStore),
-        version = ruleStore.Version,
-        authMode = ruleStore.AuthMode,
-        keycloakAuthority = ruleStore.KeycloakAuthority,
-        proxyEndpoint = $"{ruleStore.ProxyScheme} {ruleStore.ProxyHost}:{ruleStore.ProxyPort}",
+        maintenanceMode = isMaint,
+        version = ver,
+        authMode = authMode,
+        keycloakAuthority = kcAuth,
+        proxyEndpoint = proxyEndpoint,
         uptimeSeconds = (int)(DateTime.UtcNow - startTime).TotalSeconds,
         activeSseClients = sseClients.Count,
         sseClients = sseClients.Values.Select(c => new
@@ -2049,21 +3071,26 @@ IResult SyncLicDatabases()
     };
 
     int added = 0;
-    foreach (var d in licVerified)
+    int totalDatabases;
+    string ver;
+    lock (ruleLock)
     {
-        if (!ruleStore.GlobalAcademicWhitelist.Contains(d, StringComparer.OrdinalIgnoreCase))
+        ruleStore.GlobalAcademicWhitelist ??= new List<string>();
+        foreach (var d in licVerified)
         {
-            ruleStore.GlobalAcademicWhitelist.Add(d);
-            added++;
+            if (!ruleStore.GlobalAcademicWhitelist.Contains(d, StringComparer.OrdinalIgnoreCase))
+            {
+                ruleStore.GlobalAcademicWhitelist.Add(d);
+                added++;
+            }
         }
-    }
 
-    if (added > 0)
-    {
-        var now = DateTime.UtcNow;
-        ruleStore.Version = $"{now:yyyy.MM.dd.HHmmss}.{now.Millisecond:D3}";
-        ruleStore.UpdatedAt = now.ToString("O");
-        SaveRules(ruleStore);
+        if (added > 0)
+        {
+            SaveRules(ruleStore);
+        }
+        totalDatabases = ruleStore.GlobalAcademicWhitelist.Count;
+        ver = ruleStore.Version;
     }
 
     return Results.Json(new
@@ -2071,36 +3098,74 @@ IResult SyncLicDatabases()
         success = true,
         source = "https://lic.vnu.edu.vn/",
         addedDatabases = added,
-        totalDatabases = ruleStore.GlobalAcademicWhitelist.Count,
-        version = ruleStore.Version
+        totalDatabases = totalDatabases,
+        version = ver
     }, jsonOptions);
 }
 
-app.MapPost("/api/v1/lic/sync", () => SyncLicDatabases());
-app.MapPost("/api/v1/lic/sync-databases", () => SyncLicDatabases());
+app.MapPost("/api/v1/lic/sync", async (HttpContext ctx) =>
+{
+    var (authErr, _, _) = await TryAuthorizeRequestAsync(ctx, requireSuperAdmin: true);
+    if (authErr != null) return authErr;
+    return SyncLicDatabases();
+});
+app.MapPost("/api/v1/lic/sync-databases", async (HttpContext ctx) =>
+{
+    var (authErr, _, _) = await TryAuthorizeRequestAsync(ctx, requireSuperAdmin: true);
+    if (authErr != null) return authErr;
+    return SyncLicDatabases();
+});
 
 // 11. API Quản lý Mật khẩu ứng dụng (Proxy Access Key) cho Cán bộ
-app.MapGet("/api/v1/user/proxy-key", (HttpContext ctx) =>
+app.MapGet("/api/v1/user/proxy-key", async (HttpContext ctx) =>
 {
-    var user = ctx.Request.Query["user"].FirstOrDefault() ?? ctx.Request.Headers["X-VAGS-User"].FirstOrDefault();
-    if (string.IsNullOrWhiteSpace(user) || user == "Cán bộ VNU")
+    var (authErr, identity, adminRole) = await TryAuthorizeRequestAsync(ctx, requireSuperAdmin: false);
+    if (authErr != null) return authErr;
+
+    var user = ctx.Request.Query["user"].FirstOrDefault()
+               ?? ctx.Request.Headers["X-VAGS-User"].FirstOrDefault()
+               ?? identity!.Username;
+    if (string.IsNullOrWhiteSpace(user) || user == "Cán bộ VNU" || !MonitorDbService.IsValidUsername(user))
         return Results.BadRequest(new { error = "Yêu cầu cung cấp username cán bộ hợp lệ" });
+
+    user = user.Trim();
+    if (!IsSameUser(user, identity!.Username) && adminRole != "super_admin")
+    {
+        return Results.Json(new { ok = false, error = "Forbidden: Không thể truy cập khóa của tài khoản khác" }, statusCode: 403);
+    }
+
     var key = monitorDb.GetOrCreateAppKey(user);
     return Results.Json(new { ok = true, user, proxyKey = key, host = "vags.vnu.edu.vn", port = 443 }, jsonOptions);
 });
 
-app.MapPost("/api/v1/user/proxy-key/regenerate", (HttpContext ctx, KeyRegenerateRequest req) =>
+app.MapPost("/api/v1/user/proxy-key/regenerate", async (HttpContext ctx, KeyRegenerateRequest? req) =>
 {
-    var user = req?.User ?? ctx.Request.Query["user"].FirstOrDefault() ?? ctx.Request.Headers["X-VAGS-User"].FirstOrDefault();
-    if (string.IsNullOrWhiteSpace(user) || user == "Cán bộ VNU")
+    var (authErr, identity, adminRole) = await TryAuthorizeRequestAsync(ctx, requireSuperAdmin: false);
+    if (authErr != null) return authErr;
+
+    var user = req?.User
+               ?? ctx.Request.Query["user"].FirstOrDefault()
+               ?? ctx.Request.Headers["X-VAGS-User"].FirstOrDefault()
+               ?? identity!.Username;
+    if (string.IsNullOrWhiteSpace(user) || user == "Cán bộ VNU" || !MonitorDbService.IsValidUsername(user))
         return Results.BadRequest(new { error = "Yêu cầu cung cấp username cán bộ hợp lệ" });
+
+    user = user.Trim();
+    if (!IsSameUser(user, identity!.Username) && adminRole != "super_admin")
+    {
+        return Results.Json(new { ok = false, error = "Forbidden: Không thể đổi khóa của tài khoản khác" }, statusCode: 403);
+    }
+
     var key = monitorDb.RegenerateAppKey(user);
     return Results.Json(new { ok = true, user, proxyKey = key, message = "Đã thu hồi mã cũ và sinh Mật khẩu ứng dụng mới thành công!" }, jsonOptions);
 });
 
 // 12. API Phát sóng ép toàn bộ Extension cập nhật tức thì (SSE Force Update)
-app.MapPost("/api/v1/admin/broadcast-update", async (BroadcastUpdateRequest? req) =>
+app.MapPost("/api/v1/admin/broadcast-update", async (HttpContext ctx, BroadcastUpdateRequest? req) =>
 {
+    var (authErr, _, _) = await TryAuthorizeRequestAsync(ctx, requireSuperAdmin: true);
+    if (authErr != null) return authErr;
+
     var targetVersion = req?.Version ?? "2.1.2";
     var payload = $"event: FORCE_UPDATE\ndata: {JsonSerializer.Serialize(new { minVersion = targetVersion, version = targetVersion, timestamp = DateTime.UtcNow }, sseJsonOptions)}\n\n";
     int sent = 0;
@@ -2121,8 +3186,11 @@ app.MapPost("/api/v1/admin/broadcast-update", async (BroadcastUpdateRequest? req
 });
 
 // 13. API Admin Force Tắt Proxy (Cá nhân hoặc Toàn bộ)
-app.MapPost("/api/v1/admin/users/force-proxy-off", async (ForceUserActionRequest? req) =>
+app.MapPost("/api/v1/admin/users/force-proxy-off", async (HttpContext ctx, ForceUserActionRequest? req) =>
 {
+    var (authErr, _, _) = await TryAuthorizeRequestAsync(ctx, requireSuperAdmin: true);
+    if (authErr != null) return authErr;
+
     var isAll = req?.All == true;
     var targetUser = req?.User?.Trim();
     var targetIp = req?.Ip?.Trim();
@@ -2158,8 +3226,11 @@ app.MapPost("/api/v1/admin/users/force-proxy-off", async (ForceUserActionRequest
 });
 
 // 14. API Admin Force Đăng Xuất (Cá nhân hoặc Toàn bộ)
-app.MapPost("/api/v1/admin/users/force-logout", async (ForceUserActionRequest? req) =>
+app.MapPost("/api/v1/admin/users/force-logout", async (HttpContext ctx, ForceUserActionRequest? req) =>
 {
+    var (authErr, _, _) = await TryAuthorizeRequestAsync(ctx, requireSuperAdmin: true);
+    if (authErr != null) return authErr;
+
     var isAll = req?.All == true;
     var targetUser = req?.User?.Trim();
     var targetIp = req?.Ip?.Trim();
@@ -2177,6 +3248,8 @@ app.MapPost("/api/v1/admin/users/force-logout", async (ForceUserActionRequest? r
         if (!string.IsNullOrWhiteSpace(targetUser))
         {
             monitorDb.UnregisterUserActivityByUser(targetUser);
+            monitorDb.RegenerateAppKey(targetUser, "Auto-rotated on admin force-logout");
+            RevokeUserTokens(targetUser);
         }
     }
 
@@ -2207,31 +3280,50 @@ app.MapPost("/api/v1/admin/users/force-logout", async (ForceUserActionRequest? r
 
     var msg = isAll
         ? $"Đã xoá toàn bộ phiên và ép ĐĂNG XUẤT TẤT CẢ người dùng ({sent} Extension đã nhận lệnh)!"
-        : $"Đã xoá phiên và ép đăng xuất tài khoản '{targetUser ?? targetIp}'.";
+        : $"Đã xoá phiên, thu hồi token/app-key và ép đăng xuất tài khoản '{targetUser ?? targetIp}'.";
     return Results.Json(new { ok = true, all = isAll, user = targetUser, ip = targetIp, broadcastedClients = sent, message = msg }, jsonOptions);
 });
 
 // 15. API Admin Khoá Tài Khoản (Lock User)
-app.MapPost("/api/v1/admin/users/lock", async (LockUserRequest? req) =>
+app.MapPost("/api/v1/admin/users/lock", async (HttpContext ctx, LockUserRequest? req) =>
 {
+    var (authErr, _, _) = await TryAuthorizeRequestAsync(ctx, requireSuperAdmin: true);
+    if (authErr != null) return authErr;
+
     if (string.IsNullOrWhiteSpace(req?.User))
     {
         return Results.BadRequest(new { ok = false, message = "Vui lòng nhập tên tài khoản cần khoá." });
     }
     var userToLock = req.User.Trim();
-
-    ruleStore.UserOverrides ??= new UserOverridesModel();
-    ruleStore.UserOverrides.Denied ??= new List<string>();
-    ruleStore.UserOverrides.Allowed ??= new List<string>();
-
-    if (!ruleStore.UserOverrides.Denied.Contains(userToLock, StringComparer.OrdinalIgnoreCase))
+    if (!MonitorDbService.IsValidUsername(userToLock))
     {
-        ruleStore.UserOverrides.Denied.Add(userToLock);
+        return Results.BadRequest(new { ok = false, message = "Tên tài khoản không hợp lệ." });
     }
-    ruleStore.UserOverrides.Allowed.RemoveAll(u => string.Equals(u, userToLock, StringComparison.OrdinalIgnoreCase));
 
-    SaveRules(ruleStore);
+    List<string> deniedSnapshot;
+    string versionSnapshot;
+    string serializedRules;
+    lock (ruleLock)
+    {
+        ruleStore.UserOverrides ??= new UserOverridesModel();
+        ruleStore.UserOverrides.Denied ??= new List<string>();
+        ruleStore.UserOverrides.Allowed ??= new List<string>();
+
+        if (!ruleStore.UserOverrides.Denied.Contains(userToLock, StringComparer.OrdinalIgnoreCase))
+        {
+            ruleStore.UserOverrides.Denied.Add(userToLock);
+        }
+        ruleStore.UserOverrides.Allowed.RemoveAll(u => string.Equals(u, userToLock, StringComparison.OrdinalIgnoreCase));
+
+        SaveRules(ruleStore);
+        deniedSnapshot = ruleStore.UserOverrides.Denied.ToList();
+        versionSnapshot = ruleStore.Version;
+        serializedRules = JsonSerializer.Serialize(BuildPublicRulesProjection(ruleStore), sseJsonOptions);
+    }
+
     monitorDb.UnregisterUserActivityByUser(userToLock);
+    monitorDb.RegenerateAppKey(userToLock, "Auto-rotated on admin lock");
+    RevokeUserTokens(userToLock);
 
     var eventData = new
     {
@@ -2241,7 +3333,7 @@ app.MapPost("/api/v1/admin/users/lock", async (LockUserRequest? req) =>
     };
 
     var lockPayload = $"event: FORCE_LOCK\ndata: {JsonSerializer.Serialize(eventData, sseJsonOptions)}\n\n";
-    var rulesPayload = $"event: RULES_UPDATED\ndata: {JsonSerializer.Serialize(ruleStore, sseJsonOptions)}\n\n";
+    var rulesPayload = $"event: RULES_UPDATED\ndata: {serializedRules}\n\n";
 
     int sent = 0;
     foreach (var kvp in sseClients.ToArray())
@@ -2263,28 +3355,40 @@ app.MapPost("/api/v1/admin/users/lock", async (LockUserRequest? req) =>
     {
         ok = true,
         user = userToLock,
-        deniedUsers = ruleStore.UserOverrides.Denied,
-        message = $"Đã KHOÁ tài khoản '{userToLock}' thành công, ngắt phiên kết nối và thông báo tới {sent} Extension!",
-        version = ruleStore.Version
+        deniedUsers = deniedSnapshot,
+        message = $"Đã KHOÁ tài khoản '{userToLock}' thành công, ngắt phiên kết nối, xoay vòng App Key và thông báo tới {sent} Extension!",
+        version = versionSnapshot
     }, jsonOptions);
 });
 
 // 16. API Admin Mở Khoá Tài Khoản (Unlock User)
-app.MapPost("/api/v1/admin/users/unlock", async (LockUserRequest? req) =>
+app.MapPost("/api/v1/admin/users/unlock", async (HttpContext ctx, LockUserRequest? req) =>
 {
+    var (authErr, _, _) = await TryAuthorizeRequestAsync(ctx, requireSuperAdmin: true);
+    if (authErr != null) return authErr;
+
     if (string.IsNullOrWhiteSpace(req?.User))
     {
         return Results.BadRequest(new { ok = false, message = "Vui lòng nhập tên tài khoản cần mở khoá." });
     }
     var userToUnlock = req.User.Trim();
 
-    ruleStore.UserOverrides ??= new UserOverridesModel();
-    ruleStore.UserOverrides.Denied ??= new List<string>();
+    List<string> deniedSnapshot;
+    string versionSnapshot;
+    string serializedRules;
+    lock (ruleLock)
+    {
+        ruleStore.UserOverrides ??= new UserOverridesModel();
+        ruleStore.UserOverrides.Denied ??= new List<string>();
 
-    ruleStore.UserOverrides.Denied.RemoveAll(u => string.Equals(u, userToUnlock, StringComparison.OrdinalIgnoreCase));
-    SaveRules(ruleStore);
+        ruleStore.UserOverrides.Denied.RemoveAll(u => string.Equals(u, userToUnlock, StringComparison.OrdinalIgnoreCase));
+        SaveRules(ruleStore);
+        deniedSnapshot = ruleStore.UserOverrides.Denied.ToList();
+        versionSnapshot = ruleStore.Version;
+        serializedRules = JsonSerializer.Serialize(BuildPublicRulesProjection(ruleStore), sseJsonOptions);
+    }
 
-    var rulesPayload = $"event: RULES_UPDATED\ndata: {JsonSerializer.Serialize(ruleStore, sseJsonOptions)}\n\n";
+    var rulesPayload = $"event: RULES_UPDATED\ndata: {serializedRules}\n\n";
     int sent = 0;
     foreach (var kvp in sseClients.ToArray())
     {
@@ -2304,62 +3408,120 @@ app.MapPost("/api/v1/admin/users/unlock", async (LockUserRequest? req) =>
     {
         ok = true,
         user = userToUnlock,
-        deniedUsers = ruleStore.UserOverrides.Denied,
+        deniedUsers = deniedSnapshot,
         message = $"Đã MỞ KHOÁ tài khoản '{userToUnlock}' thành công!",
-        version = ruleStore.Version
+        version = versionSnapshot
     }, jsonOptions);
 });
 
 // 17. API Danh sách tài khoản đang bị khoá
-app.MapGet("/api/v1/admin/users/locked", () =>
+app.MapGet("/api/v1/admin/users/locked", async (HttpContext ctx) =>
 {
-    var denied = ruleStore.UserOverrides?.Denied ?? new List<string>();
+    var (authErr, _, _) = await TryAuthorizeRequestAsync(ctx, requireSuperAdmin: true);
+    if (authErr != null) return authErr;
+
+    List<string> denied;
+    lock (ruleLock)
+    {
+        denied = (ruleStore.UserOverrides?.Denied ?? new List<string>()).ToList();
+    }
     return Results.Json(new { ok = true, deniedUsers = denied }, jsonOptions);
 });
 
 // 18. API Admin Đóng/Mở Cổng VAGS (Maintenance Mode Controller)
 app.MapPost("/api/v1/admin/maintenance", async (HttpContext ctx) =>
 {
+    var (authErr, _, _) = await TryAuthorizeRequestAsync(ctx, requireSuperAdmin: true);
+    if (authErr != null) return authErr;
+
     var enabledStr = ctx.Request.Query["enabled"].FirstOrDefault();
     bool enable = string.Equals(enabledStr, "true", StringComparison.OrdinalIgnoreCase) ||
                   string.Equals(enabledStr, "1", StringComparison.OrdinalIgnoreCase);
-    ruleStore.MaintenanceMode = enable;
-    var flagPath = Path.Combine(dataDir, "maintenance.flag");
-    if (enable) File.WriteAllText(flagPath, DateTime.UtcNow.ToString("O"));
-    else if (File.Exists(flagPath)) File.Delete(flagPath);
-    SaveRules(ruleStore);
 
-    var rulesPayload = $"event: RULES_UPDATED\ndata: {JsonSerializer.Serialize(ruleStore, sseJsonOptions)}\n\n";
+    string versionSnapshot;
+    string serializedRules;
+    lock (ruleLock)
+    {
+        ruleStore.MaintenanceMode = enable;
+        var flagPath = Path.Combine(dataDir, "maintenance.flag");
+        if (enable) File.WriteAllText(flagPath, DateTime.UtcNow.ToString("O"));
+        else if (File.Exists(flagPath)) File.Delete(flagPath);
+        SaveRules(ruleStore);
+        versionSnapshot = ruleStore.Version;
+        serializedRules = JsonSerializer.Serialize(BuildPublicRulesProjection(ruleStore), sseJsonOptions);
+    }
+
+    var rulesPayload = $"event: RULES_UPDATED\ndata: {serializedRules}\n\n";
     foreach (var kvp in sseClients.ToArray())
     {
         try { await kvp.Value.Response.WriteAsync(rulesPayload); await kvp.Value.Response.Body.FlushAsync(); } catch { sseClients.TryRemove(kvp.Key, out _); }
     }
-    return Results.Json(new { ok = true, maintenanceMode = enable, version = ruleStore.Version, message = enable ? "Cổng VAGS đã ĐÓNG để bảo trì." : "Cổng VAGS đã MỞ hoạt động bình thường." }, jsonOptions);
+    return Results.Json(new { ok = true, maintenanceMode = enable, version = versionSnapshot, message = enable ? "Cổng VAGS đã ĐÓNG để bảo trì." : "Cổng VAGS đã MỞ hoạt động bình thường." }, jsonOptions);
 });
 
 // 19. API Admin Cấu hình Tên miền động (Domain Switcher)
 app.MapPost("/api/v1/admin/domains", async (HttpContext ctx) =>
 {
+    var (authErr, _, _) = await TryAuthorizeRequestAsync(ctx, requireSuperAdmin: true);
+    if (authErr != null) return authErr;
+
     using var reader = new StreamReader(ctx.Request.Body);
     var body = await reader.ReadToEndAsync();
-    var doc = JsonDocument.Parse(string.IsNullOrWhiteSpace(body) ? "{}" : body);
-    if (doc.RootElement.TryGetProperty("primaryDomain", out var pd))
+    JsonDocument doc;
+    try
     {
-        var newPrimary = pd.GetString();
-        if (!string.IsNullOrWhiteSpace(newPrimary)) ruleStore.ProxyHost = newPrimary.Trim();
+        doc = JsonDocument.Parse(string.IsNullOrWhiteSpace(body) ? "{}" : body);
     }
-    if (doc.RootElement.TryGetProperty("domainAliases", out var da) && da.ValueKind == JsonValueKind.Array)
+    catch
     {
-        ruleStore.DomainAliases = da.EnumerateArray().Select(x => x.GetString() ?? "").Where(x => !string.IsNullOrWhiteSpace(x)).ToList();
+        return Results.BadRequest(new { ok = false, message = "JSON body không hợp lệ." });
     }
-    SaveRules(ruleStore);
 
-    var rulesPayload = $"event: RULES_UPDATED\ndata: {JsonSerializer.Serialize(ruleStore, sseJsonOptions)}\n\n";
-    foreach (var kvp in sseClients.ToArray())
+    using (doc)
     {
-        try { await kvp.Value.Response.WriteAsync(rulesPayload); await kvp.Value.Response.Body.FlushAsync(); } catch { sseClients.TryRemove(kvp.Key, out _); }
+        string primaryDomainSnapshot;
+        List<string> aliasesSnapshot;
+        string versionSnapshot;
+        string serializedRules;
+        lock (ruleLock)
+        {
+            if (doc.RootElement.TryGetProperty("primaryDomain", out var pd))
+            {
+                var newPrimary = (pd.GetString() ?? "").Trim();
+                if (!string.IsNullOrWhiteSpace(newPrimary))
+                {
+                    if (!Regex.IsMatch(newPrimary, @"^[a-zA-Z0-9.-]{1,253}$"))
+                        return Results.BadRequest(new { ok = false, message = "Tên miền chính không hợp lệ." });
+                    ruleStore.ProxyHost = newPrimary;
+                }
+            }
+            if (doc.RootElement.TryGetProperty("domainAliases", out var da) && da.ValueKind == JsonValueKind.Array)
+            {
+                var parsedAliases = new List<string>();
+                foreach (var x in da.EnumerateArray())
+                {
+                    var alias = (x.GetString() ?? "").Trim();
+                    if (string.IsNullOrWhiteSpace(alias)) continue;
+                    if (!Regex.IsMatch(alias, @"^[a-zA-Z0-9.-]{1,253}$"))
+                        return Results.BadRequest(new { ok = false, message = $"Domain alias không hợp lệ: {alias}" });
+                    parsedAliases.Add(alias);
+                }
+                ruleStore.DomainAliases = parsedAliases;
+            }
+            SaveRules(ruleStore);
+            primaryDomainSnapshot = ruleStore.ProxyHost;
+            aliasesSnapshot = (ruleStore.DomainAliases ?? new List<string>()).ToList();
+            versionSnapshot = ruleStore.Version;
+            serializedRules = JsonSerializer.Serialize(BuildPublicRulesProjection(ruleStore), sseJsonOptions);
+        }
+
+        var rulesPayload = $"event: RULES_UPDATED\ndata: {serializedRules}\n\n";
+        foreach (var kvp in sseClients.ToArray())
+        {
+            try { await kvp.Value.Response.WriteAsync(rulesPayload); await kvp.Value.Response.Body.FlushAsync(); } catch { sseClients.TryRemove(kvp.Key, out _); }
+        }
+        return Results.Json(new { ok = true, primaryDomain = primaryDomainSnapshot, domainAliases = aliasesSnapshot, version = versionSnapshot }, jsonOptions);
     }
-    return Results.Json(new { ok = true, primaryDomain = ruleStore.ProxyHost, domainAliases = ruleStore.DomainAliases, version = ruleStore.Version }, jsonOptions);
 });
 
 app.Run();
@@ -2372,6 +3534,8 @@ public class RuleStoreModel
     public bool EnableLicProxy { get; set; } = true;
     public List<string> Blacklist { get; set; } = new();
     public List<string> InternalWhitelist { get; set; } = new();
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<string>? ConfiguredInternalWhitelist { get; set; }
     public List<string> GlobalAcademicWhitelist { get; set; } = new();
     public string AuthMode { get; set; } = "demo";
     public string KeycloakAuthority { get; set; } = "https://idp.vnu.edu.vn/auth/realms/vnu";
@@ -2437,6 +3601,8 @@ public class ProxyLogEntry
     public string MemberType { get; set; } = "canbo";
 }
 
+public record VerifiedTokenIdentity(string Username, string Email, string Unit, string MemberType, string? Jti);
+public record VerifiedSessionEntry(string Username, string Email, string Unit, string MemberType, string? Jti, DateTimeOffset IssuedAtUtc, DateTimeOffset ExpiresAtUtc);
 public record EvaluateRequest(string? Host, string? User = null);
 public record DemoTokenRequest(string? Username, string? OrganizationalUnit);
 public record ExchangeCodeRequest(string? Code, string? RedirectUri, string? CodeVerifier);

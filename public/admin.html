@@ -888,7 +888,7 @@
                             <option value="false">✕ Bị chặn (Blocked)</option>
                         </select>
                         <button class="btn-sm" onclick="fetchAnalyticsData()">🔄 Làm mới</button>
-                        <a href="/api/v1/admin/audit-logs/export" target="_blank" class="btn-sm primary">📥 Xuất CSV</a>
+                        <button type="button" onclick="exportAuditLogsCsv()" class="btn-sm primary">📥 Xuất CSV</button>
                     </div>
                 </div>
 
@@ -1578,6 +1578,8 @@
         let sseSource = null;
         let currentAdminRole = '';
         let manualAdminsCache = [];
+        let metricsInterval = null;
+        let analyticsInterval = null;
 
         function escapeHtml(str) {
             return String(str ?? '')
@@ -1586,6 +1588,56 @@
                 .replace(/>/g, '&gt;')
                 .replace(/"/g, '&quot;')
                 .replace(/'/g, '&#39;');
+        }
+
+        function safeJsArg(v) {
+            return encodeURIComponent(String(v ?? '')).replace(/'/g, '%27');
+        }
+
+        function decodeSafe(v) {
+            try {
+                return decodeURIComponent(String(v ?? ''));
+            } catch (_) {
+                return String(v ?? '');
+            }
+        }
+
+        function getEffectiveInternalWhitelist(rules) {
+            if (!rules) return [];
+            if (Array.isArray(rules.configuredInternalWhitelist) && rules.configuredInternalWhitelist.length > 0) {
+                return rules.configuredInternalWhitelist;
+            }
+            return Array.isArray(rules.internalWhitelist) ? rules.internalWhitelist : [];
+        }
+
+        function showAuthGate(message) {
+            currentAdminRole = '';
+            if (metricsInterval) { clearInterval(metricsInterval); metricsInterval = null; }
+            if (analyticsInterval) { clearInterval(analyticsInterval); analyticsInterval = null; }
+            if (sseSource) { try { sseSource.close(); } catch (_) {} sseSource = null; }
+            const gate = document.getElementById('authGate');
+            const dash = document.getElementById('dashboardMain');
+            if (gate) gate.style.display = 'flex';
+            if (dash) dash.style.display = 'none';
+            if (message) {
+                const msgEl = document.getElementById('authGateMsg');
+                if (msgEl) {
+                    msgEl.innerHTML = `<span style="color:#f87171;font-weight:700;">⚠️ ${escapeHtml(message)}</span><br>Vui lòng đăng nhập lại bằng tài khoản Quản trị VNU Single Sign-On.`;
+                }
+            }
+        }
+
+        async function authFetch(url, options = {}) {
+            const token = localStorage.getItem('vags_token') || '';
+            const headers = new Headers(options.headers || {});
+            if (token && !headers.has('Authorization')) {
+                headers.set('Authorization', `Bearer ${token}`);
+            }
+            const res = await fetch(url, { ...options, headers });
+            if (res.status === 401 || res.status === 403) {
+                showAuthGate('Phiên đăng nhập VNU SSO đã hết hạn hoặc tài khoản không có quyền Quản trị.');
+            }
+            return res;
         }
 
         function applyRoleRestrictions(role) {
@@ -1661,8 +1713,13 @@
             // Kiểm tra trực tiếp quyền Admin & Role thực tế từ Backend trước khi mở Dashboard
             if (user && token) {
                 try {
-                    const res = await fetch(`/api/v1/auth/check-admin?user=${encodeURIComponent(user)}&ou=${encodeURIComponent(unit)}`);
-                    if (res.ok) {
+                    const res = await fetch(`/api/v1/auth/check-admin?user=${encodeURIComponent(user)}&ou=${encodeURIComponent(unit)}`, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    if (res.status === 401 || res.status === 403) {
+                        isAdmin = false;
+                        resolvedRole = '';
+                    } else if (res.ok) {
                         const data = await res.json();
                         isAdmin = Boolean(data.isAdmin);
                         resolvedRole = data.adminRole || (isAdmin ? 'super_admin' : '');
@@ -1814,7 +1871,8 @@
         async function loadManualAdmins() {
             if (currentAdminRole === 'report_viewer') return;
             try {
-                const res = await fetch('/api/v1/admin/accounts');
+                const res = await authFetch('/api/v1/admin/accounts');
+                if (res.status === 401 || res.status === 403) return;
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 const data = await res.json();
 
@@ -1838,11 +1896,14 @@
         }
 
         async function upsertManualAdminPayload(payload) {
-            const res = await fetch('/api/v1/admin/accounts', {
+            const res = await authFetch('/api/v1/admin/accounts', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             });
+            if (res.status === 401 || res.status === 403) {
+                throw new Error('Phiên đăng nhập không hợp lệ hoặc đã hết hạn.');
+            }
             const data = await res.json().catch(() => ({}));
             if (!res.ok || data.ok === false) {
                 throw new Error(data.message || `HTTP ${res.status}`);
@@ -1923,9 +1984,10 @@
             if (!confirm(`Xác nhận XÓA quyền Admin thủ công của tài khoản "${acc.username}"?`)) return;
 
             try {
-                const res = await fetch(`/api/v1/admin/accounts/${encodeURIComponent(acc.username)}`, {
+                const res = await authFetch(`/api/v1/admin/accounts/${encodeURIComponent(acc.username)}`, {
                     method: 'DELETE'
                 });
+                if (res.status === 401 || res.status === 403) return;
                 const data = await res.json().catch(() => ({}));
                 if (!res.ok || data.ok === false) {
                     throw new Error(data.message || `HTTP ${res.status}`);
@@ -1940,10 +2002,12 @@
         // 3. Nạp Rules từ API
         async function loadRules() {
             try {
-                let res = await fetch('/api/v1/rules');
+                let res = await authFetch('/api/v1/rules');
+                if (res.status === 401 || res.status === 403) return;
                 if (!res.ok) {
-                    res = await fetch('/api/v1/rules/latest');
+                    res = await authFetch('/api/v1/rules/latest');
                 }
+                if (res.status === 401 || res.status === 403) return;
                 if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
                 currentRules = await res.json();
                 updateStats();
@@ -1999,8 +2063,10 @@
             const oldTxt = btn ? btn.innerText : '';
             if (btn) btn.innerText = '⏳ Đang đồng bộ...';
             try {
-                const res = await fetch('/api/v1/lic/sync', { method: 'POST' });
-                const data = await res.json();
+                const res = await authFetch('/api/v1/lic/sync', { method: 'POST' });
+                if (res.status === 401 || res.status === 403) return;
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) throw new Error(data.message || `HTTP ${res.status}`);
                 alert(`✓ Đồng bộ thành công ${data.totalDatabases} CSDL Quốc tế từ Thư viện số VNU!`);
                 await loadRules();
             } catch (err) {
@@ -2014,7 +2080,7 @@
         function updateStats() {
             const blacklistCount = currentRules.blacklist?.length || 0;
             const academicCount = currentRules.globalAcademicWhitelist?.length || 0;
-            const licCount = currentRules.internalWhitelist?.length || 0;
+            const licCount = getEffectiveInternalWhitelist(currentRules).length;
             const total = blacklistCount + academicCount + licCount;
 
             document.getElementById('count-all').innerText = total;
@@ -2032,13 +2098,13 @@
             const rows = [];
             const add = (pattern, cat, action, badgeClass, catName) => {
                 if (activeCategory !== 'all' && activeCategory !== cat) return;
-                if (search && !pattern.toLowerCase().includes(search) && !catName.toLowerCase().includes(search)) return;
+                if (search && !String(pattern).toLowerCase().includes(search) && !catName.toLowerCase().includes(search)) return;
                 rows.push({ pattern, cat, action, badgeClass, catName });
             };
 
             (currentRules.blacklist || []).forEach(p => add(p, 'blacklist', 'DIRECT', 'domain-blacklist', '🚫 Băng thông cao'));
             (currentRules.globalAcademicWhitelist || []).forEach(p => add(p, 'academic', 'PROXY (:443)', 'domain-academic', '📚 CSDL Quốc Tế'));
-            (currentRules.internalWhitelist || []).forEach(p => add(p, 'lic', 'PROXY (:443)', 'domain-lic', '🏛️ Thư viện số VNU'));
+            getEffectiveInternalWhitelist(currentRules).forEach(p => add(p, 'lic', 'PROXY (:443)', 'domain-lic', '🏛️ Thư viện số VNU'));
 
             if (rows.length === 0) {
                 tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--muted);">Không tìm thấy tên miền nào phù hợp.</td></tr>`;
@@ -2049,12 +2115,12 @@
                 const tr = document.createElement('tr');
                 const actionClass = r.action.startsWith('PROXY') ? 'route-proxy' : 'route-direct';
                 tr.innerHTML = `
-                    <td><strong style="font-family:monospace;font-size:13px;">${r.pattern}</strong></td>
-                    <td><span class="domain-badge ${r.badgeClass}">${r.catName}</span></td>
-                    <td><span class="route-action ${actionClass}">● ${r.action}</span></td>
+                    <td><strong style="font-family:monospace;font-size:13px;">${escapeHtml(r.pattern)}</strong></td>
+                    <td><span class="domain-badge ${r.badgeClass}">${escapeHtml(r.catName)}</span></td>
+                    <td><span class="route-action ${actionClass}">● ${escapeHtml(r.action)}</span></td>
                     <td><span style="color:#059669;font-weight:700;font-size:12px;">✓ Đang áp dụng</span></td>
                     <td style="text-align:right;">
-                        <button class="btn-table danger" onclick="deleteRule('${r.pattern}', '${r.cat}')">Xóa</button>
+                        <button type="button" class="btn-table danger" data-admin-action="delete-rule" data-pattern="${escapeHtml(r.pattern)}" data-cat="${escapeHtml(r.cat)}">Xóa</button>
                     </td>
                 `;
                 tbody.appendChild(tr);
@@ -2071,9 +2137,15 @@
 
         function deleteRule(pattern, category) {
             if (!confirm(`Xác nhận xóa quy tắc '${pattern}'?`)) return;
-            if (category === 'blacklist') currentRules.blacklist = currentRules.blacklist.filter(p => p !== pattern);
-            if (category === 'academic') currentRules.globalAcademicWhitelist = currentRules.globalAcademicWhitelist.filter(p => p !== pattern);
-            if (category === 'lic') currentRules.internalWhitelist = currentRules.internalWhitelist.filter(p => p !== pattern);
+            if (category === 'blacklist') currentRules.blacklist = (currentRules.blacklist || []).filter(p => p !== pattern);
+            if (category === 'academic') currentRules.globalAcademicWhitelist = (currentRules.globalAcademicWhitelist || []).filter(p => p !== pattern);
+            if (category === 'lic') {
+                const updatedLic = getEffectiveInternalWhitelist(currentRules).filter(p => p !== pattern);
+                currentRules.internalWhitelist = updatedLic;
+                if (Array.isArray(currentRules.configuredInternalWhitelist)) {
+                    currentRules.configuredInternalWhitelist = updatedLic;
+                }
+            }
 
             updateStats();
             renderTable();
@@ -2100,8 +2172,12 @@
                 if (!currentRules.globalAcademicWhitelist) currentRules.globalAcademicWhitelist = [];
                 if (!currentRules.globalAcademicWhitelist.includes(pattern)) currentRules.globalAcademicWhitelist.unshift(pattern);
             } else if (cat === 'lic') {
-                if (!currentRules.internalWhitelist) currentRules.internalWhitelist = [];
-                if (!currentRules.internalWhitelist.includes(pattern)) currentRules.internalWhitelist.unshift(pattern);
+                const updatedLic = [...getEffectiveInternalWhitelist(currentRules)];
+                if (!updatedLic.includes(pattern)) updatedLic.unshift(pattern);
+                currentRules.internalWhitelist = updatedLic;
+                if (Array.isArray(currentRules.configuredInternalWhitelist)) {
+                    currentRules.configuredInternalWhitelist = updatedLic;
+                }
             }
 
             closeAddModal();
@@ -2120,15 +2196,21 @@
 
             try {
                 if (!currentRules) throw new Error("Chưa có dữ liệu rules để lưu.");
-                const res = await fetch('/api/v1/admin/rules', {
+                const effectiveLic = getEffectiveInternalWhitelist(currentRules);
+                const payload = {
+                    ...currentRules,
+                    internalWhitelist: effectiveLic
+                };
+                const res = await authFetch('/api/v1/admin/rules', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(currentRules)
+                    body: JSON.stringify(payload)
                 });
+                if (res.status === 401 || res.status === 403) return;
                 if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
                 const result = await res.json();
                 statusBox.className = 'status show';
-                statusBox.innerHTML = `✓ ${result.message || 'Lưu thành công'} (Version: <b>${result.version}</b>)`;
+                statusBox.innerHTML = `✓ ${escapeHtml(result.message || 'Lưu thành công')} (Version: <b>${escapeHtml(result.version)}</b>)`;
                 setTimeout(() => { statusBox.className = 'status'; }, 4000);
             } catch (e) {
                 alert('Lỗi khi lưu rules: ' + e.message);
@@ -2144,12 +2226,14 @@
             if (!confirm('Xác nhận phát lệnh ép toàn bộ máy cán bộ đang online tự động tải và nạp Extension v2.1.4 ngay lập tức?')) return;
             if (btn) { btn.disabled = true; btn.innerText = '⏳ Đang phát lệnh...'; }
             try {
-                const res = await fetch('/api/v1/admin/broadcast-update', {
+                const res = await authFetch('/api/v1/admin/broadcast-update', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ version: '2.1.4' })
                 });
-                const data = await res.json();
+                if (res.status === 401 || res.status === 403) return;
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) throw new Error(data.message || `HTTP ${res.status}`);
                 alert(`✓ ${data.message}`);
             } catch (e) {
                 alert('Lỗi phát lệnh cập nhật: ' + e.message);
@@ -2165,7 +2249,7 @@
             (currentRules.allowedOUs || []).forEach(ou => {
                 const chip = document.createElement('span');
                 chip.className = 'ou-chip';
-                chip.innerHTML = `${ou.toUpperCase()} <span class="rm-btn" onclick="removeOu('${ou}')">&times;</span>`;
+                chip.innerHTML = `${escapeHtml(String(ou ?? '').toUpperCase())} <span class="rm-btn" data-admin-action="remove-ou" data-ou="${escapeHtml(ou)}">&times;</span>`;
                 box.appendChild(chip);
             });
         }
@@ -2182,7 +2266,7 @@
             }
         }
         function removeOu(ou) {
-            currentRules.allowedOUs = currentRules.allowedOUs.filter(o => o !== ou);
+            currentRules.allowedOUs = (currentRules.allowedOUs || []).filter(o => o !== ou);
             renderOUs();
             saveAndBroadcastRules();
         }
@@ -2198,7 +2282,7 @@
                     chip.className = 'ou-chip';
                     chip.style.background = '#fef3c7';
                     chip.style.borderColor = '#fde68a';
-                    chip.innerHTML = `👤 ${u} <span class="rm-btn" onclick="removeUserOverride('${u}')">&times;</span>`;
+                    chip.innerHTML = `👤 ${escapeHtml(u)} <span class="rm-btn" data-admin-action="remove-user-override" data-user="${escapeHtml(u)}">&times;</span>`;
                     allowedBox.appendChild(chip);
                 });
             }
@@ -2216,7 +2300,7 @@
                         chip.style.background = '#fee2e2';
                         chip.style.borderColor = '#fca5a5';
                         chip.style.color = '#991b1b';
-                        chip.innerHTML = `🔒 <strong>${u}</strong> <span class="rm-btn" title="Mở khoá tài khoản này" onclick="unlockUser('${u}')" style="color:#b91c1c;margin-left:6px;font-weight:bold;cursor:pointer;">&times; Mở khoá</span>`;
+                        chip.innerHTML = `🔒 <strong>${escapeHtml(u)}</strong> <span class="rm-btn" title="Mở khoá tài khoản này" data-admin-action="unlock-user" data-user="${escapeHtml(u)}" style="color:#b91c1c;margin-left:6px;font-weight:bold;cursor:pointer;">&times; Mở khoá</span>`;
                         deniedBox.appendChild(chip);
                     });
                 }
@@ -2237,11 +2321,11 @@
                     row.style.marginBottom = '6px';
                     const pDomains = specific[u].proxyDomains || [];
                     row.innerHTML = `
-                        <div style="font-weight:700;color:#0f172a;">👤 Tài khoản: <code style="color:#00803d;">${u}</code>:</div>
+                        <div style="font-weight:700;color:#0f172a;">👤 Tài khoản: <code style="color:#00803d;">${escapeHtml(u)}</code>:</div>
                         <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:2px;">
                             ${pDomains.map(d => `
                                 <span class="domain-badge domain-override">
-                                    ${d} <span style="cursor:pointer;margin-left:4px;" onclick="removeUserSpecificDomain('${u}', '${d}')">&times;</span>
+                                    ${escapeHtml(d)} <span style="cursor:pointer;margin-left:4px;" data-admin-action="remove-user-domain" data-user="${escapeHtml(u)}" data-domain="${escapeHtml(d)}">&times;</span>
                                 </span>
                             `).join('')}
                         </div>
@@ -2253,13 +2337,14 @@
 
         async function lockUser(username, reason = "") {
             if (!username) return;
-            const cleanUser = decodeURIComponent(username).trim();
+            const cleanUser = decodeSafe(username).trim();
             try {
-                const res = await fetch('/api/v1/admin/users/lock', {
+                const res = await authFetch('/api/v1/admin/users/lock', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ user: cleanUser, reason })
                 });
+                if (res.status === 401 || res.status === 403) return;
                 const data = await res.json();
                 if (data.ok) {
                     alert(data.message || `Đã khoá tài khoản ${cleanUser}!`);
@@ -2276,14 +2361,15 @@
 
         async function unlockUser(username) {
             if (!username) return;
-            const cleanUser = decodeURIComponent(username).trim();
+            const cleanUser = decodeSafe(username).trim();
             if (!confirm(`Bạn có chắc chắn muốn MỞ KHOÁ cho tài khoản '${cleanUser}' không?`)) return;
             try {
-                const res = await fetch('/api/v1/admin/users/unlock', {
+                const res = await authFetch('/api/v1/admin/users/unlock', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ user: cleanUser })
                 });
+                if (res.status === 401 || res.status === 403) return;
                 const data = await res.json();
                 if (data.ok) {
                     alert(data.message || `Đã mở khoá tài khoản ${cleanUser}!`);
@@ -2299,7 +2385,7 @@
         }
 
         function lockUserPrompt(encodedUser) {
-            const user = decodeURIComponent(encodedUser);
+            const user = decodeSafe(encodedUser);
             if (!confirm(`CẢNH BÁO: Bạn có chắc chắn muốn KHOÁ tài khoản '${user}' không?\n\nTài khoản này sẽ bị ngắt kết nối ngay lập tức và không thể sử dụng Proxy VAGS.`)) return;
             lockUser(user);
         }
@@ -2316,16 +2402,17 @@
         }
 
         async function forceUserProxyOff(encodedUser, encodedIp) {
-            const user = decodeURIComponent(encodedUser);
-            const ip = decodeURIComponent(encodedIp);
+            const user = decodeSafe(encodedUser);
+            const ip = decodeSafe(encodedIp);
             if (!confirm(`Bạn có chắc chắn muốn ép TẮT PROXY của '${user}' (${ip}) ngay lập tức không?`)) return;
 
             try {
-                const res = await fetch('/api/v1/admin/users/force-proxy-off', {
+                const res = await authFetch('/api/v1/admin/users/force-proxy-off', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ user, ip, all: false })
                 });
+                if (res.status === 401 || res.status === 403) return;
                 const data = await res.json();
                 alert(data.message || `Đã gửi tín hiệu ép tắt proxy tới ${user}!`);
                 await fetchMetrics();
@@ -2335,16 +2422,17 @@
         }
 
         async function forceUserLogout(encodedUser, encodedIp) {
-            const user = decodeURIComponent(encodedUser);
-            const ip = decodeURIComponent(encodedIp);
+            const user = decodeSafe(encodedUser);
+            const ip = decodeSafe(encodedIp);
             if (!confirm(`CẢNH BÁO: Bạn có chắc chắn muốn ép ĐĂNG XUẤT phiên của '${user}' (${ip}) không?`)) return;
 
             try {
-                const res = await fetch('/api/v1/admin/users/force-logout', {
+                const res = await authFetch('/api/v1/admin/users/force-logout', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ user, ip, all: false })
                 });
+                if (res.status === 401 || res.status === 403) return;
                 const data = await res.json();
                 alert(data.message || `Đã ép đăng xuất phiên của ${user}!`);
                 await fetchMetrics();
@@ -2357,11 +2445,12 @@
             if (!confirm("⚠️ CẢNH BÁO KHẨN CẤP:\n\nBạn có chắc chắn muốn ép TẮT PROXY TOÀN BỘ tất cả các Extension người dùng đang kết nối không?")) return;
 
             try {
-                const res = await fetch('/api/v1/admin/users/force-proxy-off', {
+                const res = await authFetch('/api/v1/admin/users/force-proxy-off', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ all: true })
                 });
+                if (res.status === 401 || res.status === 403) return;
                 const data = await res.json();
                 alert(data.message || "Đã phát tín hiệu ép tắt Proxy toàn bộ thành công!");
                 await fetchMetrics();
@@ -2374,11 +2463,12 @@
             if (!confirm("🛑 CẢNH BÁO NGUY HIỂM:\n\nBạn có chắc chắn muốn ép ĐĂNG XUẤT và XOÁ TOÀN BỘ PHIÊN của TẤT CẢ người dùng không?\n\nMọi Extension và tab trình duyệt sẽ bị huỷ phiên ngay tức khắc!")) return;
 
             try {
-                const res = await fetch('/api/v1/admin/users/force-logout', {
+                const res = await authFetch('/api/v1/admin/users/force-logout', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ all: true })
                 });
+                if (res.status === 401 || res.status === 403) return;
                 const data = await res.json();
                 alert(data.message || "Đã ép đăng xuất toàn bộ người dùng thành công!");
                 await fetchMetrics();
@@ -2446,11 +2536,12 @@
             const host = document.getElementById('testHostInput').value.trim();
             if (!host) return;
             try {
-                const res = await fetch('/api/v1/rules/evaluate', {
+                const res = await authFetch('/api/v1/rules/evaluate', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ host, user: 'phongnd' })
                 });
+                if (res.status === 401 || res.status === 403) return;
                 const d = await res.json();
                 const isProxy = d.allowedForTunnel;
                 document.getElementById('resAction').innerHTML = isProxy ? '🟢 Kết quả: PROXY (:443)' : '⚪ Kết quả: DIRECT (Trực tiếp)';
@@ -2471,7 +2562,8 @@
         // 13. Fetch Dashboard Metrics & Active Sessions & Proxy Logs
         async function fetchMetrics() {
             try {
-                const res = await fetch('/api/v1/admin/dashboard');
+                const res = await authFetch('/api/v1/admin/dashboard');
+                if (!res.ok) return;
                 const data = await res.json();
 
                 // 1. Thống kê Overview
@@ -2558,29 +2650,27 @@
                     ? `<span style="background:#ecfdf5;color:#059669;border:1px solid #a7f3d0;padding:2px 8px;border-radius:6px;font-weight:700;">🟢 Trực tuyến</span>`
                     : `<span style="background:#f1f5f9;color:#64748b;padding:2px 8px;border-radius:6px;font-weight:600;">⚪ Ngoại tuyến</span>`;
 
-                const safeUser = encodeURIComponent(userStr);
-                const safeIp = encodeURIComponent(clientIp);
                 const isGuest = userStr.includes('Khách') || userStr === 'Cán bộ VNU';
                 const isUserDenied = (currentRules?.userOverrides?.denied || []).map(u => (u || '').toLowerCase()).includes(userStr.toLowerCase());
 
                 tr.innerHTML = `
-                    <td><strong>${userStr}</strong> <span style="font-size:11px;color:var(--muted);">(${s.unit || 'VNU'})</span></td>
-                    <td><strong style="color:#00803d;font-family:monospace;">${clientIp}</strong></td>
+                    <td><strong>${escapeHtml(userStr)}</strong> <span style="font-size:11px;color:var(--muted);">(${escapeHtml(s.unit || 'VNU')})</span></td>
+                    <td><strong style="color:#00803d;font-family:monospace;">${escapeHtml(clientIp)}</strong></td>
                     <td>${browserBadge}</td>
-                    <td style="color:var(--muted);">${timeStr}</td>
+                    <td style="color:var(--muted);">${escapeHtml(timeStr)}</td>
                     <td>${statusBadge}</td>
                     <td style="text-align:right;white-space:nowrap;">
-                        <button onclick="forceUserProxyOff('${safeUser}', '${safeIp}')" title="Ép Extension tắt proxy ngay lập tức" class="btn-sm" style="background:#fff7ed;color:#c2410c;border:1px solid #ffedd5;padding:3px 7px;font-size:11px;font-weight:700;margin-right:4px;cursor:pointer;">
+                        <button type="button" data-admin-action="force-proxy-off" data-user="${escapeHtml(userStr)}" data-ip="${escapeHtml(clientIp)}" title="Ép Extension tắt proxy ngay lập tức" class="btn-sm" style="background:#fff7ed;color:#c2410c;border:1px solid #ffedd5;padding:3px 7px;font-size:11px;font-weight:700;margin-right:4px;cursor:pointer;">
                             ⚡ Tắt Proxy
                         </button>
-                        <button onclick="forceUserLogout('${safeUser}', '${safeIp}')" title="Huỷ phiên đăng nhập và ép đăng xuất" class="btn-sm" style="background:#fef2f2;color:#dc2626;border:1px solid #fee2e2;padding:3px 7px;font-size:11px;font-weight:700;margin-right:4px;cursor:pointer;">
+                        <button type="button" data-admin-action="force-logout" data-user="${escapeHtml(userStr)}" data-ip="${escapeHtml(clientIp)}" title="Huỷ phiên đăng nhập và ép đăng xuất" class="btn-sm" style="background:#fef2f2;color:#dc2626;border:1px solid #fee2e2;padding:3px 7px;font-size:11px;font-weight:700;margin-right:4px;cursor:pointer;">
                             🚪 Đăng Xuất
                         </button>
                         ${!isGuest ? (isUserDenied ? `
-                        <button onclick="unlockUser('${safeUser}')" title="Mở khoá tài khoản cán bộ này" class="btn-sm" style="background:#059669;color:#fff;border:none;padding:3px 7px;font-size:11px;font-weight:700;cursor:pointer;">
+                        <button type="button" data-admin-action="unlock-user" data-user="${escapeHtml(userStr)}" title="Mở khoá tài khoản cán bộ này" class="btn-sm" style="background:#059669;color:#fff;border:none;padding:3px 7px;font-size:11px;font-weight:700;cursor:pointer;">
                             🔓 Mở Khoá
                         </button>` : `
-                        <button onclick="lockUserPrompt('${safeUser}')" title="Khoá tài khoản cán bộ này vĩnh viễn" class="btn-sm" style="background:#450a0a;color:#fff;border:none;padding:3px 7px;font-size:11px;font-weight:700;cursor:pointer;">
+                        <button type="button" data-admin-action="lock-user" data-user="${escapeHtml(userStr)}" title="Khoá tài khoản cán bộ này vĩnh viễn" class="btn-sm" style="background:#450a0a;color:#fff;border:none;padding:3px 7px;font-size:11px;font-weight:700;cursor:pointer;">
                             🔒 Khoá
                         </button>`) : ''}
                     </td>
@@ -2606,13 +2696,13 @@
 
                 const timeStr = log.timestamp ? new Date(log.timestamp).toLocaleTimeString('vi-VN') : '';
                 tr.innerHTML = `
-                    <td style="color:var(--muted);white-space:nowrap;font-size:12px;">${timeStr}</td>
-                    <td><strong style="color:#0f172a;">${log.user || 'Cán bộ VNU'}</strong></td>
-                    <td><span style="background:#f1f5f9;padding:2px 6px;border-radius:4px;font-weight:700;font-size:11px;">${(log.unit || 'VNU').toUpperCase()}</span></td>
-                    <td><code style="font-weight:600;font-size:12px;color:#0369a1;">${log.target}</code></td>
+                    <td style="color:var(--muted);white-space:nowrap;font-size:12px;">${escapeHtml(timeStr)}</td>
+                    <td><strong style="color:#0f172a;">${escapeHtml(log.user || 'Cán bộ VNU')}</strong></td>
+                    <td><span style="background:#f1f5f9;padding:2px 6px;border-radius:4px;font-weight:700;font-size:11px;">${escapeHtml(String(log.unit || 'VNU').toUpperCase())}</span></td>
+                    <td><code style="font-weight:600;font-size:12px;color:#0369a1;">${escapeHtml(log.target || '')}</code></td>
                     <td>${actionBadge}</td>
-                    <td style="font-size:12px;color:#475569;">${log.reason}</td>
-                    <td><code style="font-size:11px;color:#64748b;">${log.clientIp}</code></td>
+                    <td style="font-size:12px;color:#475569;">${escapeHtml(log.reason || '')}</td>
+                    <td><code style="font-size:11px;color:#64748b;">${escapeHtml(log.clientIp || '')}</code></td>
                 `;
                 tbody.appendChild(tr);
             });
@@ -2659,6 +2749,9 @@
                         renderTable();
                         renderOUs();
                         renderUserOverrides();
+                        if (typeof updateLicStatusUi === 'function') {
+                            updateLicStatusUi(currentRules.enableLicProxy !== false);
+                        }
                     } catch (err) {}
                 });
 
@@ -2676,7 +2769,15 @@
         }
 
         // 15. Đăng xuất
-        function handleLogout() {
+        async function handleLogout() {
+            const token = localStorage.getItem('vags_token') || '';
+            try {
+                await fetch('/api/v1/auth/logout', {
+                    method: 'POST',
+                    headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+                });
+            } catch (e) { }
+
             localStorage.removeItem('vags_token');
             localStorage.removeItem('vags_user');
             localStorage.removeItem('vags_unit');
@@ -2684,7 +2785,18 @@
             localStorage.removeItem('vags_member_type');
             localStorage.removeItem('vags_is_admin');
             localStorage.removeItem('vags_admin_role');
-            window.location.href = '/';
+            localStorage.removeItem('pkce_code_verifier');
+            sessionStorage.clear();
+
+            window.dispatchEvent(new CustomEvent('VAGS_SSO_LOGOUT'));
+            window.postMessage({ type: 'VAGS_SSO_LOGOUT' }, window.location.origin);
+            setTimeout(() => { window.location.href = '/'; }, 80);
+        }
+
+        function generateOAuthState() {
+            const arr = new Uint8Array(24);
+            window.crypto.getRandomValues(arr);
+            return Array.from(arr, b => b.toString(16).padStart(2, '0')).join('');
         }
 
         // 16. Keycloak SSO PKCE Login Handler
@@ -2724,14 +2836,17 @@
                 const res = await fetch('/api/v1/auth/keycloak-config');
                 const cfg = await res.json();
                 const pkce = await generatePkce();
+                const state = generateOAuthState();
                 sessionStorage.setItem('pkce_code_verifier', pkce.verifier);
                 localStorage.setItem('pkce_code_verifier', pkce.verifier);
+                sessionStorage.setItem('vags_oauth_state', state);
                 const redirectUri = window.location.origin + '/auth/callback';
 
                 const authUrl = `${cfg.authorizationEndpoint}?client_id=${encodeURIComponent(cfg.clientId)}` +
                     `&response_type=code` +
                     `&scope=openid%20profile%20email` +
                     `&redirect_uri=${encodeURIComponent(redirectUri)}` +
+                    `&state=${encodeURIComponent(state)}` +
                     `&code_challenge=${encodeURIComponent(pkce.challenge)}` +
                     `&code_challenge_method=S256`;
 
@@ -2764,7 +2879,7 @@
                 const allowed = allowedEl ? encodeURIComponent(allowedEl.value) : '';
                 const offset = (page - 1) * auditPageSize;
 
-                const res = await fetch(`/api/v1/admin/audit-logs?search=${search}&allowed=${allowed}&limit=${auditPageSize}&offset=${offset}`);
+                const res = await authFetch(`/api/v1/admin/audit-logs?search=${search}&allowed=${allowed}&limit=${auditPageSize}&offset=${offset}`);
                 if (res.ok) {
                     const data = await res.json();
                     const logs = Array.isArray(data) ? data : (data.logs || []);
@@ -2822,7 +2937,7 @@
                 const search = searchEl ? encodeURIComponent(searchEl.value.trim()) : '';
                 const offset = (page - 1) * domainPageSize;
 
-                const res = await fetch(`/api/v1/admin/domains-breakdown?search=${search}&limit=${domainPageSize}&offset=${offset}`);
+                const res = await authFetch(`/api/v1/admin/domains-breakdown?search=${search}&limit=${domainPageSize}&offset=${offset}`);
                 if (res.ok) {
                     const data = await res.json();
                     const domains = data.domains || [];
@@ -2850,20 +2965,21 @@
                 const isBlockedOnly = d.allowedRequests === 0 && d.blockedRequests > 0;
                 const statusPill = isBlockedOnly
                     ? `<span style="background:#fee2e2;color:#b91c1c;padding:2px 8px;border-radius:6px;font-weight:700;font-size:11px;">✕ Chặn toàn bộ</span>`
-                    : `<span style="background:#dcfce7;color:#15803d;padding:2px 8px;border-radius:6px;font-weight:700;font-size:11px;">✓ ${Number(d.allowedRequests).toLocaleString()} / ${Number(d.blockedRequests).toLocaleString()}</span>`;
+                    : `<span style="background:#dcfce7;color:#15803d;padding:2px 8px;border-radius:6px;font-weight:700;font-size:11px;">✓ ${Number(d.allowedRequests || 0).toLocaleString()} / ${Number(d.blockedRequests || 0).toLocaleString()}</span>`;
+                const domName = d.domain || '';
 
                 tr.innerHTML = `
-                    <td><strong style="color:#0f172a;font-family:monospace;font-size:12px;">${d.domain}</strong></td>
-                    <td style="font-weight:700;color:#0284c7;font-size:12px;">${Number(d.totalRequests).toLocaleString()}</td>
+                    <td><strong style="color:#0f172a;font-family:monospace;font-size:12px;">${escapeHtml(domName)}</strong></td>
+                    <td style="font-weight:700;color:#0284c7;font-size:12px;">${Number(d.totalRequests || 0).toLocaleString()}</td>
                     <td>${statusPill}</td>
-                    <td style="font-family:monospace;font-size:11px;color:#059669;">${formatBytes(d.rxBytes)}</td>
-                    <td style="font-family:monospace;font-size:11px;color:#7c3aed;">${formatBytes(d.txBytes)}</td>
-                    <td style="font-family:monospace;font-size:12px;font-weight:700;color:#0f172a;">${formatBytes(d.totalBytes)}</td>
-                    <td><span style="background:#f1f5f9;color:#334155;padding:2px 6px;border-radius:4px;font-weight:600;font-size:11px;">${d.uniqueUsers} users</span></td>
-                    <td style="color:var(--muted);white-space:nowrap;font-size:11px;">${timeStr}</td>
+                    <td style="font-family:monospace;font-size:11px;color:#059669;">${escapeHtml(formatBytes(d.rxBytes))}</td>
+                    <td style="font-family:monospace;font-size:11px;color:#7c3aed;">${escapeHtml(formatBytes(d.txBytes))}</td>
+                    <td style="font-family:monospace;font-size:12px;font-weight:700;color:#0f172a;">${escapeHtml(formatBytes(d.totalBytes))}</td>
+                    <td><span style="background:#f1f5f9;color:#334155;padding:2px 6px;border-radius:4px;font-weight:600;font-size:11px;">${Number(d.uniqueUsers || 0).toLocaleString()} users</span></td>
+                    <td style="color:var(--muted);white-space:nowrap;font-size:11px;">${escapeHtml(timeStr)}</td>
                     <td style="text-align:right;white-space:nowrap;">
-                        <button onclick="filterAuditByDomain('${d.domain}')" class="btn-sm" style="padding:3px 7px;font-size:11px;margin-right:4px;cursor:pointer;">🔍 Logs</button>
-                        <button onclick="quickAddBlacklist('${d.domain}')" class="btn-sm" style="background:#fee2e2;color:#b91c1c;border:1px solid #fca5a5;padding:3px 7px;font-size:11px;font-weight:700;cursor:pointer;">+ Chặn</button>
+                        <button type="button" data-admin-action="filter-audit-domain" data-domain="${escapeHtml(domName)}" class="btn-sm" style="padding:3px 7px;font-size:11px;margin-right:4px;cursor:pointer;">🔍 Logs</button>
+                        <button type="button" data-admin-action="quick-add-blacklist" data-domain="${escapeHtml(domName)}" class="btn-sm" style="background:#fee2e2;color:#b91c1c;border:1px solid #fca5a5;padding:3px 7px;font-size:11px;font-weight:700;cursor:pointer;">+ Chặn</button>
                     </td>
                 `;
                 tbody.appendChild(tr);
@@ -2914,11 +3030,11 @@
             try {
                 // 1. Summary Analytics
                 const [summaryRes, urlsRes, bandwidthRes, usersRes, ipsRes] = await Promise.all([
-                    fetch('/api/v1/admin/analytics').then(r => r.ok ? r.json() : null).catch(() => null),
-                    fetch('/api/v1/admin/top-urls?limit=7').then(r => r.ok ? r.json() : []).catch(() => []),
-                    fetch('/api/v1/admin/top-bandwidth-urls?limit=7').then(r => r.ok ? r.json() : []).catch(() => []),
-                    fetch('/api/v1/admin/top-users?limit=7').then(r => r.ok ? r.json() : []).catch(() => []),
-                    fetch('/api/v1/admin/top-ips?limit=7').then(r => r.ok ? r.json() : []).catch(() => [])
+                    authFetch('/api/v1/admin/analytics').then(r => r.ok ? r.json() : null).catch(() => null),
+                    authFetch('/api/v1/admin/top-urls?limit=7').then(r => r.ok ? r.json() : []).catch(() => []),
+                    authFetch('/api/v1/admin/top-bandwidth-urls?limit=7').then(r => r.ok ? r.json() : []).catch(() => []),
+                    authFetch('/api/v1/admin/top-users?limit=7').then(r => r.ok ? r.json() : []).catch(() => []),
+                    authFetch('/api/v1/admin/top-ips?limit=7').then(r => r.ok ? r.json() : []).catch(() => [])
                 ]);
 
                 if (summaryRes) {
@@ -2961,6 +3077,8 @@
                 renderTopUsers(usersRes || []);
                 renderTopIps(ipsRes || []);
 
+                if (document.getElementById('dashboardMain')?.style.display === 'none') return;
+
                 // 3. Render Audit Trace & Domains Breakdown
                 await fetchAuditTrace(auditCurrentPage);
                 await fetchDomainsBreakdown(domainCurrentPage);
@@ -2979,7 +3097,7 @@
             }
             let html = '';
             items.forEach((it, idx) => {
-                const pct = Math.min(100, Math.max(8, it.percentage || 10));
+                const pct = Math.min(100, Math.max(8, Number(it.percentage) || 10));
                 const domain = it.domain || it.host || '-';
                 const hits = it.requestsCount || it.hitCount || 0;
                 html += `
@@ -2987,11 +3105,11 @@
                         <div style="display:flex;justify-content:space-between;align-items:center;">
                             <div style="display:flex;align-items:center;gap:8px;overflow:hidden;">
                                 <span style="font-size:11px;font-weight:800;color:#00803d;background:#e8f5e9;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;">${idx + 1}</span>
-                                <strong style="font-size:12px;color:#0f172a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${domain}">${domain}</strong>
+                                <strong style="font-size:12px;color:#0f172a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${escapeHtml(domain)}">${escapeHtml(domain)}</strong>
                             </div>
                             <div style="text-align:right;white-space:nowrap;">
                                 <span style="font-size:12px;font-weight:700;color:#0f172a;">${Number(hits).toLocaleString()} reqs</span>
-                                <span style="font-size:11px;color:#0284c7;font-family:monospace;margin-left:4px;">(${formatBytes(it.totalBytes)})</span>
+                                <span style="font-size:11px;color:#0284c7;font-family:monospace;margin-left:4px;">(${escapeHtml(formatBytes(it.totalBytes))})</span>
                             </div>
                         </div>
                         <div style="height:5px;background:#e2e8f0;border-radius:999px;overflow:hidden;margin-top:6px;">
@@ -3009,7 +3127,7 @@
             openAddModal();
             const patternEl = document.getElementById('addDomainPattern');
             const catEl = document.getElementById('addDomainCategory');
-            const clean = domain.replace(/^https?:\/\//i, '').split(':')[0].trim();
+            const clean = String(domain).replace(/^https?:\/\//i, '').split(':')[0].trim();
             if (patternEl) patternEl.value = clean.startsWith('*.') ? clean : (clean.includes('.') ? `*.${clean}` : clean);
             if (catEl) catEl.value = 'blacklist';
         }
@@ -3021,10 +3139,10 @@
                 el.innerHTML = '<div style="text-align:center;padding:30px;color:var(--muted);font-size:12px;">Chưa có dữ liệu tiêu thụ băng thông lớn.</div>';
                 return;
             }
-            const maxBytes = Math.max(...items.map(it => it.totalBytes || 1), 1);
+            const maxBytes = Math.max(...items.map(it => Number(it.totalBytes) || 1), 1);
             let html = '';
             items.forEach((it, idx) => {
-                const totalBytes = it.totalBytes || 0;
+                const totalBytes = Number(it.totalBytes) || 0;
                 const pct = Math.min(100, Math.max(10, Math.round((totalBytes / maxBytes) * 100)));
                 const host = it.host || it.targetHost || '-';
                 const hits = it.reqCount || it.requestsCount || 0;
@@ -3038,16 +3156,16 @@
                             <div style="display:flex;align-items:center;gap:7px;overflow:hidden;flex:1;">
                                 <span style="font-size:11px;font-weight:800;color:#b91c1c;background:#fee2e2;min-width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;">${idx + 1}</span>
                                 <div style="overflow:hidden;">
-                                    <strong style="font-size:12px;color:#991b1b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;" title="${host}">${host}</strong>
-                                    ${rxtxStr ? `<span style="font-size:10px;color:var(--muted);">${rxtxStr}</span>` : ''}
+                                    <strong style="font-size:12px;color:#991b1b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;" title="${escapeHtml(host)}">${escapeHtml(host)}</strong>
+                                    ${rxtxStr ? `<span style="font-size:10px;color:var(--muted);">${escapeHtml(rxtxStr)}</span>` : ''}
                                 </div>
                             </div>
                             <div style="text-align:right;white-space:nowrap;margin-left:8px;display:flex;align-items:center;gap:6px;">
                                 <div>
-                                    <strong style="font-size:12px;font-weight:800;color:#dc2626;">${formatBytes(totalBytes)}</strong>
+                                    <strong style="font-size:12px;font-weight:800;color:#dc2626;">${escapeHtml(formatBytes(totalBytes))}</strong>
                                     <div style="font-size:10px;color:var(--muted);">${Number(hits).toLocaleString()} reqs</div>
                                 </div>
-                                <button onclick="quickAddBlacklist('${host}')" title="Thêm vào Blacklist đi DIRECT" style="background:#fee2e2;color:#b91c1c;border:1px solid #fca5a5;padding:3px 7px;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer;white-space:nowrap;">
+                                <button type="button" data-admin-action="quick-add-blacklist" data-domain="${escapeHtml(host)}" title="Thêm vào Blacklist đi DIRECT" style="background:#fee2e2;color:#b91c1c;border:1px solid #fca5a5;padding:3px 7px;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer;white-space:nowrap;">
                                     + Chặn
                                 </button>
                             </div>
@@ -3070,7 +3188,7 @@
             }
             let html = '';
             items.forEach((it, idx) => {
-                const pct = Math.min(100, Math.max(8, it.percentage || 10));
+                const pct = Math.min(100, Math.max(8, Number(it.percentage) || 10));
                 const uname = it.username || it.user || 'Khách';
                 const uunit = it.unit || 'VNU';
                 const hits = it.requestsCount || it.hitCount || 0;
@@ -3080,13 +3198,13 @@
                             <div style="display:flex;align-items:center;gap:8px;overflow:hidden;">
                                 <span style="font-size:11px;font-weight:800;color:#0284c7;background:#e0f2fe;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;">${idx + 1}</span>
                                 <div>
-                                    <strong style="font-size:12px;color:#0f172a;">${uname}</strong>
-                                    <span style="font-size:10px;color:var(--muted);margin-left:4px;">${uunit}</span>
+                                    <strong style="font-size:12px;color:#0f172a;">${escapeHtml(uname)}</strong>
+                                    <span style="font-size:10px;color:var(--muted);margin-left:4px;">${escapeHtml(uunit)}</span>
                                 </div>
                             </div>
                             <div style="text-align:right;white-space:nowrap;">
                                 <span style="font-size:12px;font-weight:700;color:#0f172a;">${Number(hits).toLocaleString()} reqs</span>
-                                <span style="font-size:11px;color:#7c3aed;font-family:monospace;margin-left:4px;">(${formatBytes(it.totalBytes)})</span>
+                                <span style="font-size:11px;color:#7c3aed;font-family:monospace;margin-left:4px;">(${escapeHtml(formatBytes(it.totalBytes))})</span>
                             </div>
                         </div>
                         <div style="height:5px;background:#e2e8f0;border-radius:999px;overflow:hidden;margin-top:6px;">
@@ -3107,8 +3225,8 @@
             }
             let html = '';
             items.forEach((it, idx) => {
-                const pct = Math.min(100, Math.max(8, it.percentage || 10));
-                let ip = it.clientIp || 'unknown';
+                const pct = Math.min(100, Math.max(8, Number(it.percentage) || 10));
+                let ip = String(it.clientIp || 'unknown');
                 if (ip.startsWith('::ffff:')) ip = ip.substring(7);
                 if (ip.startsWith('[') && ip.includes(']')) ip = ip.substring(1, ip.indexOf(']'));
                 const hits = it.requestsCount || it.hitCount || 0;
@@ -3119,13 +3237,13 @@
                             <div style="display:flex;align-items:center;gap:8px;">
                                 <span style="font-size:11px;font-weight:800;color:#7c3aed;background:#f3e8ff;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;">${idx + 1}</span>
                                 <div>
-                                    <strong style="font-size:12px;color:#00803d;font-family:monospace;">${ip}</strong>
-                                    <span style="font-size:10px;color:var(--muted);margin-left:4px;">${usr}</span>
+                                    <strong style="font-size:12px;color:#00803d;font-family:monospace;">${escapeHtml(ip)}</strong>
+                                    <span style="font-size:10px;color:var(--muted);margin-left:4px;">${escapeHtml(usr)}</span>
                                 </div>
                             </div>
                             <div style="text-align:right;white-space:nowrap;">
                                 <span style="font-size:12px;font-weight:700;color:#0f172a;">${Number(hits).toLocaleString()} reqs</span>
-                                <span style="font-size:11px;color:#059669;font-family:monospace;margin-left:4px;">(${formatBytes(it.totalBytes)})</span>
+                                <span style="font-size:11px;color:#059669;font-family:monospace;margin-left:4px;">(${escapeHtml(formatBytes(it.totalBytes))})</span>
                             </div>
                         </div>
                         <div style="height:5px;background:#e2e8f0;border-radius:999px;overflow:hidden;margin-top:6px;">
@@ -3158,14 +3276,14 @@
                 const durationStr = l.durationMs > 0 ? `${l.durationMs}ms` : '<1ms';
 
                 tr.innerHTML = `
-                    <td style="color:var(--muted);white-space:nowrap;font-size:12px;">${timeStr}</td>
-                    <td><strong style="color:#00803d;font-family:monospace;font-size:12px;">${l.clientIp}</strong></td>
-                    <td><strong style="color:#0f172a;font-size:12px;">${l.user}</strong> <span style="font-size:11px;color:var(--muted);">(${l.unit || 'VNU'})</span></td>
-                    <td><strong style="color:#0284c7;font-size:12px;">${l.targetHost || l.target || '-'}</strong></td>
+                    <td style="color:var(--muted);white-space:nowrap;font-size:12px;">${escapeHtml(timeStr)}</td>
+                    <td><strong style="color:#00803d;font-family:monospace;font-size:12px;">${escapeHtml(l.clientIp || '')}</strong></td>
+                    <td><strong style="color:#0f172a;font-size:12px;">${escapeHtml(l.user || '')}</strong> <span style="font-size:11px;color:var(--muted);">(${escapeHtml(l.unit || 'VNU')})</span></td>
+                    <td><strong style="color:#0284c7;font-size:12px;">${escapeHtml(l.targetHost || l.target || '-')}</strong></td>
                     <td>${statusPill}</td>
-                    <td style="font-family:monospace;font-size:11px;">${bytesStr}</td>
-                    <td style="font-size:11px;color:var(--muted);">${durationStr}</td>
-                    <td><code style="font-size:11px;background:#f1f5f9;padding:2px 6px;border-radius:4px;">${l.matchedRule || 'DIRECT'}</code></td>
+                    <td style="font-family:monospace;font-size:11px;">${escapeHtml(bytesStr)}</td>
+                    <td style="font-size:11px;color:var(--muted);">${escapeHtml(durationStr)}</td>
+                    <td><code style="font-size:11px;background:#f1f5f9;padding:2px 6px;border-radius:4px;">${escapeHtml(l.matchedRule || 'DIRECT')}</code></td>
                 `;
                 tbody.appendChild(tr);
             });
@@ -3578,7 +3696,7 @@
             }
         }
 
-        function exportCsdlExcelAdmin() {
+        async function exportCsdlExcelAdmin() {
             const fromVal = document.getElementById('csdlFromDate')?.value || '';
             const toVal = document.getElementById('csdlToDate')?.value || '';
             let url = '/api/v1/analytics/export-excel';
@@ -3586,7 +3704,54 @@
             if (fromVal) params.push(`from=${encodeURIComponent(fromVal)}`);
             if (toVal) params.push(`to=${encodeURIComponent(toVal)}`);
             if (params.length > 0) url += '?' + params.join('&');
-            window.location.href = url;
+
+            try {
+                const res = await authFetch(url);
+                if (res.status === 401 || res.status === 403) return;
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+                let filename = 'VAGS_Bao_Cao_CSDL.xlsx';
+                const disp = res.headers.get('Content-Disposition') || '';
+                const fnStarMatch = disp.match(/filename\*=UTF-8''([^;]+)/i);
+                const fnMatch = disp.match(/filename="?([^";]+)"?/i);
+                if (fnStarMatch && fnStarMatch[1]) {
+                    filename = decodeURIComponent(fnStarMatch[1]);
+                } else if (fnMatch && fnMatch[1]) {
+                    filename = fnMatch[1];
+                }
+
+                const blob = await res.blob();
+                const blobUrl = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = blobUrl;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
+            } catch (err) {
+                alert('Lỗi xuất báo cáo Excel: ' + err.message);
+            }
+        }
+
+        async function exportAuditLogsCsv() {
+            try {
+                const res = await authFetch('/api/v1/admin/audit-logs/export');
+                if (res.status === 401 || res.status === 403) return;
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+                const blob = await res.blob();
+                const blobUrl = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = blobUrl;
+                a.download = 'vags_audit_logs.csv';
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
+            } catch (err) {
+                alert('Lỗi xuất nhật ký CSV: ' + err.message);
+            }
         }
 
         function updateLicStatusUi(enabled) {
@@ -3604,8 +3769,10 @@
         async function toggleLicProxyAdmin() {
             try {
                 const nextState = !(currentRules && currentRules.enableLicProxy !== false);
-                const res = await fetch(`/api/v1/admin/toggle-lic?enable=${nextState}`, { method: 'POST' });
-                const result = await res.json();
+                const res = await authFetch(`/api/v1/admin/toggle-lic?enable=${nextState}`, { method: 'POST' });
+                if (res.status === 401 || res.status === 403) return;
+                const result = await res.json().catch(() => ({}));
+                if (!res.ok) throw new Error(result.message || `HTTP ${res.status}`);
                 if (result.success) {
                     if (!currentRules) currentRules = {};
                     currentRules.enableLicProxy = result.enableLicProxy;
@@ -3618,6 +3785,34 @@
                 alert('Lỗi kết nối khi đổi trạng thái LIC: ' + err.message);
             }
         }
+
+        // Delegated action handler cho các nút thao tác render động (chống XSS trong onclick)
+        document.addEventListener('click', (e) => {
+            const btn = e.target.closest('[data-admin-action]');
+            if (!btn) return;
+            const action = btn.dataset.adminAction;
+            if (action === 'delete-rule') {
+                deleteRule(btn.dataset.pattern, btn.dataset.cat);
+            } else if (action === 'remove-ou') {
+                removeOu(btn.dataset.ou);
+            } else if (action === 'remove-user-override') {
+                removeUserOverride(btn.dataset.user);
+            } else if (action === 'unlock-user') {
+                unlockUser(encodeURIComponent(btn.dataset.user || ''));
+            } else if (action === 'lock-user') {
+                lockUserPrompt(encodeURIComponent(btn.dataset.user || ''));
+            } else if (action === 'force-proxy-off') {
+                forceUserProxyOff(encodeURIComponent(btn.dataset.user || ''), encodeURIComponent(btn.dataset.ip || ''));
+            } else if (action === 'force-logout') {
+                forceUserLogout(encodeURIComponent(btn.dataset.user || ''), encodeURIComponent(btn.dataset.ip || ''));
+            } else if (action === 'remove-user-domain') {
+                removeUserSpecificDomain(btn.dataset.user, btn.dataset.domain);
+            } else if (action === 'filter-audit-domain') {
+                filterAuditByDomain(btn.dataset.domain);
+            } else if (action === 'quick-add-blacklist') {
+                quickAddBlacklist(btn.dataset.domain);
+            }
+        });
 
         // Khởi động
         window.addEventListener('DOMContentLoaded', async () => {
@@ -3636,8 +3831,8 @@
                     await fetchMetrics();
                     await fetchAnalyticsData();
                     initSse();
-                    setInterval(fetchMetrics, 5000);
-                    setInterval(fetchAnalyticsData, 5000);
+                    metricsInterval = setInterval(fetchMetrics, 5000);
+                    analyticsInterval = setInterval(fetchAnalyticsData, 5000);
                 }
             }
         });

@@ -10,16 +10,166 @@ let cachedToken = "";
 let cachedMemberType = "";
 let cachedProxyEnabled = false;
 
+function normalizeHost(rawHost) {
+    return (rawHost || "").trim().toLowerCase().replace(/\.+$/, "");
+}
+
+function stripIpv6BracketsAndZone(rawHost) {
+    let h = normalizeHost(rawHost);
+    if (h.startsWith("[") && h.endsWith("]")) {
+        h = h.slice(1, -1);
+    }
+    const pctIdx = h.indexOf("%");
+    if (pctIdx !== -1) {
+        h = h.slice(0, pctIdx);
+    }
+    return h;
+}
+
 function shExpMatch(str, pattern) {
     if (!pattern) return false;
-    const p = pattern.trim().toLowerCase();
-    const s = (str || "").trim().toLowerCase();
+    const p = normalizeHost(pattern);
+    const s = normalizeHost(str);
+    if (!p || !s) return false;
     if (p === s) return true;
     if (p.startsWith("*.")) {
         const domain = p.substring(2);
-        return s === domain || s.endsWith("." + domain);
+        if (s === domain || s.endsWith("." + domain)) return true;
+    }
+    const regexStr = "^" + p.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*").replace(/\?/g, ".") + "$";
+    return new RegExp(regexStr).test(s);
+}
+
+function parseIPv4Octets(h) {
+    const parts = h.split(".");
+    if (parts.length !== 4) return null;
+    const octets = [];
+    for (let i = 0; i < 4; i++) {
+        if (!/^\d{1,3}$/.test(parts[i])) return null;
+        const n = Number(parts[i]);
+        if (n < 0 || n > 255) return null;
+        octets.push(n);
+    }
+    return octets;
+}
+
+function isForbiddenIPv4Octets(o) {
+    if (!o) return false;
+    const a = o[0], b = o[1];
+    if (a === 127) return true;                          // 127.0.0.0/8 (127.*)
+    if (a === 0) return true;                            // 0.0.0.0/8 (0.0.0.0)
+    if (a === 10) return true;                           // 10.0.0.0/8 (10.*)
+    if (a === 169 && b === 254) return true;             // 169.254.0.0/16 (169.254.*)
+    if (a === 172 && b >= 16 && b <= 31) return true;    // 172.16.0.0/12
+    if (a === 192 && b === 168) return true;             // 192.168.0.0/16
+    if (a === 100 && b >= 64 && b <= 127) return true;   // 100.64.0.0/10 (CGNAT)
+    if (a >= 224) return true;                           // Multicast / reserved
+    return false;
+}
+
+function parseIPv6Words(addr) {
+    if (!addr || addr.indexOf(":") === -1) return null;
+    const dbl = addr.split("::");
+    if (dbl.length > 2) return null;
+    const leftRaw = dbl[0] ? dbl[0].split(":") : [];
+    const rightRaw = dbl.length === 2 && dbl[1] ? dbl[1].split(":") : [];
+
+    const parseGroupList = (arr, allowTailIpv4) => {
+        const words = [];
+        for (let i = 0; i < arr.length; i++) {
+            const g = arr[i];
+            if (allowTailIpv4 && i === arr.length - 1 && g.indexOf(".") !== -1) {
+                const o = parseIPv4Octets(g);
+                if (!o) return null;
+                words.push((o[0] << 8) | o[1], (o[2] << 8) | o[3]);
+            } else {
+                if (!/^[0-9a-f]{1,4}$/.test(g)) return null;
+                words.push(parseInt(g, 16));
+            }
+        }
+        return words;
+    };
+
+    const left = parseGroupList(leftRaw, dbl.length === 1);
+    const right = parseGroupList(rightRaw, dbl.length === 2);
+    if (!left || !right) return null;
+
+    if (dbl.length === 1) {
+        return left.length === 8 ? left : null;
+    }
+    const missing = 8 - (left.length + right.length);
+    if (missing < 1) return null;
+    return left.concat(new Array(missing).fill(0), right);
+}
+
+function isInternalOrReservedHost(rawHost) {
+    const h = stripIpv6BracketsAndZone(rawHost);
+    if (!h) return true;
+    if (h === "localhost" || h.endsWith(".localhost") ||
+        h === "host.docker.internal" || h.endsWith(".docker.internal") ||
+        h.endsWith(".local")) {
+        return true;
+    }
+    const ipv4 = parseIPv4Octets(h);
+    if (ipv4) {
+        return isForbiddenIPv4Octets(ipv4);
+    }
+    const w = parseIPv6Words(h);
+    if (w) {
+        const z5 = w[0] === 0 && w[1] === 0 && w[2] === 0 && w[3] === 0 && w[4] === 0;
+        if (z5 && w[5] === 0 && w[6] === 0 && (w[7] === 0 || w[7] === 1)) return true;
+        if (z5 && w[5] === 0xffff) {
+            return isForbiddenIPv4Octets([w[6] >> 8, w[6] & 0xff, w[7] >> 8, w[7] & 0xff]);
+        }
+        if ((w[0] & 0xfe00) === 0xfc00) return true; // fc00::/7
+        if ((w[0] & 0xffc0) === 0xfe80) return true; // fe80::/10
+        if ((w[0] & 0xff00) === 0xff00) return true; // ff00::/8
     }
     return false;
+}
+
+function isVagsSelfHost(rawHost) {
+    const h = stripIpv6BracketsAndZone(rawHost);
+    return h === "thamkhao.vnu.edu.vn" || h.endsWith(".thamkhao.vnu.edu.vn") || h === "112.137.142.30" ||
+           h === "vags.vnu.edu.vn" || h.endsWith(".vags.vnu.edu.vn") || h === "112.137.133.14";
+}
+
+function isCloudBypassHost(rawHost) {
+    const h = normalizeHost(rawHost);
+    const cloudPatterns = [
+        "google.com", "*.google.com", "*.googleapis.com", "*.gstatic.com",
+        "*.googleusercontent.com", "*.googlevideo.com", "*.gvt1.com", "*.gvt2.com",
+        "*.microsoft.com", "*.live.com", "*.office.com", "*.apple.com", "*.icloud.com"
+    ];
+    for (let i = 0; i < cloudPatterns.length; i++) {
+        if (shExpMatch(h, cloudPatterns[i])) return true;
+    }
+    return false;
+}
+
+function getUserSpecificDomains(rules, username) {
+    const map = rules?.userOverrides?.userSpecificRules;
+    if (!map || !username) return [];
+    if (map[username] && Array.isArray(map[username].proxyDomains)) {
+        return map[username].proxyDomains;
+    }
+    const lower = username.trim().toLowerCase();
+    const ciKey = Object.keys(map).find(k => (k || "").trim().toLowerCase() === lower);
+    return (ciKey && Array.isArray(map[ciKey]?.proxyDomains)) ? map[ciKey].proxyDomains : [];
+}
+
+function normalizePatternList(list) {
+    if (!Array.isArray(list)) return [];
+    return list.map(p => normalizeHost(p)).filter(Boolean);
+}
+
+function buildAuthHeaders(tokenOverride) {
+    const headers = { "Content-Type": "application/json" };
+    const tok = tokenOverride || cachedToken;
+    if (tok) {
+        headers["Authorization"] = `Bearer ${tok}`;
+    }
+    return headers;
 }
 
 function updateExtensionActionUI(isEnabled, isLoggedIn) {
@@ -275,6 +425,7 @@ function handleForceLock(payload) {
                 "vagsTokenExpires", "proxyEnabled", "vags_proxy_enabled"
             ], () => {
                 cachedUser = "";
+                cachedToken = "";
                 cachedMemberType = "";
                 cachedProxyEnabled = false;
                 chrome.storage.local.set({ isLocked: true });
@@ -305,6 +456,7 @@ function applyProxyRules(rules, username) {
     }
 
     const isFullProxy = (rules.proxyMode || "FULL_PROXY") === "FULL_PROXY";
+    const licEnabled = rules.enableLicProxy !== false;
 
     // Danh sach bo qua proxy (Bypass List)
     // QUAN TRỌNG: Máy chủ VAGS & IP cổng & Địa chỉ Loopback, Docker, Mạng nội bộ PHẢI LUÔN trong bypassList để không bao giờ bị lỗi hoặc rò rỉ tunnel
@@ -317,15 +469,31 @@ function applyProxyRules(rules, username) {
         "*.vags.vnu.edu.vn",
         "112.137.133.14",
         "localhost",
+        "*.localhost",
         "127.0.0.1",
+        "127.*",
+        "127.0.0.0/8",
+        "0.0.0.0",
+        "0.0.0.0/8",
         "::1",
+        "::1/128",
+        "::/128",
+        "fc00::/7",
+        "fe80::/10",
+        "169.254.*",
+        "169.254.0.0/16",
         "10.*",
+        "10.0.0.0/8",
         "172.16.*", "172.17.*", "172.18.*", "172.19.*",
         "172.2*.*", "172.30.*", "172.31.*",
+        "172.16.0.0/12",
         "192.168.*",
+        "192.168.0.0/16",
+        "100.64.0.0/10",
         "*.docker.internal",
         "host.docker.internal",
         "*.local",
+        "google.com",
         "*.google.com",
         "*.googleapis.com",
         "*.gstatic.com",
@@ -339,15 +507,17 @@ function applyProxyRules(rules, username) {
         "*.apple.com",
         "*.icloud.com"
     ];
-    if (rules.blacklist) bypassList = bypassList.concat(rules.blacklist);
+    if (rules.blacklist) bypassList = bypassList.concat(normalizePatternList(rules.blacklist));
 
-    // Mạng nội bộ vnu: Nếu người dùng có đặc quyền cấu hình proxy thì áp dụng, các trang vnu khác bypass
-    const userOverrides = (rules.userOverrides?.userSpecificRules?.[username]?.proxyDomains) || [];
-    if (!userOverrides.includes("idp.vnu.edu.vn")) {
-        bypassList.push("*.vnu.edu.vn");
-    }
+    // Mạng nội bộ vnu: Luôn giữ vnu.edu.vn và *.vnu.edu.vn trong bypassList;
+    // Chỉ dùng PAC khi có ngoại lệ proxy riêng trên *.vnu.edu.vn (userSpecificRules hoặc internalWhitelist khi enableLicProxy !== false) để giữ phần còn lại của *.vnu.edu.vn đi DIRECT.
+    bypassList.push("vnu.edu.vn", "*.vnu.edu.vn");
+    const userOverrides = normalizePatternList(getUserSpecificDomains(rules, username));
+    const activeInternalWL = licEnabled ? normalizePatternList(rules.internalWhitelist) : [];
+    const isVnuPattern = (p) => p === "vnu.edu.vn" || p.endsWith(".vnu.edu.vn");
+    const hasVnuOverride = userOverrides.some(isVnuPattern) || activeInternalWL.some(isVnuPattern);
 
-    if (isFullProxy) {
+    if (isFullProxy && !hasVnuOverride) {
         // Che do Full Proxy: Dung fixed_servers truc tiep khong thong qua Javascript PAC isolate
         chrome.proxy.settings.set({
             value: {
@@ -384,37 +554,125 @@ function applyProxyRules(rules, username) {
 }
 
 function applyPacScript(rules, username) {
-    let userSpecificProxy = [];
-    if (username && rules.userOverrides?.userSpecificRules?.[username]?.proxyDomains) {
-        userSpecificProxy = rules.userOverrides.userSpecificRules[username].proxyDomains;
-    }
+    const licEnabled = rules.enableLicProxy !== false;
+    const isFullProxy = (rules.proxyMode || "FULL_PROXY") === "FULL_PROXY";
+    const userSpecificProxy = normalizePatternList(getUserSpecificDomains(rules, username));
+    const blacklist = normalizePatternList(rules.blacklist);
+    const internalWL = licEnabled ? normalizePatternList(rules.internalWhitelist) : [];
+    const academicWL = normalizePatternList(rules.globalAcademicWhitelist);
 
     const pacLines = [
+        "function vagsStripHost(rawHost) {",
+        "    var h = (rawHost || '').toLowerCase().replace(/^\\s+|\\s+$/g, '').replace(/\\.+$/, '');",
+        "    if (h.charAt(0) === '[' && h.charAt(h.length - 1) === ']') h = h.slice(1, -1);",
+        "    var pct = h.indexOf('%');",
+        "    if (pct !== -1) h = h.slice(0, pct);",
+        "    return h;",
+        "}",
+        "function vagsParseIPv4(h) {",
+        "    var parts = h.split('.');",
+        "    if (parts.length !== 4) return null;",
+        "    var out = [];",
+        "    for (var i = 0; i < 4; i++) {",
+        "        if (!/^\\d{1,3}$/.test(parts[i])) return null;",
+        "        var n = Number(parts[i]);",
+        "        if (n < 0 || n > 255) return null;",
+        "        out.push(n);",
+        "    }",
+        "    return out;",
+        "}",
+        "function vagsIsForbiddenIPv4(o) {",
+        "    if (!o) return false;",
+        "    var a = o[0], b = o[1];",
+        "    if (a === 127 || a === 0 || a === 10) return true;",
+        "    if (a === 169 && b === 254) return true;",
+        "    if (a === 172 && b >= 16 && b <= 31) return true;",
+        "    if (a === 192 && b === 168) return true;",
+        "    if (a === 100 && b >= 64 && b <= 127) return true;",
+        "    if (a >= 224) return true;",
+        "    return false;",
+        "}",
+        "function vagsParseIPv6(addr) {",
+        "    if (!addr || addr.indexOf(':') === -1) return null;",
+        "    var dbl = addr.split('::');",
+        "    if (dbl.length > 2) return null;",
+        "    var leftRaw = dbl[0] ? dbl[0].split(':') : [];",
+        "    var rightRaw = (dbl.length === 2 && dbl[1]) ? dbl[1].split(':') : [];",
+        "    function parseGroups(arr, allowTailV4) {",
+        "        var words = [];",
+        "        for (var i = 0; i < arr.length; i++) {",
+        "            var g = arr[i];",
+        "            if (allowTailV4 && i === arr.length - 1 && g.indexOf('.') !== -1) {",
+        "                var o = vagsParseIPv4(g);",
+        "                if (!o) return null;",
+        "                words.push((o[0] << 8) | o[1], (o[2] << 8) | o[3]);",
+        "            } else {",
+        "                if (!/^[0-9a-f]{1,4}$/.test(g)) return null;",
+        "                words.push(parseInt(g, 16));",
+        "            }",
+        "        }",
+        "        return words;",
+        "    }",
+        "    var left = parseGroups(leftRaw, dbl.length === 1);",
+        "    var right = parseGroups(rightRaw, dbl.length === 2);",
+        "    if (!left || !right) return null;",
+        "    if (dbl.length === 1) return left.length === 8 ? left : null;",
+        "    var missing = 8 - (left.length + right.length);",
+        "    if (missing < 1) return null;",
+        "    var res = left.slice();",
+        "    for (var z = 0; z < missing; z++) res.push(0);",
+        "    return res.concat(right);",
+        "}",
+        "function vagsIsInternalHost(h) {",
+        "    if (!h) return true;",
+        "    if (h === 'localhost' || shExpMatch(h, '*.localhost') || h === 'host.docker.internal' || shExpMatch(h, '*.docker.internal') || shExpMatch(h, '*.local')) return true;",
+        "    if (shExpMatch(h, '127.*') || shExpMatch(h, '169.254.*') || h === '0.0.0.0') return true;",
+        "    var v4 = vagsParseIPv4(h);",
+        "    if (v4) return vagsIsForbiddenIPv4(v4);",
+        "    var w = vagsParseIPv6(h);",
+        "    if (w) {",
+        "        var z5 = (w[0] === 0 && w[1] === 0 && w[2] === 0 && w[3] === 0 && w[4] === 0);",
+        "        if (z5 && w[5] === 0 && w[6] === 0 && (w[7] === 0 || w[7] === 1)) return true;",
+        "        if (z5 && w[5] === 0xffff) return vagsIsForbiddenIPv4([w[6] >> 8, w[6] & 0xff, w[7] >> 8, w[7] & 0xff]);",
+        "        if ((w[0] & 0xfe00) === 0xfc00) return true;",
+        "        if ((w[0] & 0xffc0) === 0xfe80) return true;",
+        "        if ((w[0] & 0xff00) === 0xff00) return true;",
+        "    }",
+        "    return false;",
+        "}",
+        "function vagsMatch(h, p) {",
+        "    if (!p) return false;",
+        "    if (p.indexOf('*.') === 0) {",
+        "        var dom = p.substring(2);",
+        "        if (h === dom || shExpMatch(h, '*.' + dom)) return true;",
+        "    }",
+        "    return h === p || shExpMatch(h, p);",
+        "}",
         "function FindProxyForURL(url, host) {",
-        "    var lHost = host.toLowerCase();",
-        "    if (lHost === 'localhost' || lHost === '127.0.0.1' || lHost === '::1' || shExpMatch(lHost, '*.docker.internal') || lHost === 'host.docker.internal' || shExpMatch(lHost, '10.*') || shExpMatch(lHost, '172.16.*') || shExpMatch(lHost, '172.17.*') || shExpMatch(lHost, '172.18.*') || shExpMatch(lHost, '172.19.*') || shExpMatch(lHost, '172.2*.*') || shExpMatch(lHost, '172.30.*') || shExpMatch(lHost, '172.31.*') || shExpMatch(lHost, '192.168.*')) return 'DIRECT';",
+        "    var lHost = vagsStripHost(host);",
+        "    if (vagsIsInternalHost(lHost)) return 'DIRECT';",
         "    if (lHost === 'thamkhao.vnu.edu.vn' || shExpMatch(lHost, '*.thamkhao.vnu.edu.vn') || lHost === '112.137.142.30' || lHost === 'vags.vnu.edu.vn' || shExpMatch(lHost, '*.vags.vnu.edu.vn') || lHost === '112.137.133.14') return 'DIRECT';",
-        "    if (shExpMatch(lHost, '*.google.com') || lHost === 'google.com' || shExpMatch(lHost, '*.googleapis.com') || shExpMatch(lHost, '*.gstatic.com') || shExpMatch(lHost, '*.googleusercontent.com')) return 'DIRECT';",
+        "    if (vagsMatch(lHost, '*.google.com') || vagsMatch(lHost, '*.googleapis.com') || vagsMatch(lHost, '*.gstatic.com') || vagsMatch(lHost, '*.googleusercontent.com') || vagsMatch(lHost, '*.googlevideo.com') || vagsMatch(lHost, '*.gvt1.com') || vagsMatch(lHost, '*.gvt2.com') || vagsMatch(lHost, '*.microsoft.com') || vagsMatch(lHost, '*.live.com') || vagsMatch(lHost, '*.office.com') || vagsMatch(lHost, '*.apple.com') || vagsMatch(lHost, '*.icloud.com')) return 'DIRECT';",
+        "    var blacklist = " + JSON.stringify(blacklist) + ";",
+        "    for (var i = 0; i < blacklist.length; i++) {",
+        "        if (vagsMatch(lHost, blacklist[i])) return 'DIRECT';",
+        "    }",
         "    var userWL = " + JSON.stringify(userSpecificProxy) + ";",
         "    for (var u = 0; u < userWL.length; u++) {",
-        "        if (shExpMatch(lHost, userWL[u])) return 'HTTPS thamkhao.vnu.edu.vn:443';",
+        "        if (vagsMatch(lHost, userWL[u])) return 'HTTPS thamkhao.vnu.edu.vn:443';",
         "    }",
-        "    var blacklist = " + JSON.stringify(rules.blacklist || []) + ";",
-        "    for (var i = 0; i < blacklist.length; i++) {",
-        "        if (shExpMatch(lHost, blacklist[i])) return 'DIRECT';",
-        "    }",
-        "    var internalWL = " + JSON.stringify(rules.internalWhitelist || []) + ";",
+        "    var internalWL = " + JSON.stringify(internalWL) + ";",
         "    for (var j = 0; j < internalWL.length; j++) {",
-        "        if (shExpMatch(lHost, internalWL[j])) return 'HTTPS thamkhao.vnu.edu.vn:443';",
+        "        if (vagsMatch(lHost, internalWL[j])) return 'HTTPS thamkhao.vnu.edu.vn:443';",
         "    }",
-        "    if (shExpMatch(lHost, '*.vnu.edu.vn') || lHost === 'vnu.edu.vn') {",
+        "    if (vagsMatch(lHost, '*.vnu.edu.vn')) {",
         "        return 'DIRECT';",
         "    }",
-        "    var academicWL = " + JSON.stringify(rules.globalAcademicWhitelist || []) + ";",
+        "    var academicWL = " + JSON.stringify(academicWL) + ";",
         "    for (var k = 0; k < academicWL.length; k++) {",
-        "        if (shExpMatch(lHost, academicWL[k])) return 'HTTPS thamkhao.vnu.edu.vn:443';",
+        "        if (vagsMatch(lHost, academicWL[k])) return 'HTTPS thamkhao.vnu.edu.vn:443';",
         "    }",
-        "    return 'DIRECT';",
+        "    return " + (isFullProxy ? "'HTTPS thamkhao.vnu.edu.vn:443'" : "'DIRECT'") + ";",
         "}"
     ];
     const pacScript = pacLines.join("\n").replace(/[^\x00-\x7F]/g, "");
@@ -500,6 +758,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (msg.action === "SYNC_SESSION") {
         const d = msg.data || {};
         cachedUser = d.vagsUser || "";
+        cachedToken = d.vagsToken || "";
         cachedMemberType = d.vagsMemberType || "canbo";
 
         // TÔN TRỌNG TUYỆT ĐỐI Ý CHÍ NGƯỜI DÙNG:
@@ -529,7 +788,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                 if (cachedUser) {
                     fetch(`${VAGS_BASE_URL}/api/v1/user/heartbeat`, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: buildAuthHeaders(d.vagsToken),
                         body: JSON.stringify({ user: cachedUser, unit: d.vagsUnit || 'VNU', memberType: cachedMemberType || 'canbo', proxyEnabled: cachedProxyEnabled })
                     }).catch(() => {});
                 }
@@ -607,6 +866,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                 return;
             }
 
+            const activeToken = storage.vagsToken || cachedToken || "";
+            if (activeToken) cachedToken = activeToken;
+
             cachedProxyEnabled = !!msg.enabled;
             if (cachedProxyEnabled) {
                 chrome.storage.local.set({ proxyEnabled: true }, () => {
@@ -615,7 +877,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                     updateExtensionActionUI(true, true);
                     fetch(`${VAGS_BASE_URL}/api/v1/user/status`, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: buildAuthHeaders(activeToken),
                         body: JSON.stringify({ user: storage.vagsUser, proxyEnabled: true })
                     }).catch(() => {});
                     sendResponse({ ok: true, enabled: true });
@@ -626,7 +888,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                     updateExtensionActionUI(false, true);
                     fetch(`${VAGS_BASE_URL}/api/v1/user/status`, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: buildAuthHeaders(activeToken),
                         body: JSON.stringify({ user: storage.vagsUser, proxyEnabled: false })
                     }).catch(() => {});
                     sendResponse({ ok: true, enabled: false });
@@ -658,7 +920,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     }
 
     if (msg.action === "GET_PAGE_ROUTE_INFO") {
-        const host = (msg.host || "").toLowerCase().trim();
+        const host = normalizeHost(msg.host);
         const enabled = cachedProxyEnabled;
         const isLoggedIn = !!(cachedUser && (cachedToken || cachedMemberType));
 
@@ -679,15 +941,15 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
             return true;
         }
 
-        // 0. Loopback, Docker, Internal IP Bypass
-        if (host === "localhost" || host === "127.0.0.1" || host === "::1" ||
-            shExpMatch(host, "*.docker.internal") || host === "host.docker.internal" ||
-            shExpMatch(host, "10.*") || shExpMatch(host, "172.16.*") || shExpMatch(host, "172.17.*") ||
-            shExpMatch(host, "172.18.*") || shExpMatch(host, "172.19.*") || shExpMatch(host, "172.2*.*") ||
-            shExpMatch(host, "172.30.*") || shExpMatch(host, "172.31.*") || shExpMatch(host, "192.168.*") ||
-            host === "thamkhao.vnu.edu.vn" || host.endsWith(".thamkhao.vnu.edu.vn") || host === "112.137.142.30" ||
-            host === "vags.vnu.edu.vn" || host.endsWith(".vags.vnu.edu.vn") || host === "112.137.133.14") {
+        // 0. Loopback, Docker, Internal IP Bypass & VAGS Self-Host
+        if (isInternalOrReservedHost(host) || isVagsSelfHost(host)) {
             sendResponse({ enabled: true, isLoggedIn: true, action: "DIRECT", category: "internalBypass", label: "Địa chỉ nội bộ / Docker", reason: "Kết nối trực tiếp không qua proxy" });
+            return true;
+        }
+
+        // 0.5 Cloud / OS Bypass
+        if (isCloudBypassHost(host)) {
+            sendResponse({ enabled: true, isLoggedIn: true, action: "DIRECT", category: "default", label: "Mạng ngoài", reason: "Dịch vụ đám mây / xác thực kết nối trực tiếp" });
             return true;
         }
 
@@ -700,21 +962,20 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         }
 
         // 2. User Specific
-        if (cachedUser && cachedRules?.userOverrides?.userSpecificRules) {
-            const uConfig = cachedRules.userOverrides.userSpecificRules[cachedUser];
-            for (const ud of (uConfig?.proxyDomains || [])) {
-                if (shExpMatch(host, ud)) {
-                    sendResponse({ enabled: true, isLoggedIn: true, action: "PROXY", category: "userOverride", label: `Ngoại lệ (${cachedUser})`, reason: `Quyền định tuyến riêng cho ${cachedUser}` });
-                    return true;
-                }
+        for (const ud of getUserSpecificDomains(cachedRules, cachedUser)) {
+            if (shExpMatch(host, ud)) {
+                sendResponse({ enabled: true, isLoggedIn: true, action: "PROXY", category: "userOverride", label: `Ngoại lệ (${cachedUser})`, reason: `Quyền định tuyến riêng cho ${cachedUser}` });
+                return true;
             }
         }
 
-        // 3. Internal Whitelist
-        for (const iw of (cachedRules?.internalWhitelist || [])) {
-            if (shExpMatch(host, iw)) {
-                sendResponse({ enabled: true, isLoggedIn: true, action: "PROXY", category: "lic", label: "Thư viện số LIC / Kiểm tra IP", reason: "Dịch vụ thư viện & công cụ nhận diện ĐHQGHN" });
-                return true;
+        // 3. Internal Whitelist (chỉ áp dụng khi enableLicProxy !== false)
+        if (cachedRules?.enableLicProxy !== false) {
+            for (const iw of (cachedRules?.internalWhitelist || [])) {
+                if (shExpMatch(host, iw)) {
+                    sendResponse({ enabled: true, isLoggedIn: true, action: "PROXY", category: "lic", label: "Thư viện số LIC / Kiểm tra IP", reason: "Dịch vụ thư viện & công cụ nhận diện ĐHQGHN" });
+                    return true;
+                }
             }
         }
 
@@ -831,7 +1092,7 @@ function sendHeartbeat() {
     if (cachedUser) {
         fetch(`${VAGS_BASE_URL}/api/v1/user/heartbeat`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: buildAuthHeaders(),
             body: JSON.stringify({ user: cachedUser, unit: 'VNU', memberType: cachedMemberType || 'canbo', proxyEnabled: cachedProxyEnabled })
         }).catch(() => {});
     }
