@@ -229,7 +229,6 @@ function updateLocalCache() {
         updateExtensionActionUI(cachedProxyEnabled, isLoggedIn && !isDenied);
     });
 }
-updateLocalCache();
 
 // 1. Dinh tuyen Proxy Native tren Firefox bang browser.proxy.onRequest
 if (typeof browser !== "undefined" && browser.proxy && browser.proxy.onRequest) {
@@ -423,9 +422,14 @@ function handleForceProxyOff(payload) {
         const isMatch = payload.all === true || (targetUser && targetUser === currentUser);
 
         if (isMatch) {
-            console.warn("[VAGS Firefox] ⚡ Nhận lệnh ép TẮT PROXY từ Quản trị viên!");
+            const reason = payload.reason || "";
+            console.warn("[VAGS Firefox] ⚡ Nhận lệnh ép TẮT PROXY từ Hệ thống!", reason);
             cachedProxyEnabled = false;
-            chrome.storage.local.set({ proxyEnabled: false }, () => {
+            chrome.storage.local.set({
+                proxyEnabled: false,
+                lastForceOffReason: reason,
+                lastForceOffAt: new Date().toISOString()
+            }, () => {
                 updateLocalCache();
                 if (sseSource) { try { sseSource.close(); } catch (e) {} }
                 connectSSE();
@@ -616,6 +620,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         cachedProxyEnabled = !!msg.enabled;
         chrome.storage.local.set({ proxyEnabled: cachedProxyEnabled }, () => {
             updateExtensionActionUI(cachedProxyEnabled, true);
+            if (sseSource) { try { sseSource.close(); } catch (e) {} }
+            connectSSE();
             fetch(`${VAGS_BASE_URL}/api/v1/user/status`, {
                 method: 'POST',
                 headers: buildAuthHeaders(),
@@ -642,7 +648,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
             enabled: cachedProxyEnabled,
             user: cachedUser,
             memberType: cachedMemberType,
-            version: (chrome.runtime.getManifest && chrome.runtime.getManifest().version) || "2.1.4"
+            version: (chrome.runtime.getManifest && chrome.runtime.getManifest().version) || "2.2.1"
         });
         return true;
     }
@@ -747,24 +753,155 @@ if (typeof browser !== "undefined" && browser.alarms) {
     });
 }
 
-// 5. Tự động kiểm tra cập nhật khi trình duyệt khởi động
-if (typeof browser !== "undefined" && browser.runtime && browser.runtime.onStartup) {
-    browser.runtime.onStartup.addListener(() => {
-        checkVersionOnStartup();
-        connectSSE();
+let startupEnforcementPromise = null;
+
+function enforceBrowserStartupProxyOff(callback) {
+    cachedProxyEnabled = false;
+    chrome.storage.local.get(["vagsUser", "vagsToken", "vagsMemberType", "currentRules"], (st) => {
+        if (st.currentRules) cachedRules = st.currentRules;
+        cachedUser = st.vagsUser || "";
+        cachedToken = st.vagsToken || "";
+        cachedMemberType = st.vagsMemberType || "";
+        const isLoggedIn = !!(cachedUser && cachedToken);
+
+        if (isLoggedIn) {
+            chrome.storage.local.set({ proxyEnabled: false }, () => {
+                updateExtensionActionUI(false, true);
+                fetch(`${VAGS_BASE_URL}/api/v1/user/status`, {
+                    method: "POST",
+                    headers: buildAuthHeaders(cachedToken),
+                    body: JSON.stringify({ user: cachedUser, proxyEnabled: false })
+                }).catch(() => {});
+                if (typeof callback === "function") callback();
+            });
+        } else {
+            updateExtensionActionUI(false, false);
+            if (typeof callback === "function") callback();
+        }
     });
 }
 
-checkVersionOnStartup();
-connectSSE();
+function getFirefoxSessionStorage() {
+    if (typeof browser !== "undefined" && browser.storage && browser.storage.session) {
+        return { kind: "promise", api: browser.storage.session };
+    }
+    if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.session) {
+        return { kind: "callback", api: chrome.storage.session };
+    }
+    return null;
+}
 
-// Gửi Heartbeat định kỳ duy trì session và cập nhật IP client trên SQLite
-setInterval(() => {
-    if (cachedUser) {
-        fetch(`${VAGS_BASE_URL}/api/v1/user/heartbeat`, {
+function ensureBrowserStartupProxyReset(reasonTag, onReady) {
+    if (startupEnforcementPromise) {
+        startupEnforcementPromise.then(() => {
+            if (typeof onReady === "function") onReady(false);
+        });
+        return;
+    }
+
+    const sess = getFirefoxSessionStorage();
+    startupEnforcementPromise = new Promise((resolve) => {
+        if (!sess) {
+            if (reasonTag === "onStartup") {
+                enforceBrowserStartupProxyOff(() => resolve(true));
+            } else {
+                resolve(false);
+            }
+            return;
+        }
+
+        if (sess.kind === "promise") {
+            sess.api.get(["vagsBrowserSessionInit"]).then((data) => {
+                if (data && data.vagsBrowserSessionInit === true) {
+                    resolve(false);
+                } else {
+                    sess.api.set({ vagsBrowserSessionInit: true }).then(() => {
+                        enforceBrowserStartupProxyOff(() => resolve(true));
+                    }).catch(() => enforceBrowserStartupProxyOff(() => resolve(true)));
+                }
+            }).catch(() => {
+                if (reasonTag === "onStartup") enforceBrowserStartupProxyOff(() => resolve(true));
+                else resolve(false);
+            });
+        } else {
+            sess.api.get(["vagsBrowserSessionInit"], (data) => {
+                if (data && data.vagsBrowserSessionInit === true) {
+                    resolve(false);
+                } else {
+                    sess.api.set({ vagsBrowserSessionInit: true }, () => {
+                        enforceBrowserStartupProxyOff(() => resolve(true));
+                    });
+                }
+            });
+        }
+    });
+
+    startupEnforcementPromise.then((didForceOff) => {
+        if (typeof onReady === "function") onReady(didForceOff);
+    });
+}
+
+function initExtensionBoot() {
+    ensureBrowserStartupProxyReset("boot", () => {
+        chrome.storage.local.get(["currentRules", "vagsUser", "vagsToken", "vagsMemberType", "proxyEnabled", "isLocked"], (storage) => {
+            if (storage.currentRules) cachedRules = storage.currentRules;
+            cachedUser = storage.vagsUser || "";
+            cachedToken = storage.vagsToken || "";
+            cachedMemberType = storage.vagsMemberType || "";
+
+            const isLoggedIn = !!(cachedUser && cachedToken);
+            const isStudent = cachedMemberType === "sinhvien";
+            const allowedUsers = cachedRules?.userOverrides?.allowed || [];
+            const deniedUsers = (cachedRules?.userOverrides?.denied || []).map(u => (u || '').toLowerCase());
+            const isOverride = cachedUser && allowedUsers.includes(cachedUser);
+            const isDenied = (cachedUser && deniedUsers.includes(cachedUser.toLowerCase())) || storage.isLocked === true;
+            cachedProxyEnabled = (isLoggedIn && (!isStudent || isOverride) && !isDenied) ? (storage.proxyEnabled === true) : false;
+
+            updateExtensionActionUI(cachedProxyEnabled, isLoggedIn && !isDenied);
+            checkVersionOnStartup();
+            connectSSE();
+            sendHeartbeat();
+        });
+    });
+}
+
+// 5. Tự động đưa về OFF (DIRECT) nhưng giữ nguyên đăng nhập VNU SSO khi trình duyệt mở mới
+if (typeof browser !== "undefined" && browser.runtime && browser.runtime.onStartup) {
+    browser.runtime.onStartup.addListener(() => {
+        const sess = getFirefoxSessionStorage();
+        if (sess) {
+            if (sess.kind === "promise") sess.api.set({ vagsBrowserSessionInit: true }).catch(() => {});
+            else sess.api.set({ vagsBrowserSessionInit: true });
+        }
+        startupEnforcementPromise = new Promise((resolve) => {
+            enforceBrowserStartupProxyOff(() => resolve(true));
+        });
+        startupEnforcementPromise.then(() => {
+            checkVersionOnStartup();
+            connectSSE();
+        });
+    });
+}
+
+async function sendHeartbeat() {
+    if (!cachedUser) return;
+    try {
+        const res = await fetch(`${VAGS_BASE_URL}/api/v1/user/heartbeat`, {
             method: 'POST',
             headers: buildAuthHeaders(),
             body: JSON.stringify({ user: cachedUser, unit: 'VNU', memberType: cachedMemberType || 'canbo', proxyEnabled: cachedProxyEnabled })
-        }).catch(() => {});
-    }
+        });
+        if (!res.ok) return;
+        const data = await res.json().catch(() => null);
+        if (data && data.forceProxyOff === true) {
+            handleForceProxyOff({ user: cachedUser, ip: data.clientIp, reason: data.reason });
+        }
+    } catch (e) {}
+}
+
+initExtensionBoot();
+
+// Gửi Heartbeat định kỳ duy trì session và cập nhật IP client trên SQLite
+setInterval(() => {
+    sendHeartbeat();
 }, 120000);

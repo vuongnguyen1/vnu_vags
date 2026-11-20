@@ -232,7 +232,9 @@ async function connectSSE() {
     if (sseAbortController) {
         try { sseAbortController.abort(); } catch (e) {}
     }
-    sseAbortController = new AbortController();
+    const myController = new AbortController();
+    sseAbortController = myController;
+    clearTimeout(reconnectTimer);
 
     try {
         const queryParams = new URLSearchParams();
@@ -242,8 +244,10 @@ async function connectSSE() {
         const response = await fetch(`${VAGS_BASE_URL}/api/v1/rules/stream${userParam}`, {
             headers: { "Accept": "text/event-stream" },
             cache: "no-store",
-            signal: sseAbortController.signal
+            signal: myController.signal
         });
+
+        if (sseAbortController !== myController) return;
 
         if (!response.ok || !response.body) {
             chrome.storage.local.set({ sseConnected: false });
@@ -316,11 +320,13 @@ async function connectSSE() {
             }
         }
     } catch (err) {
+        if (sseAbortController !== myController) return;
         if (err.name !== "AbortError") {
             console.warn("[VAGS Chrome] SSE error:", err);
         }
     }
 
+    if (sseAbortController !== myController) return;
     chrome.storage.local.set({ sseConnected: false });
     clearTimeout(reconnectTimer);
     reconnectTimer = setTimeout(connectSSE, 5000);
@@ -361,14 +367,16 @@ function handleForceProxyOff(payload) {
         const isMatch = payload.all === true || (targetUser && targetUser === currentUser);
 
         if (isMatch) {
-            console.warn("[VAGS Chrome] ⚡ Nhận lệnh ép TẮT PROXY từ Quản trị viên!");
+            const reason = payload.reason || "";
+            console.warn("[VAGS Chrome] ⚡ Nhận lệnh ép TẮT PROXY từ Hệ thống!", reason);
             cachedProxyEnabled = false;
-            chrome.storage.local.set({ proxyEnabled: false }, () => {
+            chrome.storage.local.set({
+                proxyEnabled: false,
+                lastForceOffReason: reason,
+                lastForceOffAt: new Date().toISOString()
+            }, () => {
                 disableProxy(!!currentUser);
                 updateLocalCache();
-                if (sseAbortController) {
-                    try { sseAbortController.abort(); } catch (e) {}
-                }
                 connectSSE();
             });
         }
@@ -875,6 +883,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                     if (storage.currentRules) applyProxyRules(storage.currentRules, storage.vagsUser);
                     else checkVersionOnStartup();
                     updateExtensionActionUI(true, true);
+                    connectSSE();
                     fetch(`${VAGS_BASE_URL}/api/v1/user/status`, {
                         method: 'POST',
                         headers: buildAuthHeaders(activeToken),
@@ -886,6 +895,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                 chrome.storage.local.set({ proxyEnabled: false }, () => {
                     disableProxy(true);
                     updateExtensionActionUI(false, true);
+                    connectSSE();
                     fetch(`${VAGS_BASE_URL}/api/v1/user/status`, {
                         method: 'POST',
                         headers: buildAuthHeaders(activeToken),
@@ -1026,17 +1036,88 @@ if (typeof chrome !== "undefined" && chrome.alarms) {
     });
 }
 
+let startupEnforcementPromise = null;
+
+function enforceBrowserStartupProxyOff(callback) {
+    cachedProxyEnabled = false;
+    chrome.storage.local.get(["vagsUser", "vagsToken", "vagsMemberType", "currentRules"], (st) => {
+        if (st.currentRules) cachedRules = st.currentRules;
+        cachedUser = st.vagsUser || "";
+        cachedToken = st.vagsToken || "";
+        cachedMemberType = st.vagsMemberType || "";
+        const isLoggedIn = !!(cachedUser && cachedToken);
+
+        if (isLoggedIn) {
+            chrome.storage.local.set({ proxyEnabled: false }, () => {
+                disableProxy(true);
+                fetch(`${VAGS_BASE_URL}/api/v1/user/status`, {
+                    method: "POST",
+                    headers: buildAuthHeaders(cachedToken),
+                    body: JSON.stringify({ user: cachedUser, proxyEnabled: false })
+                }).catch(() => {});
+                if (typeof callback === "function") callback();
+            });
+        } else {
+            if (typeof chrome !== "undefined" && chrome.proxy && chrome.proxy.settings) {
+                chrome.proxy.settings.clear({ scope: "regular" }, () => {
+                    chrome.proxy.settings.set({ value: { mode: "direct" }, scope: "regular" }, () => {});
+                });
+            }
+            updateExtensionActionUI(false, false);
+            if (typeof callback === "function") callback();
+        }
+    });
+}
+
+function ensureBrowserStartupProxyReset(reasonTag, onReady) {
+    if (startupEnforcementPromise) {
+        startupEnforcementPromise.then(() => {
+            if (typeof onReady === "function") onReady(false);
+        });
+        return;
+    }
+
+    const sessApi = (typeof chrome !== "undefined" && chrome.storage && chrome.storage.session) ? chrome.storage.session : null;
+    startupEnforcementPromise = new Promise((resolve) => {
+        if (!sessApi) {
+            if (reasonTag === "onStartup") {
+                enforceBrowserStartupProxyOff(() => resolve(true));
+            } else {
+                resolve(false);
+            }
+            return;
+        }
+        sessApi.get(["vagsBrowserSessionInit"], (sess) => {
+            if (sess && sess.vagsBrowserSessionInit === true) {
+                resolve(false);
+            } else {
+                sessApi.set({ vagsBrowserSessionInit: true }, () => {
+                    enforceBrowserStartupProxyOff(() => resolve(true));
+                });
+            }
+        });
+    });
+
+    startupEnforcementPromise.then((didForceOff) => {
+        if (typeof onReady === "function") onReady(didForceOff);
+    });
+}
+
 // 6. Tự động kiểm tra cập nhật khi trình duyệt mở lại hoặc Extension cài đặt
 if (typeof chrome !== "undefined" && chrome.runtime) {
     chrome.runtime.onStartup.addListener(() => {
-        console.log("[VAGS Chrome] Trình duyệt khởi động -> Tự động nạp rule mới");
-        chrome.storage.local.get(["vagsUser", "vagsToken", "proxyEnabled"], (st) => {
-            if (!st.vagsUser || !st.vagsToken || st.proxyEnabled !== true) {
-                disableProxy();
-            }
+        console.log("[VAGS Chrome] Trình duyệt mở mới -> Đưa Proxy về OFF (DIRECT) nhưng giữ đăng nhập VNU SSO");
+        const sessApi = (chrome.storage && chrome.storage.session) ? chrome.storage.session : null;
+        if (sessApi) {
+            sessApi.set({ vagsBrowserSessionInit: true });
+        }
+        startupEnforcementPromise = new Promise((resolve) => {
+            enforceBrowserStartupProxyOff(() => resolve(true));
         });
-        checkVersionOnStartup();
-        connectSSE();
+        startupEnforcementPromise.then(() => {
+            checkVersionOnStartup();
+            connectSSE();
+        });
     });
     chrome.runtime.onInstalled.addListener(() => {
         console.log("[VAGS Chrome] Extension cài đặt/cập nhật -> Đảm bảo DIRECT nếu chưa đăng nhập");
@@ -1088,34 +1169,41 @@ if (typeof chrome !== "undefined" && chrome.alarms) {
     });
 }
 
-function sendHeartbeat() {
-    if (cachedUser) {
-        fetch(`${VAGS_BASE_URL}/api/v1/user/heartbeat`, {
+async function sendHeartbeat() {
+    if (!cachedUser) return;
+    try {
+        const res = await fetch(`${VAGS_BASE_URL}/api/v1/user/heartbeat`, {
             method: 'POST',
             headers: buildAuthHeaders(),
             body: JSON.stringify({ user: cachedUser, unit: 'VNU', memberType: cachedMemberType || 'canbo', proxyEnabled: cachedProxyEnabled })
-        }).catch(() => {});
-    }
+        });
+        if (!res.ok) return;
+        const data = await res.json().catch(() => null);
+        if (data && data.forceProxyOff === true) {
+            handleForceProxyOff({ user: cachedUser, ip: data.clientIp, reason: data.reason });
+        }
+    } catch (e) {}
 }
 
-// Khởi chạy an toàn: Nạp storage trước rồi mới kết nối SSE và gửi heartbeat
-chrome.storage.local.get(["currentRules", "vagsUser", "vagsToken", "vagsMemberType", "proxyEnabled"], (storage) => {
-    if (storage.currentRules) cachedRules = storage.currentRules;
-    if (storage.vagsUser) cachedUser = storage.vagsUser;
-    if (storage.vagsToken) cachedToken = storage.vagsToken;
-    if (storage.vagsMemberType) cachedMemberType = storage.vagsMemberType;
-    if (storage.proxyEnabled !== undefined) cachedProxyEnabled = storage.proxyEnabled === true;
+// Khởi chạy an toàn: Đặt DIRECT khi mở trình duyệt mới; giữ trạng thái đang bật nếu Worker tỉnh lại giữa phiên
+ensureBrowserStartupProxyReset("boot", () => {
+    chrome.storage.local.get(["currentRules", "vagsUser", "vagsToken", "vagsMemberType", "proxyEnabled"], (storage) => {
+        if (storage.currentRules) cachedRules = storage.currentRules;
+        if (storage.vagsUser) cachedUser = storage.vagsUser;
+        if (storage.vagsToken) cachedToken = storage.vagsToken;
+        if (storage.vagsMemberType) cachedMemberType = storage.vagsMemberType;
+        if (storage.proxyEnabled !== undefined) cachedProxyEnabled = storage.proxyEnabled === true;
 
-    // QUAN TRỌNG: Nếu chưa đăng nhập VNU SSO hoặc proxy chưa bật -> Ép mode: direct ngay lập tức
-    const isLoggedIn = !!(storage.vagsUser && storage.vagsToken);
-    if (!isLoggedIn || storage.proxyEnabled !== true) {
-        disableProxy();
-    }
+        const isLoggedIn = !!(storage.vagsUser && storage.vagsToken);
+        if (!isLoggedIn || storage.proxyEnabled !== true) {
+            disableProxy();
+        }
 
-    checkVersionOnStartup();
-    connectSSE();
-    sendHeartbeat();
-    forceCheckExtensionUpdate();
+        checkVersionOnStartup();
+        connectSSE();
+        sendHeartbeat();
+        forceCheckExtensionUpdate();
+    });
 });
 
 // Gui Heartbeat dinh ky de duy tri session on dinh, cap nhat IP client va bang thong tren SQLite

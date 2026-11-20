@@ -63,7 +63,12 @@ RuleStoreModel LoadRules()
         {
             var raw = File.ReadAllText(rulesFilePath);
             var loaded = JsonSerializer.Deserialize<RuleStoreModel>(raw, jsonOptions);
-            if (loaded != null) return loaded;
+            if (loaded != null)
+            {
+                loaded.MaxConcurrentSessionsPerUser = loaded.MaxConcurrentSessionsPerUser <= 0 ? 5 : Math.Clamp(loaded.MaxConcurrentSessionsPerUser, 1, 100);
+                loaded.MaxConcurrentSessionsAdmin = loaded.MaxConcurrentSessionsAdmin <= 0 ? 10 : Math.Clamp(loaded.MaxConcurrentSessionsAdmin, 1, 100);
+                return loaded;
+            }
         }
     }
     catch (Exception ex)
@@ -74,6 +79,8 @@ RuleStoreModel LoadRules()
     var initial = new RuleStoreModel
     {
         Version = "2026.11.07.01",
+        MaxConcurrentSessionsPerUser = 5,
+        MaxConcurrentSessionsAdmin = 10,
         Blacklist = new List<string> { "*.youtube.com", "youtube.com", "*.facebook.com", "facebook.com", "*.tiktok.com", "tiktok.com", "*.vnu.edu.vn" },
         InternalWhitelist = new List<string> { "lic.vnu.edu.vn", "*.lic.vnu.edu.vn" },
         GlobalAcademicWhitelist = new List<string> { "*.sciencedirect.com", "sciencedirect.com", "*.springer.com", "springer.com", "*.nature.com", "nature.com" },
@@ -158,8 +165,20 @@ bool IsVagsSelfHost(string h, RuleStoreModel rStore)
     return false;
 }
 
-var monitorDb = new MonitorDbService(Path.Combine(dataDir, "vags_monitor.db"));
+var monitorDb = new MonitorDbService(
+    Path.Combine(dataDir, "vags_monitor.db"),
+    (uname, unit) =>
+    {
+        var isAdminRole = !string.IsNullOrEmpty(ResolveAdminRole(uname, null, unit));
+        lock (ruleLock)
+        {
+            return isAdminRole
+                ? Math.Clamp(ruleStore.MaxConcurrentSessionsAdmin > 0 ? ruleStore.MaxConcurrentSessionsAdmin : 10, 1, 100)
+                : Math.Clamp(ruleStore.MaxConcurrentSessionsPerUser > 0 ? ruleStore.MaxConcurrentSessionsPerUser : 5, 1, 100);
+        }
+    });
 var sseClients = new ConcurrentDictionary<Guid, SseClientInfo>();
+var pendingForceProxyOff = new ConcurrentDictionary<string, PendingForceOffEntry>(StringComparer.OrdinalIgnoreCase);
 var proxyLogs = new ConcurrentQueue<ProxyLogEntry>();
 var secLogLock = new object();
 var activeUserTunnels = new ConcurrentDictionary<string, int>(StringComparer.OrdinalIgnoreCase);
@@ -338,6 +357,175 @@ void AddProxyLog(string clientIp, string targetHost, int targetPort, bool allowe
         catch { }
     }
 }
+
+void WriteSecurityLog(string eventType, string message)
+{
+    try
+    {
+        var safeType = SanitizeLogField(eventType);
+        var safeMsg = SanitizeLogField(message);
+        var line = $"{DateTime.UtcNow:yyyy-MM-ddTHH:mm:ss.fffZ} vags-gateway[security]: {safeType} {safeMsg}\n";
+        lock (secLogLock)
+        {
+            File.AppendAllText(Path.Combine(dataDir, "security.log"), line);
+        }
+    }
+    catch { }
+}
+
+async Task<bool> WriteSseEventAsync(SseClientInfo client, string payload, CancellationToken ct = default)
+{
+    try
+    {
+        await client.WriteLock.WaitAsync(ct);
+        try
+        {
+            await client.Response.WriteAsync(payload, ct);
+            await client.Response.Body.FlushAsync(ct);
+            return true;
+        }
+        finally
+        {
+            client.WriteLock.Release();
+        }
+    }
+    catch
+    {
+        sseClients.TryRemove(client.Id, out _);
+        return false;
+    }
+}
+
+string PendingOffKey(string? username, string? ip)
+{
+    var u = NormalizeUsername(username);
+    var cleanIp = MonitorDbService.NormalizeClientIp(ip);
+    if (string.IsNullOrEmpty(u) || string.IsNullOrEmpty(cleanIp)) return "";
+    return $"{u}|{cleanIp}";
+}
+
+void SetPendingForceOff(string? username, string? ip, string reason)
+{
+    var key = PendingOffKey(username, ip);
+    if (string.IsNullOrEmpty(key)) return;
+    var now = DateTimeOffset.UtcNow;
+    if (pendingForceProxyOff.Count > 5000)
+    {
+        foreach (var kvp in pendingForceProxyOff.ToArray())
+        {
+            if (now - kvp.Value.CreatedAtUtc >= TimeSpan.FromHours(12))
+            {
+                pendingForceProxyOff.TryRemove(kvp.Key, out _);
+            }
+        }
+    }
+    var normIp = MonitorDbService.NormalizeClientIp(ip);
+    pendingForceProxyOff[key] = new PendingForceOffEntry((username ?? "").Trim(), normIp, reason, now);
+}
+
+bool TryGetPendingForceOff(string? username, string? ip, out PendingForceOffEntry? entry)
+{
+    entry = null;
+    var key = PendingOffKey(username, ip);
+    if (string.IsNullOrEmpty(key)) return false;
+    if (pendingForceProxyOff.TryGetValue(key, out var found))
+    {
+        if (DateTimeOffset.UtcNow - found.CreatedAtUtc < TimeSpan.FromHours(12))
+        {
+            entry = found;
+            return true;
+        }
+        pendingForceProxyOff.TryRemove(key, out _);
+    }
+    return false;
+}
+
+void ClearPendingForceOff(string? username, string? ip)
+{
+    var key = PendingOffKey(username, ip);
+    if (string.IsNullOrEmpty(key)) return;
+    pendingForceProxyOff.TryRemove(key, out _);
+}
+
+bool HasOtherActiveSseClient(string? username, string? ip, Guid? excludeId = null)
+{
+    var normIp = MonitorDbService.NormalizeClientIp(ip);
+    if (string.IsNullOrEmpty(normIp) || string.IsNullOrWhiteSpace(username)) return false;
+    foreach (var c in sseClients.Values)
+    {
+        if (excludeId.HasValue && c.Id == excludeId.Value) continue;
+        if (!c.ProxyEnabled) continue;
+        if (MonitorDbService.NormalizeClientIp(c.RemoteIp) == normIp && IsSameUser(c.User, username))
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+async Task<int> SendTargetedForceProxyOffAsync(string username, IReadOnlyList<string> targetIps, string reason, bool recordTombstone = true)
+{
+    int totalDelivered = 0;
+    var effectiveReason = string.IsNullOrWhiteSpace(reason)
+        ? "Hệ thống đã tự động tắt Proxy trên thiết bị kết nối sớm nhất."
+        : reason.Trim();
+
+    foreach (var rawTargetIp in targetIps)
+    {
+        var normIp = MonitorDbService.NormalizeClientIp(rawTargetIp);
+        if (string.IsNullOrEmpty(normIp)) continue;
+
+        if (recordTombstone && !string.IsNullOrWhiteSpace(username))
+        {
+            SetPendingForceOff(username, normIp, effectiveReason);
+        }
+
+        var eventData = new
+        {
+            all = false,
+            user = string.IsNullOrWhiteSpace(username) ? null : username.Trim(),
+            ip = normIp,
+            reason = effectiveReason,
+            timestamp = DateTime.UtcNow
+        };
+        var payload = $"event: FORCE_PROXY_OFF\ndata: {JsonSerializer.Serialize(eventData, sseJsonOptions)}\n\n";
+
+        int deliveredForIp = 0;
+        foreach (var kvp in sseClients.ToArray())
+        {
+            var client = kvp.Value;
+            if (MonitorDbService.NormalizeClientIp(client.RemoteIp) != normIp) continue;
+
+            var userMatches = string.IsNullOrWhiteSpace(username) ||
+                              IsSameUser(client.User, username) ||
+                              string.Equals(client.User, "Khách (Chưa xác thực)", StringComparison.OrdinalIgnoreCase) ||
+                              string.IsNullOrWhiteSpace(client.User);
+            if (!userMatches) continue;
+
+            client.ProxyEnabled = false;
+            if (await WriteSseEventAsync(client, payload))
+            {
+                deliveredForIp++;
+                totalDelivered++;
+            }
+        }
+
+        WriteSecurityLog("SESSION_EVICT_FORCE_PROXY_OFF",
+            $"user=\"{username}\" evicted_ip={normIp} sse_delivered={deliveredForIp} reason=\"{effectiveReason}\"");
+        if (recordTombstone)
+        {
+            AddProxyLog(normIp, "vags-session-limit", 443, false, effectiveReason, "session_limit_auto_off",
+                string.IsNullOrWhiteSpace(username) ? "Khách (Chưa xác thực)" : username.Trim(), "VNU", "canbo");
+        }
+    }
+
+    return totalDelivered;
+}
+
+monitorDb.OnSessionsEvicted = (evUser, evIps, evReason) =>
+{
+    _ = Task.Run(() => SendTargetedForceProxyOffAsync(evUser, evIps, evReason, recordTombstone: true));
+};
 
 // Wildcard matching equivalent to PAC shExpMatch
 bool ShExpMatch(string host, string pattern)
@@ -1647,6 +1835,8 @@ RuleStoreModel BuildPublicRulesProjection(RuleStoreModel src)
         ProxyMode = src.ProxyMode,
         MaintenanceMode = src.MaintenanceMode,
         EnableLicProxy = src.EnableLicProxy,
+        MaxConcurrentSessionsPerUser = src.MaxConcurrentSessionsPerUser > 0 ? Math.Clamp(src.MaxConcurrentSessionsPerUser, 1, 100) : 5,
+        MaxConcurrentSessionsAdmin = src.MaxConcurrentSessionsAdmin > 0 ? Math.Clamp(src.MaxConcurrentSessionsAdmin, 1, 100) : 10,
         Blacklist = (src.Blacklist ?? new List<string>()).ToList(),
         InternalWhitelist = src.EnableLicProxy ? configuredInternal.ToList() : new List<string>(),
         ConfiguredInternalWhitelist = configuredInternal,
@@ -1902,6 +2092,8 @@ app.MapGet("/api/v1/rules/stream", async context =>
 
     string effectiveUser = "Khách (Chưa xác thực)";
     string effectiveUnit = "VNU";
+    bool effectiveProxyEnabled = false;
+    PendingForceOffEntry? pendingOff = null;
 
     if (hasRealUserParam)
     {
@@ -1911,7 +2103,26 @@ app.MapGet("/api/v1/rules/stream", async context =>
         var effectiveMemberType = bearerMatches
             ? bearerId!.MemberType
             : (string.Equals(monitorDb.GetLatestKnownMemberType(qUser, rawIp), "sinhvien", StringComparison.OrdinalIgnoreCase) ? "sinhvien" : "canbo");
-        monitorDb.RegisterUserActivity(rawIp, qUser, unitVal, effectiveMemberType, qProxyEnabled);
+
+        if (!qProxyEnabled)
+        {
+            ClearPendingForceOff(qUser, rawIp);
+            if (!HasOtherActiveSseClient(qUser, rawIp, clientId))
+            {
+                monitorDb.RegisterUserActivity(rawIp, qUser, unitVal, effectiveMemberType, proxyEnabled: false);
+            }
+            effectiveProxyEnabled = false;
+        }
+        else if (TryGetPendingForceOff(qUser, rawIp, out pendingOff))
+        {
+            effectiveProxyEnabled = false;
+        }
+        else
+        {
+            monitorDb.RegisterUserActivity(rawIp, qUser, unitVal, effectiveMemberType, proxyEnabled: true);
+            effectiveProxyEnabled = true;
+        }
+
         effectiveUser = qUser;
         effectiveUnit = unitVal.ToUpperInvariant();
     }
@@ -1924,7 +2135,8 @@ app.MapGet("/api/v1/rules/stream", async context =>
         RemoteIp = rawIp,
         UserAgent = context.Request.Headers["User-Agent"].FirstOrDefault() ?? "VAGS-Client",
         User = effectiveUser,
-        Unit = effectiveUnit
+        Unit = effectiveUnit,
+        ProxyEnabled = effectiveProxyEnabled
     };
 
     sseClients[clientId] = clientInfo;
@@ -1942,14 +2154,28 @@ app.MapGet("/api/v1/rules/stream", async context =>
                 authMode = ruleStore.AuthMode
             }, sseJsonOptions);
         }
-        await context.Response.WriteAsync($"event: CONNECTED\ndata: {initMsg}\n\n", context.RequestAborted);
-        await context.Response.Body.FlushAsync(context.RequestAborted);
+        if (!await WriteSseEventAsync(clientInfo, $"event: CONNECTED\ndata: {initMsg}\n\n", context.RequestAborted))
+            return;
+
+        if (pendingOff != null && hasRealUserParam)
+        {
+            var forceOffJson = JsonSerializer.Serialize(new
+            {
+                all = false,
+                user = qUser,
+                ip = MonitorDbService.NormalizeClientIp(rawIp),
+                reason = pendingOff.Reason,
+                timestamp = DateTime.UtcNow
+            }, sseJsonOptions);
+            if (!await WriteSseEventAsync(clientInfo, $"event: FORCE_PROXY_OFF\ndata: {forceOffJson}\n\n", context.RequestAborted))
+                return;
+        }
 
         while (!context.RequestAborted.IsCancellationRequested)
         {
             await Task.Delay(TimeSpan.FromSeconds(20), context.RequestAborted);
-            await context.Response.WriteAsync($": keep-alive {DateTime.UtcNow:O}\n\n", context.RequestAborted);
-            await context.Response.Body.FlushAsync(context.RequestAborted);
+            if (!await WriteSseEventAsync(clientInfo, $": keep-alive {DateTime.UtcNow:O}\n\n", context.RequestAborted))
+                break;
         }
     }
     catch
@@ -2002,6 +2228,16 @@ async Task<IResult> HandleSaveRulesAsync(RuleStoreModel newRules)
         if (newRules.UserOverrides == null)
             newRules.UserOverrides = ruleStore.UserOverrides;
 
+        if (newRules.MaxConcurrentSessionsPerUser <= 0)
+            newRules.MaxConcurrentSessionsPerUser = ruleStore.MaxConcurrentSessionsPerUser > 0 ? Math.Clamp(ruleStore.MaxConcurrentSessionsPerUser, 1, 100) : 5;
+        else
+            newRules.MaxConcurrentSessionsPerUser = Math.Clamp(newRules.MaxConcurrentSessionsPerUser, 1, 100);
+
+        if (newRules.MaxConcurrentSessionsAdmin <= 0)
+            newRules.MaxConcurrentSessionsAdmin = ruleStore.MaxConcurrentSessionsAdmin > 0 ? Math.Clamp(ruleStore.MaxConcurrentSessionsAdmin, 1, 100) : 10;
+        else
+            newRules.MaxConcurrentSessionsAdmin = Math.Clamp(newRules.MaxConcurrentSessionsAdmin, 1, 100);
+
         newRules.ManualAdmins = (ruleStore.ManualAdmins ?? new List<AdminAccountEntry>())
             .Select(a => new AdminAccountEntry
             {
@@ -2026,17 +2262,13 @@ async Task<IResult> HandleSaveRulesAsync(RuleStoreModel newRules)
     int delivered = 0;
     foreach (var kvp in sseClients.ToArray())
     {
-        try
+        if (await WriteSseEventAsync(kvp.Value, payload))
         {
-            await kvp.Value.Response.WriteAsync(payload);
-            await kvp.Value.Response.Body.FlushAsync();
             delivered++;
         }
-        catch
-        {
-            sseClients.TryRemove(kvp.Key, out _);
-        }
     }
+
+    monitorDb.EnforceAllUserSessionLimits();
 
     return Results.Json(new
     {
@@ -2090,41 +2322,53 @@ app.MapGet("/api/v1/auth/keycloak-config", () => Results.Json(new
     adminOrganizationalUnit = "pqtkt"
 }, jsonOptions));
 
+async Task<IResult> HandleLogoutAsync(HttpContext context)
+{
+    var clientIp = GetRealClientIp(context);
+    monitorDb.UnregisterUserActivity(clientIp);
+    var normLogoutIp = MonitorDbService.NormalizeClientIp(clientIp);
+    var authHeader = context.Request.Headers.Authorization.FirstOrDefault();
+    VerifiedTokenIdentity? verifiedLogoutId = null;
+    if (!string.IsNullOrWhiteSpace(authHeader) && authHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+    {
+        var rawTok = authHeader.Substring(7).Trim();
+        verifiedSessionTokens.TryRemove(rawTok, out _);
+        verifiedLogoutId = await TryVerifyBearerTokenAsync(authHeader);
+        if (verifiedLogoutId != null)
+        {
+            ClearPendingForceOff(verifiedLogoutId.Username, clientIp);
+            if (!string.IsNullOrEmpty(verifiedLogoutId.Jti))
+            {
+                revokedTokenJtis[verifiedLogoutId.Jti] = DateTimeOffset.UtcNow;
+            }
+        }
+    }
+    if (verifiedLogoutId == null && !string.IsNullOrEmpty(normLogoutIp))
+    {
+        foreach (var kvp in pendingForceProxyOff.ToArray())
+        {
+            if (string.Equals(kvp.Value.Ip, normLogoutIp, StringComparison.OrdinalIgnoreCase))
+            {
+                pendingForceProxyOff.TryRemove(kvp.Key, out _);
+            }
+        }
+    }
+    foreach (var c in sseClients.Values)
+    {
+        if (!string.IsNullOrEmpty(normLogoutIp) && MonitorDbService.NormalizeClientIp(c.RemoteIp) == normLogoutIp)
+        {
+            if (verifiedLogoutId == null || IsSameUser(c.User, verifiedLogoutId.Username))
+            {
+                c.ProxyEnabled = false;
+            }
+        }
+    }
+    return Results.Json(new { ok = true, clientIp, message = "Đã thu hồi phiên cán bộ thành công." }, jsonOptions);
+}
+
 // 6.1 API Đăng xuất - Thu hồi phiên hoạt động theo IP & Bearer token nếu có
-app.MapPost("/api/v1/auth/logout", async (HttpContext context) =>
-{
-    var clientIp = GetRealClientIp(context);
-    monitorDb.UnregisterUserActivity(clientIp);
-    var authHeader = context.Request.Headers.Authorization.FirstOrDefault();
-    if (!string.IsNullOrWhiteSpace(authHeader) && authHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
-    {
-        var rawTok = authHeader.Substring(7).Trim();
-        verifiedSessionTokens.TryRemove(rawTok, out _);
-        var id = await TryVerifyBearerTokenAsync(authHeader);
-        if (id != null && !string.IsNullOrEmpty(id.Jti))
-        {
-            revokedTokenJtis[id.Jti] = DateTimeOffset.UtcNow;
-        }
-    }
-    return Results.Json(new { ok = true, clientIp, message = "Đã thu hồi phiên cán bộ thành công." }, jsonOptions);
-});
-app.MapPost("/api/v1/user/logout", async (HttpContext context) =>
-{
-    var clientIp = GetRealClientIp(context);
-    monitorDb.UnregisterUserActivity(clientIp);
-    var authHeader = context.Request.Headers.Authorization.FirstOrDefault();
-    if (!string.IsNullOrWhiteSpace(authHeader) && authHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
-    {
-        var rawTok = authHeader.Substring(7).Trim();
-        verifiedSessionTokens.TryRemove(rawTok, out _);
-        var id = await TryVerifyBearerTokenAsync(authHeader);
-        if (id != null && !string.IsNullOrEmpty(id.Jti))
-        {
-            revokedTokenJtis[id.Jti] = DateTimeOffset.UtcNow;
-        }
-    }
-    return Results.Json(new { ok = true, clientIp, message = "Đã thu hồi phiên cán bộ thành công." }, jsonOptions);
-});
+app.MapPost("/api/v1/auth/logout", (Delegate)((HttpContext context) => HandleLogoutAsync(context)));
+app.MapPost("/api/v1/user/logout", (Delegate)((HttpContext context) => HandleLogoutAsync(context)));
 
 string NormalizeUsername(string? raw)
 {
@@ -2315,7 +2559,8 @@ app.MapPost("/api/v1/auth/exchange", async (HttpContext context, ExchangeCodeReq
 
     // Đăng ký hoạt động và IP của Cán bộ vào hệ thống SQLite Monitor
     var clientIp = GetRealClientIp(context);
-    monitorDb.RegisterUserActivity(clientIp, username, safeDbUnit, effectiveMemberType);
+    ClearPendingForceOff(username, clientIp);
+    monitorDb.RegisterUserActivity(clientIp, username, safeDbUnit, effectiveMemberType, proxyEnabled: true);
 
     // Ký VAGS Session JWT (12 giờ) & lưu cache phiên đã xác thực
     var sessionToken = CreateSignedSessionToken(username, name, email, organizationalUnit, effectiveMemberType, isAdmin, adminRole);
@@ -2376,7 +2621,8 @@ app.MapPost("/api/v1/auth/demo-token", (HttpContext context, DemoTokenRequest? r
     bool isAdmin = !string.IsNullOrEmpty(adminRole);
 
     var clientIp = GetRealClientIp(context);
-    monitorDb.RegisterUserActivity(clientIp, username, unit, "canbo");
+    ClearPendingForceOff(username, clientIp);
+    monitorDb.RegisterUserActivity(clientIp, username, unit, "canbo", proxyEnabled: true);
 
     var displayName = username == "phongnd" ? "Nguyễn Đức Phong (P. Quản trị & Kế hoạch)" : username;
     var sessionToken = CreateSignedSessionToken(username, displayName, email, unit, "canbo", isAdmin, adminRole);
@@ -2857,7 +3103,7 @@ app.MapPost("/api/v1/admin/toggle-lic", async (HttpContext ctx) =>
     var rulesPayload = $"event: RULES_UPDATED\ndata: {serialized}\n\n";
     foreach (var kvp in sseClients.ToArray())
     {
-        try { await kvp.Value.Response.WriteAsync(rulesPayload); await kvp.Value.Response.Body.FlushAsync(); } catch { sseClients.TryRemove(kvp.Key, out _); }
+        await WriteSseEventAsync(kvp.Value, rulesPayload);
     }
     return Results.Json(new { success = true, enableLicProxy = newEnableLic, version = newVer }, jsonOptions);
 });
@@ -2901,7 +3147,42 @@ async Task<IResult> HandleUserHeartbeatAsync(HttpContext ctx, string? rawUser, s
             ? bearerId!.MemberType
             : (string.Equals(monitorDb.GetLatestKnownMemberType(u, clientIp), "sinhvien", StringComparison.OrdinalIgnoreCase) ? "sinhvien" : memberType);
 
-        monitorDb.RegisterUserActivity(clientIp, u, unit, effectiveMemberType, proxyEnabled);
+        if (!proxyEnabled)
+        {
+            ClearPendingForceOff(u, clientIp);
+            if (!HasOtherActiveSseClient(u, clientIp))
+            {
+                monitorDb.RegisterUserActivity(clientIp, u, unit, effectiveMemberType, proxyEnabled: false);
+            }
+            return Results.Json(new { ok = true, clientIp, user = u, proxyEnabled = false }, jsonOptions);
+        }
+
+        if (TryGetPendingForceOff(u, clientIp, out var pendingOff))
+        {
+            await SendTargetedForceProxyOffAsync(u, new[] { clientIp }, pendingOff!.Reason, recordTombstone: false);
+            return Results.Json(new
+            {
+                ok = true,
+                clientIp,
+                user = u,
+                proxyEnabled = false,
+                forceProxyOff = true,
+                reason = pendingOff.Reason
+            }, jsonOptions);
+        }
+
+        monitorDb.RegisterUserActivity(clientIp, u, unit, effectiveMemberType, proxyEnabled: true);
+        var normHbIp = MonitorDbService.NormalizeClientIp(clientIp);
+        foreach (var c in sseClients.Values)
+        {
+            if (MonitorDbService.NormalizeClientIp(c.RemoteIp) == normHbIp &&
+                (IsSameUser(c.User, u) || string.Equals(c.User, "Khách (Chưa xác thực)", StringComparison.OrdinalIgnoreCase) || string.IsNullOrWhiteSpace(c.User)))
+            {
+                c.User = u;
+                c.Unit = unit.ToUpperInvariant();
+                c.ProxyEnabled = true;
+            }
+        }
     }
 
     return Results.Json(new { ok = true, clientIp, user = u, proxyEnabled }, jsonOptions);
@@ -2913,7 +3194,7 @@ app.MapPost("/api/v1/user/heartbeat", async (HttpContext ctx, HeartbeatRequest? 
     var u = req?.User ?? ctx.Request.Query["user"].FirstOrDefault() ?? "";
     var unit = req?.Unit ?? ctx.Request.Query["unit"].FirstOrDefault() ?? "VNU";
     var memberType = req?.MemberType ?? ctx.Request.Query["memberType"].FirstOrDefault() ?? "canbo";
-    var proxyEnabled = req?.ProxyEnabled == true;
+    var proxyEnabled = req?.ProxyEnabled ?? !string.Equals(ctx.Request.Query["proxyEnabled"], "false", StringComparison.OrdinalIgnoreCase);
     return await HandleUserHeartbeatAsync(ctx, u, unit, memberType, proxyEnabled);
 });
 
@@ -2931,16 +3212,62 @@ app.MapPost("/api/v1/user/status", async (HttpContext ctx, UserStatusRequest? re
         }
 
         var authHeader = ctx.Request.Headers.Authorization.FirstOrDefault();
+        VerifiedTokenIdentity? bearerId = null;
         if (!string.IsNullOrWhiteSpace(authHeader))
         {
-            var bearerId = await TryVerifyBearerTokenAsync(authHeader);
+            bearerId = await TryVerifyBearerTokenAsync(authHeader);
             if (bearerId == null)
                 return Results.Json(new { ok = false, error = "Invalid Bearer token" }, statusCode: 401);
             if (!IsSameUser(u, bearerId.Username))
                 return Results.Json(new { ok = false, error = "Bearer token does not match target user" }, statusCode: 403);
         }
 
-        monitorDb.UpdateUserProxyStatus(clientIp, u, proxyEnabled);
+        ClearPendingForceOff(u, clientIp);
+        var normStatusIp = MonitorDbService.NormalizeClientIp(clientIp);
+
+        if (proxyEnabled)
+        {
+            string unitVal = "VNU";
+            string effectiveMemberType = "canbo";
+            if (bearerId != null && IsSameUser(u, bearerId.Username))
+            {
+                unitVal = string.IsNullOrWhiteSpace(bearerId.Unit) ? "VNU" : bearerId.Unit;
+                effectiveMemberType = string.IsNullOrWhiteSpace(bearerId.MemberType) ? "canbo" : bearerId.MemberType;
+            }
+            else if (!string.IsNullOrEmpty(normStatusIp) && monitorDb.ActiveIpUserMap.TryGetValue(normStatusIp, out var curSess))
+            {
+                if (!string.IsNullOrWhiteSpace(curSess.Unit)) unitVal = curSess.Unit;
+                if (!string.IsNullOrWhiteSpace(curSess.MemberType)) effectiveMemberType = curSess.MemberType;
+            }
+            else
+            {
+                var knownMt = monitorDb.GetLatestKnownMemberType(u, clientIp);
+                if (string.Equals(knownMt, "sinhvien", StringComparison.OrdinalIgnoreCase)) effectiveMemberType = "sinhvien";
+            }
+
+            monitorDb.RegisterUserActivity(clientIp, u, unitVal, effectiveMemberType, proxyEnabled: true);
+            foreach (var c in sseClients.Values)
+            {
+                if (MonitorDbService.NormalizeClientIp(c.RemoteIp) == normStatusIp &&
+                    (IsSameUser(c.User, u) || string.Equals(c.User, "Khách (Chưa xác thực)", StringComparison.OrdinalIgnoreCase) || string.IsNullOrWhiteSpace(c.User)))
+                {
+                    c.User = u;
+                    c.Unit = unitVal.ToUpperInvariant();
+                    c.ProxyEnabled = true;
+                }
+            }
+        }
+        else
+        {
+            monitorDb.UpdateUserProxyStatus(clientIp, u, false);
+            foreach (var c in sseClients.Values)
+            {
+                if (MonitorDbService.NormalizeClientIp(c.RemoteIp) == normStatusIp && IsSameUser(c.User, u))
+                {
+                    c.ProxyEnabled = false;
+                }
+            }
+        }
     }
     return Results.Json(new { ok = true, clientIp, user = u, proxyEnabled }, jsonOptions);
 });
@@ -3156,15 +3483,9 @@ app.MapPost("/api/v1/admin/broadcast-update", async (HttpContext ctx, BroadcastU
     int sent = 0;
     foreach (var kvp in sseClients.ToArray())
     {
-        try
+        if (await WriteSseEventAsync(kvp.Value, payload))
         {
-            await kvp.Value.Response.WriteAsync(payload);
-            await kvp.Value.Response.Body.FlushAsync();
             sent++;
-        }
-        catch
-        {
-            sseClients.TryRemove(kvp.Key, out _);
         }
     }
     return Results.Json(new { ok = true, version = targetVersion, broadcastedClients = sent, message = $"Đã phát tín hiệu ép toàn bộ {sent} Extension đang trực tuyến nâng cấp lên v{targetVersion}!" }, jsonOptions);
@@ -3179,34 +3500,72 @@ app.MapPost("/api/v1/admin/users/force-proxy-off", async (HttpContext ctx, Force
     var isAll = req?.All == true;
     var targetUser = req?.User?.Trim();
     var targetIp = req?.Ip?.Trim();
+    var reasonText = string.IsNullOrWhiteSpace(req?.Reason)
+        ? "Quản trị viên đã tắt Proxy trên thiết bị này."
+        : req!.Reason!.Trim();
 
-    var eventData = new
-    {
-        all = isAll,
-        user = targetUser,
-        ip = targetIp,
-        timestamp = DateTime.UtcNow
-    };
-
-    var payload = $"event: FORCE_PROXY_OFF\ndata: {JsonSerializer.Serialize(eventData, sseJsonOptions)}\n\n";
     int sent = 0;
-    foreach (var kvp in sseClients.ToArray())
+    if (isAll)
     {
-        try
+        foreach (var kvp in monitorDb.ActiveIpUserMap.ToArray())
         {
-            await kvp.Value.Response.WriteAsync(payload);
-            await kvp.Value.Response.Body.FlushAsync();
-            sent++;
+            kvp.Value.ProxyEnabled = false;
+            if (!string.IsNullOrWhiteSpace(kvp.Value.Username) && kvp.Value.Username != "Khách (Chưa xác thực)")
+            {
+                SetPendingForceOff(kvp.Value.Username, kvp.Key, reasonText);
+            }
         }
-        catch
+        var payload = $"event: FORCE_PROXY_OFF\ndata: {JsonSerializer.Serialize(new { all = true, user = (string?)null, ip = (string?)null, reason = reasonText, timestamp = DateTime.UtcNow }, sseJsonOptions)}\n\n";
+        foreach (var kvp in sseClients.ToArray())
         {
-            sseClients.TryRemove(kvp.Key, out _);
+            kvp.Value.ProxyEnabled = false;
+            if (await WriteSseEventAsync(kvp.Value, payload))
+            {
+                sent++;
+            }
         }
+    }
+    else if (!string.IsNullOrWhiteSpace(targetIp))
+    {
+        monitorDb.UpdateUserProxyStatus(targetIp, targetUser ?? "", false);
+        sent = await SendTargetedForceProxyOffAsync(
+            targetUser ?? "",
+            new[] { targetIp },
+            reasonText,
+            recordTombstone: !string.IsNullOrWhiteSpace(targetUser));
+    }
+    else if (!string.IsNullOrWhiteSpace(targetUser))
+    {
+        var activeIps = monitorDb.GetActiveProxyIpsForUser(targetUser);
+        monitorDb.UpdateUserProxyStatus("", targetUser, false);
+        foreach (var ip in activeIps)
+        {
+            SetPendingForceOff(targetUser, ip, reasonText);
+        }
+        var ipSet = new HashSet<string>(activeIps.Select(MonitorDbService.NormalizeClientIp).Where(x => !string.IsNullOrEmpty(x)), StringComparer.OrdinalIgnoreCase);
+        var payload = $"event: FORCE_PROXY_OFF\ndata: {JsonSerializer.Serialize(new { all = false, user = targetUser, ip = (string?)null, reason = reasonText, timestamp = DateTime.UtcNow }, sseJsonOptions)}\n\n";
+        foreach (var kvp in sseClients.ToArray())
+        {
+            var c = kvp.Value;
+            var normC = MonitorDbService.NormalizeClientIp(c.RemoteIp);
+            var isMatchClient = IsSameUser(c.User, targetUser) ||
+                                ((string.Equals(c.User, "Khách (Chưa xác thực)", StringComparison.OrdinalIgnoreCase) || string.IsNullOrWhiteSpace(c.User)) && !string.IsNullOrEmpty(normC) && ipSet.Contains(normC));
+            if (!isMatchClient) continue;
+            c.ProxyEnabled = false;
+            if (await WriteSseEventAsync(c, payload))
+            {
+                sent++;
+            }
+        }
+    }
+    else
+    {
+        return Results.BadRequest(new { ok = false, message = "Vui lòng chỉ định User, IP hoặc All." });
     }
 
     var msg = isAll
         ? $"Đã phát tín hiệu ép TẮT PROXY TOÀN BỘ {sent} Extension đang trực tuyến!"
-        : $"Đã gửi lệnh ép tắt Proxy tới '{targetUser ?? targetIp}' (đã phát sóng tới {sent} kết nối SSE).";
+        : $"Đã gửi lệnh ép tắt Proxy đích danh tới '{targetUser ?? targetIp}' (đã gửi tới {sent} kết nối SSE khớp mục tiêu).";
     return Results.Json(new { ok = true, all = isAll, user = targetUser, ip = targetIp, broadcastedClients = sent, message = msg }, jsonOptions);
 });
 
@@ -3223,12 +3582,14 @@ app.MapPost("/api/v1/admin/users/force-logout", async (HttpContext ctx, ForceUse
     if (isAll)
     {
         monitorDb.UnregisterAllUserActivities();
+        pendingForceProxyOff.Clear();
     }
     else
     {
         if (!string.IsNullOrWhiteSpace(targetIp))
         {
             monitorDb.UnregisterUserActivity(targetIp);
+            if (!string.IsNullOrWhiteSpace(targetUser)) ClearPendingForceOff(targetUser, targetIp);
         }
         if (!string.IsNullOrWhiteSpace(targetUser))
         {
@@ -3251,15 +3612,9 @@ app.MapPost("/api/v1/admin/users/force-logout", async (HttpContext ctx, ForceUse
     int sent = 0;
     foreach (var kvp in sseClients.ToArray())
     {
-        try
+        if (await WriteSseEventAsync(kvp.Value, payload))
         {
-            await kvp.Value.Response.WriteAsync(payload);
-            await kvp.Value.Response.Body.FlushAsync();
             sent++;
-        }
-        catch
-        {
-            sseClients.TryRemove(kvp.Key, out _);
         }
     }
 
@@ -3323,16 +3678,9 @@ app.MapPost("/api/v1/admin/users/lock", async (HttpContext ctx, LockUserRequest?
     int sent = 0;
     foreach (var kvp in sseClients.ToArray())
     {
-        try
+        if (await WriteSseEventAsync(kvp.Value, lockPayload + rulesPayload))
         {
-            await kvp.Value.Response.WriteAsync(lockPayload);
-            await kvp.Value.Response.WriteAsync(rulesPayload);
-            await kvp.Value.Response.Body.FlushAsync();
             sent++;
-        }
-        catch
-        {
-            sseClients.TryRemove(kvp.Key, out _);
         }
     }
 
@@ -3377,15 +3725,9 @@ app.MapPost("/api/v1/admin/users/unlock", async (HttpContext ctx, LockUserReques
     int sent = 0;
     foreach (var kvp in sseClients.ToArray())
     {
-        try
+        if (await WriteSseEventAsync(kvp.Value, rulesPayload))
         {
-            await kvp.Value.Response.WriteAsync(rulesPayload);
-            await kvp.Value.Response.Body.FlushAsync();
             sent++;
-        }
-        catch
-        {
-            sseClients.TryRemove(kvp.Key, out _);
         }
     }
 
@@ -3439,7 +3781,7 @@ app.MapPost("/api/v1/admin/maintenance", async (HttpContext ctx) =>
     var rulesPayload = $"event: RULES_UPDATED\ndata: {serializedRules}\n\n";
     foreach (var kvp in sseClients.ToArray())
     {
-        try { await kvp.Value.Response.WriteAsync(rulesPayload); await kvp.Value.Response.Body.FlushAsync(); } catch { sseClients.TryRemove(kvp.Key, out _); }
+        await WriteSseEventAsync(kvp.Value, rulesPayload);
     }
     return Results.Json(new { ok = true, maintenanceMode = enable, version = versionSnapshot, message = enable ? "Cổng VAGS đã ĐÓNG để bảo trì." : "Cổng VAGS đã MỞ hoạt động bình thường." }, jsonOptions);
 });
@@ -3503,7 +3845,7 @@ app.MapPost("/api/v1/admin/domains", async (HttpContext ctx) =>
         var rulesPayload = $"event: RULES_UPDATED\ndata: {serializedRules}\n\n";
         foreach (var kvp in sseClients.ToArray())
         {
-            try { await kvp.Value.Response.WriteAsync(rulesPayload); await kvp.Value.Response.Body.FlushAsync(); } catch { sseClients.TryRemove(kvp.Key, out _); }
+            await WriteSseEventAsync(kvp.Value, rulesPayload);
         }
         return Results.Json(new { ok = true, primaryDomain = primaryDomainSnapshot, domainAliases = aliasesSnapshot, version = versionSnapshot }, jsonOptions);
     }
@@ -3517,6 +3859,8 @@ public class RuleStoreModel
     public string ProxyMode { get; set; } = "FULL_PROXY";
     public bool MaintenanceMode { get; set; } = false;
     public bool EnableLicProxy { get; set; } = true;
+    public int MaxConcurrentSessionsPerUser { get; set; } = 5;
+    public int MaxConcurrentSessionsAdmin { get; set; } = 10;
     public List<string> Blacklist { get; set; } = new();
     public List<string> InternalWhitelist { get; set; } = new();
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -3571,6 +3915,8 @@ public class SseClientInfo
     public string UserAgent { get; set; } = "";
     public string User { get; set; } = "Cán bộ VNU";
     public string Unit { get; set; } = "VNU";
+    public bool ProxyEnabled { get; set; } = true;
+    public SemaphoreSlim WriteLock { get; } = new(1, 1);
 }
 
 public class ProxyLogEntry
@@ -3585,6 +3931,8 @@ public class ProxyLogEntry
     public string Unit { get; set; } = "VNU";
     public string MemberType { get; set; } = "canbo";
 }
+
+public record PendingForceOffEntry(string Username, string Ip, string Reason, DateTimeOffset CreatedAtUtc);
 
 public record VerifiedTokenIdentity(string Username, string Email, string Unit, string MemberType, string? Jti);
 public record VerifiedSessionEntry(string Username, string Email, string Unit, string MemberType, string? Jti, DateTimeOffset IssuedAtUtc, DateTimeOffset ExpiresAtUtc);

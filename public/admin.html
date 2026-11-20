@@ -1169,6 +1169,31 @@
                 </div>
             </div>
 
+            <!-- Panel Giới Hạn Phiên Proxy Đồng Thời & Tự Động Tắt Phiên Sớm Nhất (FIFO) -->
+            <div class="card" style="border-top: 3px solid #2563eb; margin-bottom: 18px;">
+                <div class="card-header-flex" style="margin-bottom: 12px;">
+                    <div>
+                        <h3 style="color: #1d4ed8;">👥 Giới Hạn Phiên Proxy Đồng Thời &amp; Tự Động Tắt Phiên Sớm Nhất (FIFO)</h3>
+                        <p class="desc">Khi số phiên Proxy đang bật của một tài khoản vượt ngưỡng tối đa, máy chủ sẽ tự động gửi lệnh SSE <code>FORCE_PROXY_OFF</code> đích danh để tắt Extension ở phiên kết nối sớm nhất (<code>FirstSeen</code>) và chuyển về kết nối trực tiếp (<code>DIRECT</code>).</p>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 16px; align-items: flex-end; flex-wrap: wrap;">
+                    <div class="form-group" style="margin-bottom: 0; min-width: 240px; flex: 1;">
+                        <label for="inputMaxSessionsUser">Giới hạn Cán bộ / User thường (1 - 100, mặc định 5)</label>
+                        <input type="number" id="inputMaxSessionsUser" min="1" max="100" value="5">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0; min-width: 240px; flex: 1;">
+                        <label for="inputMaxSessionsAdmin">Giới hạn Quản trị viên (1 - 100, mặc định 10)</label>
+                        <input type="number" id="inputMaxSessionsAdmin" min="1" max="100" value="10">
+                    </div>
+                    <div>
+                        <button id="btnSaveSessionLimits" onclick="saveSessionLimitsConfig()" class="btn-sm primary" style="padding: 10px 16px;">
+                            💾 Lưu Giới Hạn Phiên
+                        </button>
+                    </div>
+                </div>
+            </div>
+
             <!-- Chế độ Định tuyến Toàn phần -->
             <div class="mode-box">
                 <div class="mode-info">
@@ -2018,6 +2043,9 @@
                 if (typeof updateLicStatusUi === 'function') {
                     updateLicStatusUi(currentRules.enableLicProxy !== false);
                 }
+                if (typeof updateSessionLimitsUi === 'function') {
+                    updateSessionLimitsUi();
+                }
             } catch (e) {
                 console.error("Lỗi nạp rules:", e);
                 alert("Lỗi nạp tập luật từ máy chủ: " + e.message);
@@ -2751,6 +2779,9 @@
                         renderUserOverrides();
                         if (typeof updateLicStatusUi === 'function') {
                             updateLicStatusUi(currentRules.enableLicProxy !== false);
+                        }
+                        if (typeof updateSessionLimitsUi === 'function') {
+                            updateSessionLimitsUi();
                         }
                     } catch (err) {}
                 });
@@ -3784,6 +3815,44 @@
             } catch (err) {
                 alert('Lỗi kết nối khi đổi trạng thái LIC: ' + err.message);
             }
+        }
+
+        function updateSessionLimitsUi() {
+            const elUser = document.getElementById('inputMaxSessionsUser');
+            const elAdmin = document.getElementById('inputMaxSessionsAdmin');
+            if (!currentRules) return;
+            if (elUser) {
+                const vUser = parseInt(currentRules.maxConcurrentSessionsPerUser, 10);
+                elUser.value = (Number.isInteger(vUser) && vUser >= 1 && vUser <= 100) ? vUser : 5;
+            }
+            if (elAdmin) {
+                const vAdmin = parseInt(currentRules.maxConcurrentSessionsAdmin, 10);
+                elAdmin.value = (Number.isInteger(vAdmin) && vAdmin >= 1 && vAdmin <= 100) ? vAdmin : 10;
+            }
+        }
+
+        async function saveSessionLimitsConfig() {
+            if (!currentRules) {
+                alert('Chưa có dữ liệu cấu hình để lưu.');
+                return;
+            }
+            const elUser = document.getElementById('inputMaxSessionsUser');
+            const elAdmin = document.getElementById('inputMaxSessionsAdmin');
+            const rawUser = parseInt(elUser ? elUser.value : '', 10);
+            const rawAdmin = parseInt(elAdmin ? elAdmin.value : '', 10);
+            if (!Number.isInteger(rawUser) || rawUser < 1 || rawUser > 100) {
+                alert('Giới hạn Cán bộ / User thường phải là số nguyên từ 1 đến 100.');
+                return;
+            }
+            if (!Number.isInteger(rawAdmin) || rawAdmin < 1 || rawAdmin > 100) {
+                alert('Giới hạn Quản trị viên phải là số nguyên từ 1 đến 100.');
+                return;
+            }
+            currentRules.maxConcurrentSessionsPerUser = rawUser;
+            currentRules.maxConcurrentSessionsAdmin = rawAdmin;
+            if (elUser) elUser.value = rawUser;
+            if (elAdmin) elAdmin.value = rawAdmin;
+            await saveAndBroadcastRules();
         }
 
         // Delegated action handler cho các nút thao tác render động (chống XSS trong onclick)
