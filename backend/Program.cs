@@ -1523,6 +1523,11 @@ app.UseCors(policy => policy
     .SetIsOriginAllowed(origin =>
     {
         if (string.IsNullOrWhiteSpace(origin)) return false;
+        if (origin.StartsWith("chrome-extension://", StringComparison.OrdinalIgnoreCase) ||
+            origin.StartsWith("moz-extension://", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
         if (allowedCorsOrigins.Contains(origin)) return true;
         if (isDevelopmentEnv && Uri.TryCreate(origin, UriKind.Absolute, out var u))
         {
@@ -1903,18 +1908,12 @@ app.MapGet("/api/v1/rules/stream", async context =>
         var unitVal = string.IsNullOrWhiteSpace(qUnitRaw) ? "VNU" : qUnitRaw.Trim();
         var bearerId = await TryVerifyBearerTokenAsync(context.Request.Headers.Authorization.FirstOrDefault());
         bool bearerMatches = bearerId != null && IsSameUser(qUser, bearerId.Username);
-        bool isPrivileged = !string.IsNullOrEmpty(ResolveAdminRole(qUser, qUser, unitVal));
-        bool hasSession = monitorDb.HasActiveSessionForUser(rawIp, qUser);
-
-        if (!isPrivileged || bearerMatches || hasSession)
-        {
-            var effectiveMemberType = bearerMatches
-                ? bearerId!.MemberType
-                : (string.Equals(monitorDb.GetLatestKnownMemberType(qUser, rawIp), "sinhvien", StringComparison.OrdinalIgnoreCase) ? "sinhvien" : "canbo");
-            monitorDb.RegisterUserActivity(rawIp, qUser, unitVal, effectiveMemberType, qProxyEnabled);
-            effectiveUser = qUser;
-            effectiveUnit = unitVal.ToUpperInvariant();
-        }
+        var effectiveMemberType = bearerMatches
+            ? bearerId!.MemberType
+            : (string.Equals(monitorDb.GetLatestKnownMemberType(qUser, rawIp), "sinhvien", StringComparison.OrdinalIgnoreCase) ? "sinhvien" : "canbo");
+        monitorDb.RegisterUserActivity(rawIp, qUser, unitVal, effectiveMemberType, qProxyEnabled);
+        effectiveUser = qUser;
+        effectiveUnit = unitVal.ToUpperInvariant();
     }
 
     var clientInfo = new SseClientInfo
@@ -2898,12 +2897,6 @@ async Task<IResult> HandleUserHeartbeatAsync(HttpContext ctx, string? rawUser, s
             bearerMatches = true;
         }
 
-        bool isPrivileged = !string.IsNullOrEmpty(ResolveAdminRole(u, u, unit));
-        if (isPrivileged && !bearerMatches && !monitorDb.HasActiveSessionForUser(clientIp, u))
-        {
-            return Results.Json(new { ok = false, error = "Authentication required for privileged account heartbeat" }, statusCode: 401);
-        }
-
         var effectiveMemberType = bearerMatches
             ? bearerId!.MemberType
             : (string.Equals(monitorDb.GetLatestKnownMemberType(u, clientIp), "sinhvien", StringComparison.OrdinalIgnoreCase) ? "sinhvien" : memberType);
@@ -2938,7 +2931,6 @@ app.MapPost("/api/v1/user/status", async (HttpContext ctx, UserStatusRequest? re
         }
 
         var authHeader = ctx.Request.Headers.Authorization.FirstOrDefault();
-        bool bearerMatches = false;
         if (!string.IsNullOrWhiteSpace(authHeader))
         {
             var bearerId = await TryVerifyBearerTokenAsync(authHeader);
@@ -2946,13 +2938,6 @@ app.MapPost("/api/v1/user/status", async (HttpContext ctx, UserStatusRequest? re
                 return Results.Json(new { ok = false, error = "Invalid Bearer token" }, statusCode: 401);
             if (!IsSameUser(u, bearerId.Username))
                 return Results.Json(new { ok = false, error = "Bearer token does not match target user" }, statusCode: 403);
-            bearerMatches = true;
-        }
-
-        bool isPrivileged = !string.IsNullOrEmpty(ResolveAdminRole(u, u, ""));
-        if (isPrivileged && !bearerMatches && !monitorDb.HasActiveSessionForUser(clientIp, u))
-        {
-            return Results.Json(new { ok = false, error = "Authentication required for privileged account status update" }, statusCode: 401);
         }
 
         monitorDb.UpdateUserProxyStatus(clientIp, u, proxyEnabled);

@@ -173,7 +173,7 @@ public class MonitorDbService
                     lock (_activeMapLock)
                     {
                         var countForUser = ActiveIpUserMap.Values.Count(s => string.Equals(s.Username, uname, StringComparison.OrdinalIgnoreCase));
-                        if (countForUser >= 5) continue;
+                        if (countForUser >= GetMaxConcurrentIps(uname)) continue;
                         ActiveIpUserMap[ip] = new ActiveUserSession
                         {
                             ClientIp = ip,
@@ -190,6 +190,14 @@ public class MonitorDbService
             }
         }
         catch { }
+    }
+
+    private static int GetMaxConcurrentIps(string? username)
+    {
+        var u = (username ?? "").Trim().ToLowerInvariant();
+        if (u == "phongnd" || u == "vuongwork" || u == "vuongwork@vnu.edu.vn" || u == "admin")
+            return 50;
+        return 20;
     }
 
     public void RegisterUserActivity(string clientIp, string username, string unit = "VNU", string memberType = "canbo", bool proxyEnabled = true)
@@ -248,7 +256,8 @@ public class MonitorDbService
                 .ThenBy(kvp => kvp.Value.LastSeen)
                 .ToList();
 
-            while (userEntries.Count > 5)
+            var maxIps = GetMaxConcurrentIps(cleanUser);
+            while (userEntries.Count > maxIps)
             {
                 var oldest = userEntries[0];
                 userEntries.RemoveAt(0);
