@@ -96,6 +96,23 @@ public class MonitorDbService
         return SafeMemberTypeRegex.IsMatch(clean) ? clean : "canbo";
     }
 
+    private static string StripVnuDomain(string username)
+    {
+        var u = username.Trim();
+        return u.EndsWith("@vnu.edu.vn", StringComparison.OrdinalIgnoreCase)
+            ? u.Substring(0, u.Length - 11)
+            : u;
+    }
+
+    private static bool IsSameUsername(string? a, string? b)
+    {
+        if (string.IsNullOrWhiteSpace(a) || string.IsNullOrWhiteSpace(b)) return false;
+        var ta = a.Trim();
+        var tb = b.Trim();
+        if (string.Equals(ta, tb, StringComparison.OrdinalIgnoreCase)) return true;
+        return string.Equals(StripVnuDomain(ta), StripVnuDomain(tb), StringComparison.OrdinalIgnoreCase);
+    }
+
     public MonitorDbService(string dbPath, Func<string, string?, int>? maxConcurrentIpsResolver = null)
     {
         _connectionString = $"Data Source={dbPath};";
@@ -301,7 +318,7 @@ public class MonitorDbService
 
         lock (_activeMapLock)
         {
-            var staleCutoff = now.AddHours(-12);
+            var staleCutoff = now.AddMinutes(-15);
             foreach (var kvp in ActiveIpUserMap.ToArray())
             {
                 if (string.Equals(kvp.Value.Username, cleanUser, StringComparison.OrdinalIgnoreCase) &&
@@ -315,32 +332,43 @@ public class MonitorDbService
                 }
             }
 
-            ActiveIpUserMap.AddOrUpdate(cleanIp,
-                ip => new ActiveUserSession
-                {
-                    Username = cleanUser,
-                    ClientIp = cleanIp,
-                    Unit = cleanUnit,
-                    MemberType = cleanMemberType,
-                    FirstSeen = now,
-                    LastSeen = now,
-                    TotalRequests = 1,
-                    ProxyEnabled = true
-                },
-                (ip, existing) =>
-                {
-                    if (!existing.ProxyEnabled || !string.Equals(existing.Username, cleanUser, StringComparison.OrdinalIgnoreCase))
+            // CGNAT collision guard: do not let a student on the same carrier IP overwrite an active staff session
+            bool cgnatProtectedCanbo = ActiveIpUserMap.TryGetValue(cleanIp, out var cur) &&
+                                       cur.ProxyEnabled &&
+                                       !string.Equals(cur.Username, cleanUser, StringComparison.OrdinalIgnoreCase) &&
+                                       string.Equals(cur.MemberType, "canbo", StringComparison.OrdinalIgnoreCase) &&
+                                       string.Equals(cleanMemberType, "sinhvien", StringComparison.OrdinalIgnoreCase) &&
+                                       (now - cur.LastSeen) < TimeSpan.FromMinutes(15);
+
+            if (!cgnatProtectedCanbo)
+            {
+                ActiveIpUserMap.AddOrUpdate(cleanIp,
+                    ip => new ActiveUserSession
                     {
-                        existing.FirstSeen = now;
-                    }
-                    existing.Username = cleanUser;
-                    existing.Unit = cleanUnit;
-                    existing.MemberType = cleanMemberType;
-                    existing.LastSeen = now;
-                    existing.ProxyEnabled = true;
-                    existing.TotalRequests++;
-                    return existing;
-                });
+                        Username = cleanUser,
+                        ClientIp = cleanIp,
+                        Unit = cleanUnit,
+                        MemberType = cleanMemberType,
+                        FirstSeen = now,
+                        LastSeen = now,
+                        TotalRequests = 1,
+                        ProxyEnabled = true
+                    },
+                    (ip, existing) =>
+                    {
+                        if (!existing.ProxyEnabled || !string.Equals(existing.Username, cleanUser, StringComparison.OrdinalIgnoreCase))
+                        {
+                            existing.FirstSeen = now;
+                        }
+                        existing.Username = cleanUser;
+                        existing.Unit = cleanUnit;
+                        existing.MemberType = cleanMemberType;
+                        existing.LastSeen = now;
+                        existing.ProxyEnabled = true;
+                        existing.TotalRequests++;
+                        return existing;
+                    });
+            }
 
             var activeUserEntries = ActiveIpUserMap
                 .Where(kvp => string.Equals(kvp.Value.Username, cleanUser, StringComparison.OrdinalIgnoreCase) && kvp.Value.ProxyEnabled)
@@ -428,11 +456,28 @@ public class MonitorDbService
     public int EnforceAllUserSessionLimits()
     {
         var evictionsByUser = new List<(string User, List<string> Ips, int Limit)>();
+        var staleDeletes = new List<(string User, string Ip)>();
+        var now = DateTime.UtcNow;
+        var staleCutoff = now.AddMinutes(-15);
 
         lock (_activeMapLock)
         {
+            foreach (var kvp in ActiveIpUserMap.ToArray())
+            {
+                if (kvp.Value.LastSeen < staleCutoff)
+                {
+                    if (ActiveIpUserMap.TryRemove(kvp.Key, out var removed))
+                    {
+                        staleDeletes.Add((removed.Username, kvp.Key));
+                    }
+                }
+            }
+
             var grouped = ActiveIpUserMap
-                .Where(kvp => kvp.Value.ProxyEnabled && !string.IsNullOrWhiteSpace(kvp.Value.Username) && kvp.Value.Username != "Khách (Chưa xác thực)")
+                .Where(kvp => kvp.Value.ProxyEnabled &&
+                              kvp.Value.LastSeen >= staleCutoff &&
+                              !string.IsNullOrWhiteSpace(kvp.Value.Username) &&
+                              kvp.Value.Username != "Khách (Chưa xác thực)")
                 .GroupBy(kvp => kvp.Value.Username, StringComparer.OrdinalIgnoreCase);
 
             foreach (var grp in grouped)
@@ -463,28 +508,46 @@ public class MonitorDbService
             }
         }
 
-        if (evictionsByUser.Count == 0) return 0;
-
-        Task.Run(async () =>
+        if (staleDeletes.Count > 0 || evictionsByUser.Count > 0)
         {
-            try
+            Task.Run(async () =>
             {
-                using var conn = new SqliteConnection(_connectionString);
-                await conn.OpenAsync();
-                foreach (var item in evictionsByUser)
+                try
                 {
-                    foreach (var evIp in item.Ips)
+                    using var conn = new SqliteConnection(_connectionString);
+                    await conn.OpenAsync();
+                    foreach (var st in staleDeletes)
                     {
-                        using var cmdEvict = conn.CreateCommand();
-                        cmdEvict.CommandText = "DELETE FROM active_sessions WHERE username = $user COLLATE NOCASE AND client_ip = $evIp;";
-                        cmdEvict.Parameters.AddWithValue("$user", item.User);
-                        cmdEvict.Parameters.AddWithValue("$evIp", evIp);
-                        await cmdEvict.ExecuteNonQueryAsync();
+                        using var cmdStale = conn.CreateCommand();
+                        if (!string.IsNullOrWhiteSpace(st.User))
+                        {
+                            cmdStale.CommandText = "DELETE FROM active_sessions WHERE username = $user COLLATE NOCASE AND client_ip = $staleIp;";
+                            cmdStale.Parameters.AddWithValue("$user", st.User);
+                        }
+                        else
+                        {
+                            cmdStale.CommandText = "DELETE FROM active_sessions WHERE client_ip = $staleIp;";
+                        }
+                        cmdStale.Parameters.AddWithValue("$staleIp", st.Ip);
+                        await cmdStale.ExecuteNonQueryAsync();
+                    }
+                    foreach (var item in evictionsByUser)
+                    {
+                        foreach (var evIp in item.Ips)
+                        {
+                            using var cmdEvict = conn.CreateCommand();
+                            cmdEvict.CommandText = "DELETE FROM active_sessions WHERE username = $user COLLATE NOCASE AND client_ip = $evIp;";
+                            cmdEvict.Parameters.AddWithValue("$user", item.User);
+                            cmdEvict.Parameters.AddWithValue("$evIp", evIp);
+                            await cmdEvict.ExecuteNonQueryAsync();
+                        }
                     }
                 }
-            }
-            catch { }
-        });
+                catch { }
+            });
+        }
+
+        if (evictionsByUser.Count == 0) return 0;
 
         int totalEvicted = 0;
         foreach (var item in evictionsByUser)
@@ -640,12 +703,30 @@ public class MonitorDbService
         });
     }
 
-    public void UnregisterUserActivity(string clientIp)
+    public void UnregisterUserActivity(string clientIp, string? username = null)
     {
         var cleanIp = NormalizeClientIp(clientIp);
         if (string.IsNullOrEmpty(cleanIp)) return;
 
-        ActiveIpUserMap.TryRemove(cleanIp, out _);
+        var hasUser = !string.IsNullOrWhiteSpace(username);
+        var rawUser = hasUser ? username!.Trim() : "";
+        var cleanNoDomain = hasUser ? StripVnuDomain(rawUser) : "";
+        var vnuEmailUser = hasUser ? $"{cleanNoDomain}@vnu.edu.vn" : "";
+
+        lock (_activeMapLock)
+        {
+            if (hasUser)
+            {
+                if (ActiveIpUserMap.TryGetValue(cleanIp, out var existing) && IsSameUsername(existing.Username, rawUser))
+                {
+                    ActiveIpUserMap.TryRemove(cleanIp, out _);
+                }
+            }
+            else
+            {
+                ActiveIpUserMap.TryRemove(cleanIp, out _);
+            }
+        }
 
         Task.Run(async () =>
         {
@@ -654,8 +735,19 @@ public class MonitorDbService
                 using var conn = new SqliteConnection(_connectionString);
                 await conn.OpenAsync();
                 using var cmd = conn.CreateCommand();
-                cmd.CommandText = "DELETE FROM active_sessions WHERE client_ip = $ip;";
-                cmd.Parameters.AddWithValue("$ip", cleanIp);
+                if (hasUser)
+                {
+                    cmd.CommandText = "DELETE FROM active_sessions WHERE client_ip = $ip AND (username = $user COLLATE NOCASE OR lower(username) = lower($cleanUser) OR lower(username) = lower($vnuUser));";
+                    cmd.Parameters.AddWithValue("$ip", cleanIp);
+                    cmd.Parameters.AddWithValue("$user", rawUser);
+                    cmd.Parameters.AddWithValue("$cleanUser", cleanNoDomain);
+                    cmd.Parameters.AddWithValue("$vnuUser", vnuEmailUser);
+                }
+                else
+                {
+                    cmd.CommandText = "DELETE FROM active_sessions WHERE client_ip = $ip;";
+                    cmd.Parameters.AddWithValue("$ip", cleanIp);
+                }
                 await cmd.ExecuteNonQueryAsync();
             }
             catch { }
@@ -738,7 +830,7 @@ public class MonitorDbService
             using var conn = new SqliteConnection(_connectionString);
             conn.Open();
             using var cmd = conn.CreateCommand();
-            cmd.CommandText = "SELECT username, unit, member_type, first_seen, last_seen, total_requests, is_proxy_enabled FROM active_sessions WHERE client_ip = $ip AND username != 'Khách (Chưa xác thực)' ORDER BY last_seen DESC LIMIT 1;";
+            cmd.CommandText = "SELECT username, unit, member_type, first_seen, last_seen, total_requests, is_proxy_enabled FROM active_sessions WHERE client_ip = $ip AND username != 'Khách (Chưa xác thực)' ORDER BY CASE WHEN lower(member_type) != 'sinhvien' THEN 0 ELSE 1 END, is_proxy_enabled DESC, last_seen DESC LIMIT 1;";
             cmd.Parameters.AddWithValue("$ip", cleanIp);
             using var r = cmd.ExecuteReader();
             if (r.Read())

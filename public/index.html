@@ -1007,7 +1007,427 @@
             border-color: transparent transparent #10b981 transparent;
         }
 
-        /* Khối Hướng Dẫn Cài Đặt Thủ Công (Luôn Mở Rộng 100%, Không Thu Gọn) */
+        /* ================= HỆ THỐNG CÀI ĐẶT CHÍNH THỨC (2 STORE CARDS + 1 FLOW THỐNG NHẤT) ================= */
+        .store-hero-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 20px;
+            margin-bottom: 26px;
+        }
+
+        .store-install-card {
+            background: #ffffff;
+            border: 1.5px solid #cbd5e1;
+            border-radius: 16px;
+            padding: 22px 22px 18px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            gap: 14px;
+            box-shadow: 0 4px 18px rgba(15, 23, 42, 0.04);
+            transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+        }
+
+        .store-install-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 26px rgba(15, 23, 42, 0.08);
+        }
+
+        .store-install-card.chrome {
+            border-top: 4px solid #1a73e8;
+            background: linear-gradient(180deg, #f8fbff 0%, #ffffff 38%);
+        }
+
+        .store-install-card.chrome:hover {
+            border-color: #93c5fd;
+            border-top-color: #1a73e8;
+        }
+
+        .store-install-card.firefox {
+            border-top: 4px solid #ea580c;
+            background: linear-gradient(180deg, #fffaf5 0%, #ffffff 38%);
+        }
+
+        .store-install-card.firefox:hover {
+            border-color: #fdba74;
+            border-top-color: #ea580c;
+        }
+
+        .store-card-top {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .store-browser-brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .store-browser-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 23px;
+            flex-shrink: 0;
+        }
+
+        .store-install-card.chrome .store-browser-icon {
+            background: #eff6ff;
+            border: 1px solid #bfdbfe;
+        }
+
+        .store-install-card.firefox .store-browser-icon {
+            background: #fff7ed;
+            border: 1px solid #fed7aa;
+        }
+
+        .store-browser-title {
+            font-size: 16px;
+            font-weight: 800;
+            color: #0f172a;
+            line-height: 1.3;
+        }
+
+        .store-browser-sub {
+            font-size: 12px;
+            color: #64748b;
+            margin-top: 2px;
+        }
+
+        .store-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 4px 10px;
+            border-radius: 999px;
+            font-size: 10.5px;
+            font-weight: 800;
+            letter-spacing: 0.03em;
+            white-space: nowrap;
+        }
+
+        .store-install-card.chrome .store-badge {
+            background: #dbeafe;
+            color: #1d4ed8;
+            border: 1px solid #93c5fd;
+        }
+
+        .store-install-card.firefox .store-badge {
+            background: #ffedd5;
+            color: #c2410c;
+            border: 1px solid #fdba74;
+        }
+
+        .btn-store-cta {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            width: 100%;
+            padding: 13px 18px;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 800;
+            color: #ffffff;
+            text-decoration: none;
+            transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
+        }
+
+        .btn-store-cta:hover {
+            transform: translateY(-1px);
+            filter: brightness(1.04);
+        }
+
+        .btn-store-cta.chrome {
+            background: linear-gradient(135deg, #1a73e8 0%, #1557b0 100%);
+            box-shadow: 0 4px 14px rgba(26, 115, 232, 0.28);
+        }
+
+        .btn-store-cta.firefox {
+            background: linear-gradient(135deg, #f97316 0%, #c2410c 100%);
+            box-shadow: 0 4px 14px rgba(234, 88, 12, 0.28);
+        }
+
+        .store-micro-guide {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 9px 12px;
+            font-size: 12.5px;
+            color: #334155;
+            line-height: 1.5;
+        }
+
+        .store-card-footer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            flex-wrap: wrap;
+            min-height: 28px;
+            padding-top: 2px;
+            font-size: 12px;
+            color: #64748b;
+        }
+
+        .store-secondary-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 4px 10px;
+            border-radius: 6px;
+            background: #f1f5f9;
+            border: 1px solid #cbd5e1;
+            color: #0369a1;
+            font-weight: 700;
+            font-size: 12px;
+            text-decoration: none;
+            transition: all 0.15s ease;
+        }
+
+        .store-secondary-link:hover {
+            background: #e0f2fe;
+            border-color: #7dd3fc;
+        }
+
+        /* Khối Hướng Dẫn Thống Nhất (Video + 4 Bước Chung Cho Chrome, Edge & Firefox) */
+        .unified-guide-card {
+            background: #ffffff;
+            border: 1px solid #cbd5e1;
+            border-top: 4px solid var(--vnu-green);
+            border-radius: 16px;
+            padding: 26px;
+            margin-bottom: 22px;
+            box-shadow: 0 4px 20px rgba(15, 23, 42, 0.04);
+        }
+
+        .guide-flow-callout {
+            background: #f0fdf4;
+            border: 1px solid #bbf7d0;
+            border-radius: 10px;
+            padding: 12px 16px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 12.5px;
+            color: #166534;
+            line-height: 1.55;
+            flex-wrap: wrap;
+        }
+
+        .guide-flow-callout code {
+            background: #dcfce7;
+            color: #14532d;
+            padding: 1px 6px;
+            border-radius: 4px;
+            font-weight: 700;
+        }
+
+        .walkthrough-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin: 6px 0 18px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .walkthrough-header h4 {
+            font-size: 16.5px;
+            font-weight: 800;
+            color: #0f172a;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .guide-step-card.is-featured {
+            background: linear-gradient(135deg, #f0fdf4 0%, #ffffff 68%);
+            border: 1.5px solid #86efac;
+            border-left: 5px solid #00803d;
+            box-shadow: 0 6px 20px rgba(0, 128, 61, 0.07);
+        }
+
+        .step-featured-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            background: #dcfce7;
+            color: #15803d;
+            border: 1px solid #86efac;
+            font-size: 10.5px;
+            font-weight: 800;
+            padding: 2px 8px;
+            border-radius: 999px;
+            margin-left: 8px;
+            vertical-align: middle;
+        }
+
+        .guide-action-pills {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin: 10px 0 4px;
+        }
+
+        .guide-pill-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 700;
+            text-decoration: none;
+            border: 1px solid #cbd5e1;
+            background: #f8fafc;
+            color: #0f172a;
+            transition: all 0.15s ease;
+        }
+
+        .guide-pill-link:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+        }
+
+        .guide-pill-link.idp {
+            background: #ecfdf5;
+            border-color: #6ee7b7;
+            color: #065f46;
+        }
+
+        .guide-pill-link.chrome {
+            background: #eff6ff;
+            border-color: #93c5fd;
+            color: #1d4ed8;
+        }
+
+        .guide-pill-link.firefox {
+            background: #fff7ed;
+            border-color: #fdba74;
+            color: #c2410c;
+        }
+
+        .guide-pill-link.db {
+            background: #f0fdf4;
+            border-color: #bbf7d0;
+            color: #00803d;
+        }
+
+        /* Khối Thu Gọn Nhẹ Cho Các Phương Thức Dự Phòng (.guide-accordion) */
+        .guide-accordion {
+            background: #f8fafc;
+            border: 1px solid #cbd5e1;
+            border-radius: 12px;
+            margin-bottom: 14px;
+            overflow: hidden;
+            transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .guide-accordion[open] {
+            background: #ffffff;
+            border-color: #94a3b8;
+            box-shadow: 0 4px 16px rgba(15, 23, 42, 0.05);
+        }
+
+        .guide-accordion summary {
+            list-style: none;
+            cursor: pointer;
+            padding: 14px 18px;
+            font-size: 14px;
+            font-weight: 700;
+            color: #1e293b;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            user-select: none;
+            line-height: 1.45;
+        }
+
+        .guide-accordion summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .guide-accordion summary::after {
+            content: "▾";
+            font-size: 14px;
+            color: #64748b;
+            transition: transform 0.2s ease;
+            flex-shrink: 0;
+        }
+
+        .guide-accordion[open] summary::after {
+            transform: rotate(180deg);
+        }
+
+        .guide-accordion summary:hover {
+            background: #f1f5f9;
+        }
+
+        .guide-accordion-body {
+            padding: 16px 20px 20px;
+            border-top: 1px solid #e2e8f0;
+        }
+
+        .workspace-sync-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 16px;
+            margin-top: 14px;
+        }
+
+        .workspace-sync-step {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .workspace-sync-step h5 {
+            font-size: 13px;
+            font-weight: 800;
+            color: #0f172a;
+        }
+
+        .workspace-sync-step p, .workspace-sync-step li {
+            font-size: 12.5px;
+            color: #475569;
+            line-height: 1.55;
+        }
+
+        /* Thẻ PAC Script & Proxy Key Gọn Nhẹ */
+        .pac-compact-card {
+            background: #f8fafc;
+            border: 1px solid #cbd5e1;
+            border-top: 3px solid #475569;
+            border-radius: 12px;
+            padding: 18px 20px;
+            margin-top: 18px;
+        }
+
+        .pac-compact-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+
+        /* Khối Hướng Dẫn Cài Đặt Thủ Công (Dùng trong mục dự phòng) */
         .manual-guide-box {
             background: #ffffff;
             border: 1px solid #cbd5e1;
@@ -1020,16 +1440,16 @@
 
         .manual-cards-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(330px, 1fr));
-            gap: 24px;
-            margin-top: 20px;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 18px;
+            margin-top: 14px;
         }
 
         .manual-card {
             background: #f8fafc;
-            border: 1.5px solid #cbd5e1;
+            border: 1px solid #cbd5e1;
             border-radius: 12px;
-            padding: 22px;
+            padding: 18px;
             display: flex;
             flex-direction: column;
             justify-content: space-between;
@@ -1038,16 +1458,16 @@
         .btn-direct-download {
             background: #00803d;
             color: white;
-            padding: 11px 18px;
+            padding: 10px 16px;
             border-radius: 8px;
             font-weight: 700;
-            font-size: 13px;
+            font-size: 12.5px;
             text-decoration: none;
             display: inline-flex;
             align-items: center;
             justify-content: center;
             gap: 8px;
-            margin-bottom: 16px;
+            margin-bottom: 12px;
             transition: all 0.15s;
             box-shadow: 0 2px 6px rgba(0, 128, 61, 0.2);
         }
@@ -1072,11 +1492,11 @@
             background: #ffffff;
             border: 1px solid #e2e8f0;
             border-radius: 8px;
-            padding: 14px;
-            font-size: 13px;
+            padding: 12px 14px;
+            font-size: 12.5px;
             line-height: 1.6;
             color: #334155;
-            margin-top: 8px;
+            margin-top: 4px;
         }
 
         .unzip-instruction-box ol {
@@ -1134,6 +1554,17 @@
             .status-overlap-card {
                 margin: -28px 12px 28px;
                 padding: 16px;
+            }
+            .store-hero-grid {
+                grid-template-columns: 1fr;
+                gap: 16px;
+            }
+            .unified-guide-card {
+                padding: 20px 16px;
+                border-radius: 12px;
+            }
+            .workspace-sync-grid {
+                grid-template-columns: 1fr;
             }
             .profile-guide-container {
                 padding: 20px 16px;
@@ -1309,6 +1740,63 @@
             .db-card p {
                 font-size: 12px;
                 margin-bottom: 10px;
+            }
+            .guide-box {
+                padding: 18px 12px;
+                border-radius: 12px;
+            }
+            .store-hero-grid {
+                grid-template-columns: 1fr;
+                gap: 12px;
+                margin-bottom: 18px;
+            }
+            .store-install-card {
+                padding: 16px 14px;
+                border-radius: 12px;
+                gap: 10px;
+            }
+            .store-browser-icon {
+                width: 38px;
+                height: 38px;
+                font-size: 20px;
+            }
+            .store-browser-title {
+                font-size: 14.5px;
+            }
+            .btn-store-cta {
+                padding: 11px 14px;
+                font-size: 13px;
+            }
+            .unified-guide-card {
+                padding: 16px 12px;
+                border-radius: 12px;
+                margin-bottom: 16px;
+            }
+            .guide-flow-callout {
+                padding: 10px 12px;
+                font-size: 12px;
+                margin-bottom: 14px;
+            }
+            .vags-video-header {
+                padding: 12px 14px;
+            }
+            .vags-video-workspace {
+                padding: 10px;
+                gap: 12px;
+            }
+            .guide-accordion summary {
+                padding: 12px 14px;
+                font-size: 13px;
+            }
+            .guide-accordion-body {
+                padding: 12px 14px 16px;
+            }
+            .pac-compact-card {
+                padding: 14px 12px;
+            }
+            .step-featured-tag {
+                margin-left: 0;
+                margin-top: 4px;
             }
             .profile-guide-container {
                 padding: 16px 12px;
@@ -1840,44 +2328,91 @@
             </div>
         </section>
 
-        <!-- Hướng dẫn Cài đặt & Sử dụng (Quy Trình Liên Tục Kéo Dài Xuống - 1 Tab Trực Quan) -->
+        <!-- Hướng dẫn Cài đặt & Sử dụng (1 Tab Thống Nhất: 2 Store Chính Thức + Video & 4 Bước Trực Quan) -->
         <section class="guide-box" id="guide">
-            <div class="section-title" style="margin-bottom:28px;">
-                <span class="hero-badge" style="background:rgba(0,128,61,0.1);border-color:#00803d;color:#00803d;">CÁCH
-                    DÙNG TIỆN LỢI NHẤT</span>
-                <h3 style="font-size:24px;margin-top:6px;">Hướng Dẫn Cài Đặt & Sử Dụng Tiện Ích CSDL VAGS</h3>
-                <p>Quý Thầy/Cô thực hiện theo quy trình trực quan liên tục dưới đây (ưu tiên Cách 1 để cài đặt nhanh bằng tệp .zip hoặc Cách 2 để đồng bộ qua Google Chrome):</p>
+            <div class="section-title" style="margin-bottom:24px;">
+                <span class="hero-badge" style="background:rgba(0,128,61,0.1);border-color:#00803d;color:#00803d;">CÀI ĐẶT CHÍNH THỨC • 1 CÚ NHẤP CHUỘT</span>
+                <h3 style="font-size:24px;margin-top:6px;">Hướng Dẫn Cài Đặt &amp; Sử Dụng Tiện Ích CSDL VAGS</h3>
+                <p style="max-width:760px;margin:8px auto 0;">Tiện ích đã được duyệt chính thức trên Chrome Web Store và Firefox Add-ons. Cách đăng nhập và bật Proxy dùng chung giống nhau cho cả Google Chrome, Microsoft Edge và Mozilla Firefox.</p>
             </div>
 
-            <!-- ================= PHẦN 1: CÁCH 1 - CÀI ĐẶT TRỰC TIẾP BẰNG TỆP MỞ RỘNG (.ZIP) ================= -->
-            <div class="manual-guide-box" style="border-top:4px solid #00803d;margin-top:0;margin-bottom:36px;">
-                <div
-                    style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;border-bottom:1px solid #e2e8f0;padding-bottom:14px;margin-bottom:18px;">
-                    <div>
-                        <h4
-                            style="font-size:16px;font-weight:800;color:#0f172a;display:flex;align-items:center;gap:8px;">
-                            <span>📁</span> Cách 1: Hướng Dẫn Cài Đặt Trực Tiếp Bằng Tệp Mở Rộng (.zip)
-                        <span class="badge-method"
-                            style="background:#dcfce7;color:#15803d;border:1px solid #86efac;font-size:11px;">Khuyến
-                            nghị • Tiện lợi & Nhanh chóng</span>
-                        </h4>
-                        <p style="font-size:12.5px;color:var(--muted);margin-top:2px;">
-                            Dành cho Thầy/Cô muốn cài đặt nhanh trực tiếp trên máy tính cá nhân hoặc cơ quan (hỗ trợ Google Chrome, Edge, Firefox...):
-                        </p>
+            <!-- ================= KHỐI CÀI ĐẶT CHÍNH THỨC TRÊN 2 KHO TIỆN ÍCH ================= -->
+            <div class="store-hero-grid">
+                <!-- Card 1: Chrome & Edge -->
+                <div class="store-install-card chrome">
+                    <div class="store-card-top">
+                        <div class="store-browser-brand">
+                            <div class="store-browser-icon">🌐</div>
+                            <div>
+                                <div class="store-browser-title">Google Chrome &amp; Microsoft Edge</div>
+                                <div class="store-browser-sub">Hỗ trợ cả Cốc Cốc, Brave và các trình duyệt Chromium</div>
+                            </div>
+                        </div>
+                        <span class="store-badge">CHÍNH THỨC • KHUYÊN DÙNG</span>
                     </div>
-                    <span
-                        style="font-size:11px;background:#f1f5f9;color:#475569;padding:4px 10px;border-radius:6px;font-weight:700;border:1px solid #cbd5e1;">Khuyên dùng • v2.1.4</span>
+
+                    <a href="https://chromewebstore.google.com/detail/dgfahdmakaoconbibgilknoimmijcpla?utm_source=item-share-cb" target="_blank" rel="noopener" class="btn-store-cta chrome">
+                        <span>🌐 Cài Đặt Trên Chrome Web Store ↗</span>
+                    </a>
+
+                    <div class="store-micro-guide">
+                        Bấm <b>Thêm vào Chrome (Add to Chrome)</b> &rarr; ghim biểu tượng <b>[VNU]</b> (<code>🧩</code> &rarr; <code>📌</code>).
+                    </div>
+
+                    <div class="store-card-footer">
+                        <a href="/huong-dan-cai-dat-vags-chrome.pdf" target="_blank" rel="noopener" class="store-secondary-link">
+                            <span>📄 Hướng dẫn PDF</span>
+                        </a>
+                        <span>Cập nhật tự động qua Store</span>
+                    </div>
                 </div>
 
-                
-                <!-- ================= VIDEO PLAYER HƯỚNG DẪN CHROME (UDEMY / TED STYLE INTERACTIVE) ================= -->
+                <!-- Card 2: Mozilla Firefox -->
+                <div class="store-install-card firefox">
+                    <div class="store-card-top">
+                        <div class="store-browser-brand">
+                            <div class="store-browser-icon">🦊</div>
+                            <div>
+                                <div class="store-browser-title">Mozilla Firefox</div>
+                                <div class="store-browser-sub">Phần bổ trợ đã ký duyệt chính thức (Gecko Add-on)</div>
+                            </div>
+                        </div>
+                        <span class="store-badge">CHÍNH THỨC • KHUYÊN DÙNG</span>
+                    </div>
+
+                    <a href="https://addons.mozilla.org/en-US/firefox/addon/vnu-academic-gateway-vags/" target="_blank" rel="noopener" class="btn-store-cta firefox">
+                        <span>🦊 Cài Đặt Trên Firefox Add-ons ↗</span>
+                    </a>
+
+                    <div class="store-micro-guide">
+                        Bấm <b>Add to Firefox (Thêm vào Firefox)</b> &rarr; ghim biểu tượng <b>[VNU]</b> (<code>🧩</code> &rarr; <code>📌</code>).
+                    </div>
+
+                    <div class="store-card-footer">
+                        <span>Áp dụng trên Windows, macOS &amp; Linux</span>
+                        <span>Cập nhật tự động qua Store</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ================= KHỐI HƯỚNG DẪN THỐNG NHẤT: VIDEO + 4 BƯỚC CHUNG ================= -->
+            <div class="unified-guide-card">
+                <div class="guide-flow-callout">
+                    <span style="font-size:18px;flex-shrink:0;">🧭</span>
+                    <div>
+                        <b>Quy trình dùng chung cho cả Chrome, Edge &amp; Firefox:</b>
+                        <code>idp.vnu.edu.vn</code> &rarr; chọn app <b>Tài liệu tham khảo</b> &rarr; <b>cài Extension từ Store</b> &rarr; <b>đăng nhập VNU SSO</b> &rarr; <b>bật Proxy</b> &rarr; <b>vào CSDL</b>.
+                    </div>
+                </div>
+
+                <!-- ================= VIDEO PLAYER HƯỚNG DẪN THỐNG NHẤT (UDEMY / TED STYLE INTERACTIVE) ================= -->
                 <div class="vags-interactive-video-card" id="vagsVideoGuide">
                     <div class="vags-video-header">
                         <div class="vags-video-title-wrap">
                             <span class="vags-video-icon">🎬</span>
                             <div>
-                                <div class="vags-video-title">Video Hướng Dẫn Cài Đặt Tiện Ích VAGS (Google Chrome & Edge)</div>
-                                <div class="vags-video-subtitle">Có thuyết minh giọng đọc AI &bull; Spotlight làm nổi bật thao tác &bull; Đồng bộ bản chép lời</div>
+                                <div class="vags-video-title">Video Hướng Dẫn Cài Đặt &amp; Kích Hoạt VAGS (Chrome, Edge &amp; Mozilla Firefox)</div>
+                                <div class="vags-video-subtitle">Áp dụng cho cả Google Chrome, Edge &amp; Mozilla Firefox (vì quy trình từ idp.vnu.edu.vn &amp; đăng nhập VNU SSO giống nhau) &bull; Thuyết minh AI &amp; đồng bộ bản chép lời</div>
                             </div>
                         </div>
                         <div class="vags-video-controls">
@@ -1912,211 +2447,45 @@
                     </div>
                 </div>
 
-                <div class="manual-cards-grid">
-                    <!-- CỘT 1: GOOGLE CHROME & MICROSOFT EDGE (.ZIP THỦ CÔNG) -->
-                    <div class="manual-card">
-                        <div>
-                            <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
-                                <span style="font-size:24px;">🌐</span>
-                                <div>
-                                    <h5 style="font-size:15px;font-weight:800;color:#1d4ed8;">Google Chrome & Microsoft
-                                        Edge</h5>
-                                    <span style="font-size:11px;color:var(--muted);">Cài đặt gói giải nén (Unpacked
-                                        Extension)</span>
-                                </div>
-                            </div>
-
-                            <!-- Link cài đặt Chrome Web Store, tải Chrome zip & Tệp PDF Hướng dẫn -->
-                            <a href="https://chromewebstore.google.com/detail/vnu-academic-gateway/pjeacnplliggjdcimgjoflofcpdmhedm" target="_blank" rel="noopener" class="btn-direct-download" style="background:linear-gradient(135deg, #1a73e8, #1557b0);margin-bottom:10px;">
-                                <span>🌐 Cài Đặt Trực Tiếp Trên Chrome Web Store (Khuyên dùng) ↗</span>
-                            </a>
-                            <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
-                                <a href="/thamkhao-extension-chrome.zip" class="btn-direct-download" download style="margin-bottom:0;flex:1;min-width:180px;">
-                                    <span>⬇️ Tải Gói Cài Đặt Chrome (.zip)</span>
-                                </a>
-                                <a href="/huong-dan-cai-dat-vags-chrome.pdf" target="_blank" class="btn-direct-download" style="background:#0284c7;margin-bottom:0;flex:1;min-width:180px;" title="Xem hoặc tải file PDF hướng dẫn cài đặt từng bước có ảnh minh họa">
-                                    <span>📄 Xem Hướng Dẫn Cài Đặt (PDF)</span>
-                                </a>
-                            </div>
-
-                            <div class="unzip-instruction-box">
-                                <div style="font-weight:700;color:#1e293b;margin-bottom:6px;font-size:13.5px;">📦 Phần 1: Cài đặt tiện ích</div>
-                                <div style="margin-bottom:12px;padding:9px 12px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:6px;font-size:12.5px;color:#0369a1;display:flex;align-items:center;gap:8px;">
-                                    <span>📄</span>
-                                    <span><b>File đính kèm:</b> Thầy/Cô có thể xem hoặc tải <a href="/huong-dan-cai-dat-vags-chrome.pdf" target="_blank" style="color:#0284c7;font-weight:700;text-decoration:underline;">Tệp PDF hướng dẫn cài đặt có hình ảnh chi tiết</a> để xem từng bước.</span>
-                                </div>
-                                <ol>
-                                    <li>Bấm nút xanh ở trên để tải file <code>thamkhao-extension-chrome.zip</code> về máy
-                                        tính.</li>
-                                    <li>Tìm đến file vừa tải, <b>chuột phải</b> &rarr; Chọn <b>"Extract All..." (hoặc
-                                            "Giải nén vào...")</b> để tạo một thư mục.</li>
-                                    <li>Mở tab mới trên Chrome, gõ vào thanh địa chỉ: <code
-                                            style="background:#f1f5f9;padding:2px 6px;border-radius:4px;color:#1d4ed8;font-weight:700;">chrome://extensions</code>
-                                        (nếu dùng Edge: <code
-                                            style="background:#f1f5f9;padding:2px 6px;border-radius:4px;color:#1d4ed8;font-weight:700;">edge://extensions</code>).
-                                    </li>
-                                    <li>Nhìn lên góc trên bên phải, gạt <b>BẬT</b> công tắc <b>"Developer mode" (Chế độ
-                                            cho nhà phát triển)</b>.</li>
-                                    <li>Nhìn sang góc trên bên trái, bấm nút <b>"Load unpacked" (Tải tiện ích đã giải
-                                            nén)</b>.</li>
-                                    <li>Chọn đúng thư mục vừa giải nén ở Bước 2 &rarr; Bấm <b>Select Folder</b>. Tiện
-                                        ích <b>VNU Academic Gateway (VAGS)</b> sẽ xuất hiện ngay lập tức trên thanh công
-                                        cụ của Chrome.</li>
-                                </ol>
-
-                                <div
-                                    style="font-weight:700;color:#059669;margin-top:12px;margin-bottom:6px;font-size:13.5px;border-top:1px dashed #cbd5e1;padding-top:10px;">
-                                    🚀 Phần 2: Đăng nhập và kích hoạt
-                                </div>
-                                <ol>
-                                    <li>Bấm biểu tượng mảnh ghép <b>🧩</b> trên trình duyệt &rarr; Bấm ghim <b>📌</b>
-                                        VAGS ra ngoài.</li>
-                                    <li>Mở VAGS &rarr; Bấm <b>🔑 Đăng nhập VNU SSO</b> bằng email
-                                        <code>@vnu.edu.vn</code>.
-                                    </li>
-                                    <li><b>(Bắt buộc)</b>: Gạt công tắc <b>"Đường truyền Proxy" sang BẬT</b>. Khi biểu
-                                        tượng chuyển từ <b>OFF (đỏ)</b> sang <b>ON (xanh)</b> là hoàn tất, bạn có thể
-                                        vào <i>sciencedirect.com, springer.com...</i> để tải tài liệu.</li>
-                                </ol>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- CỘT 2: MOZILLA FIREFOX (.ZIP / .XPI THỦ CÔNG) -->
-                    <div class="manual-card">
-                        <div>
-                            <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
-                                <span style="font-size:24px;">🦊</span>
-                                <div>
-                                    <h5 style="font-size:15px;font-weight:800;color:#ea580c;">Mozilla Firefox</h5>
-                                    <span style="font-size:11px;color:var(--muted);">Cài đặt phần bổ trợ Firefox (Gecko
-                                        Add-on)</span>
-                                </div>
-                            </div>
-
-                            <!-- Link cài đặt Firefox Add-ons & tải trực tiếp Firefox zip -->
-                            <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
-                                <a href="https://addons.mozilla.org/en-US/firefox/addon/vnu-academic-gateway-vags/" target="_blank" rel="noopener" class="btn-direct-download firefox" style="margin-bottom:0;flex:1.3;min-width:210px;background:linear-gradient(135deg, #ea580c, #c2410c);">
-                                    <span>🦊 Cài Đặt Trên Firefox Add-ons (Chính thức) ↗</span>
-                                </a>
-                                <a href="/thamkhao-extension-firefox.zip" class="btn-direct-download" download style="background:#64748b;margin-bottom:0;flex:1;min-width:160px;">
-                                    <span>⬇️ Tải Gói (.zip) Dự Phòng</span>
-                                </a>
-                            </div>
-
-                            <div class="unzip-instruction-box">
-                                <div style="font-weight:700;color:#1e293b;margin-bottom:6px;font-size:13.5px;">📦 Phần 1: Cài đặt tiện ích</div>
-                                <div style="margin-bottom:12px;padding:9px 12px;background:#fff7ed;border:1px solid #fed7aa;border-radius:6px;font-size:12.5px;color:#9a3412;display:flex;align-items:center;gap:8px;">
-                                    <span>🦊</span>
-                                    <span><b>Cách nhanh nhất (Khuyên dùng):</b> Bấm nút <b>Cài Đặt Trên Firefox Add-ons (Chính thức)</b> ở trên &rarr; Bấm <b>"Add to Firefox" (Thêm vào Firefox)</b> để cài đặt chỉ với 1 cú nhấp chuột (không cần giải nén).</span>
-                                </div>
-                                <div style="font-size:12px;font-weight:700;color:#64748b;margin-bottom:6px;">Hoặc cài đặt thủ công qua tệp .zip dự phòng:</div>
-                                <ol>
-                                    <li>Bấm nút xám <b>Tải Gói (.zip) Dự Phòng</b> ở trên để tải file <code>thamkhao-extension-firefox.zip</code> về máy tính.</li>
-                                    <li>Tìm đến file vừa tải, <b>chuột phải</b> chọn <b>"Extract All..." (hoặc "Giải nén vào...")</b> để giải nén ra một thư mục.</li>
-                                    <li>Mở tab mới trên Firefox, gõ vào thanh địa chỉ: <code
-                                            style="background:#f1f5f9;padding:2px 6px;border-radius:4px;color:#ea580c;font-weight:700;">about:debugging#/runtime/this-firefox</code> rồi nhấn Enter.
-                                    </li>
-                                    <li>Bấm nút <b>"Load Temporary Add-on..." (Tải phần bổ trợ tạm thời...)</b>.</li>
-                                    <li>Dẫn tới thư mục vừa giải nén ở Bước 2 và chọn file <code>manifest.json</code>. Tiện ích <b>VNU Academic Gateway (VAGS)</b> sẽ xuất hiện ngay trên trình duyệt Firefox.</li>
-                                </ol>
-
-                                <div
-                                    style="font-weight:700;color:#ea580c;margin-top:12px;margin-bottom:6px;font-size:13.5px;border-top:1px dashed #cbd5e1;padding-top:10px;">
-                                    🚀 Phần 2: Đăng nhập và kích hoạt
-                                </div>
-                                <ol>
-                                    <li>Bấm biểu tượng mảnh ghép <b>🧩</b> trên Firefox để ghim tiện ích VAGS ra ngoài thanh công cụ.</li>
-                                    <li>Mở VAGS, bấm <b>🔑 Đăng nhập VNU SSO</b> bằng tài khoản email <code>@vnu.edu.vn</code>.</li>
-                                    <li><b>(Bắt buộc)</b>: Gạt công tắc <b>"Đường truyền Proxy" sang BẬT</b>. Khi chuyển từ <b>OFF (đỏ)</b> sang <b>ON (xanh)</b> là hoàn tất, bạn có thể vào <i>sciencedirect.com, springer.com...</i> để tra cứu và tải tài liệu.</li>
-                                </ol>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- ================= PHẦN 2: CÁCH 2 - ĐỒNG BỘ HỒ SƠ GOOGLE CHROME ================= -->
-            <div class="profile-guide-container">
-                <div class="profile-guide-header">
-                    <div style="display:flex;align-items:center;gap:14px;">
-                        <div
-                            style="width:46px;height:46px;border-radius:12px;background:#00803d;color:white;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:18px;box-shadow:0 3px 8px rgba(0,128,61,0.3);">
-                            VNU
-                        </div>
-                        <div>
-                            <h4
-                                style="font-size:18px;font-weight:800;color:#0f172a;display:flex;align-items:center;gap:10px;">
-                                Cách 2: Đồng Bộ Hồ Sơ Google Chrome Bằng Tài Khoản ĐHQGHN
-                                <span class="badge-method"
-                                    style="background:#f1f5f9;color:#475569;border:1px solid #cbd5e1;font-size:11px;">Tự động cài đặt ngầm qua Google Workspace</span>
-                            </h4>
-                            <p style="font-size:13px;color:var(--muted);margin-top:3px;">
-                                Hệ thống đã được quản trị tập trung qua Google Workspace ĐHQGHN (OU: <b>canbo</b>). Cán
-                                bộ không cần tải file hay thao tác kỹ thuật phức tạp!
-                            </p>
-                        </div>
-                    </div>
-                    <div style="display:flex;align-items:center;">
-                        <a href="https://chromewebstore.google.com/detail/vnu-academic-gateway/pjeacnplliggjdcimgjoflofcpdmhedm"
-                            target="_blank" rel="noopener"
-                            style="background:#ecfdf5;color:#00803d;border:1.5px solid #86efac;padding:9px 16px;border-radius:10px;font-weight:700;font-size:13px;text-decoration:none;display:inline-flex;align-items:center;gap:8px;box-shadow:0 2px 6px rgba(0,128,61,0.08);transition:all 0.2s;"
-                            onmouseover="this.style.background='#dcfce7';this.style.borderColor='#4ade80';"
-                            onmouseout="this.style.background='#ecfdf5';this.style.borderColor='#86efac';">
-                            <span>🌐</span> Cài đặt từ Chrome Web Store ↗
-                        </a>
-                    </div>
+                <!-- ================= 4 BƯỚC TRỰC QUAN THỐNG NHẤT ================= -->
+                <div class="walkthrough-header">
+                    <h4><span>📋</span> Quy Trình 4 Bước Dùng Chung Cho Chrome, Edge &amp; Firefox</h4>
+                    <span class="badge-method" style="background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0;">Đồng bộ 1 quy trình duy nhất</span>
                 </div>
 
-                <!-- Danh Sách Các Bước Kéo Dài Liên Tục (Vertical Flow) -->
                 <div class="vertical-guide-wrapper">
-
-                    <!-- BƯỚC 1 -->
-                    <div class="guide-step-card">
+                    <!-- BƯỚC 1 (NỔI BẬT) -->
+                    <div class="guide-step-card is-featured">
                         <div class="guide-step-header">
                             <div class="step-badge-circle">1</div>
                             <div>
-                                <div class="guide-step-title">Bấm vào biểu tượng Avatar Profile ở góc trên bên phải
-                                    Chrome</div>
-                                <div class="guide-step-subtitle">Mở menu Hồ sơ người dùng để kích hoạt tính năng đồng bộ
-                                    tài khoản tổ chức</div>
+                                <div class="guide-step-title">
+                                    Đăng nhập Cổng ứng dụng <code>idp.vnu.edu.vn</code> &amp; chọn Tài Liệu Tham Khảo
+                                    <span class="step-featured-tag">⭐ NỔI BẬT • BẮT ĐẦU</span>
+                                </div>
+                                <div class="guide-step-subtitle">Đăng nhập tài khoản @vnu.edu.vn trước giúp bước kích hoạt SSO diễn ra tự động</div>
                             </div>
                         </div>
 
                         <div class="guide-step-body">
-                            <!-- Ảnh chụp màn hình Chrome Profile Menu thật -->
                             <div class="guide-image-container">
-                                <img src="/images/guide/step1-chrome-profile.png"
-                                    alt="Mở menu Profile Google Chrome ở góc trên bên phải"
+                                <img src="/images/guide/step3-vnu-idp.png"
+                                    alt="Đăng nhập cổng ứng dụng idp.vnu.edu.vn và chọn Tài liệu tham khảo điện tử"
                                     class="guide-real-screenshot">
                             </div>
 
-                            <!-- Hướng dẫn thao tác Bước 1 -->
                             <div class="guide-step-desc">
-                                <b>Các bước thực hiện trên máy tính:</b>
+                                <div class="guide-action-pills">
+                                    <a href="https://idp.vnu.edu.vn" target="_blank" rel="noopener" class="guide-pill-link idp">🔑 https://idp.vnu.edu.vn ↗</a>
+                                    <a href="https://thamkhao.vnu.edu.vn" target="_blank" rel="noopener" class="guide-pill-link">🌐 Vào thẳng thamkhao.vnu.edu.vn ↗</a>
+                                </div>
                                 <ol>
-                                    <li>Mở trình duyệt <b>Google Chrome</b> (hoặc Microsoft Edge).</li>
-                                    <li>Nhìn lên <b>góc trên cùng bên phải</b> của cửa sổ trình duyệt (cạnh dấu 3 chấm
-                                        dọc ⋮).</li>
-                                    <li>Bấm vào biểu tượng <b>Hình tròn Avatar Profile (Người đại diện)</b>.</li>
-                                    <li>
-                                        Tùy vào trạng thái hiện tại của trình duyệt, chọn 1 trong 2 cách:
-                                        <ul style="margin-top:6px;padding-left:18px;">
-                                            <li style="margin-bottom:6px;"><b>👉 Cách 1 (Khuyên dùng nếu chưa đăng
-                                                    nhập):</b> Bấm nút xanh <b>"Bật tính năng đồng bộ..." (Turn on
-                                                    sync...)</b>.</li>
-                                            <li><b>👉 Cách 2 (Nếu đang dùng Gmail cá nhân):</b> Cuộn xuống mục <i>"Hồ sơ
-                                                    khác" (Other profiles)</i> &rarr; Bấm <b>"➕ Thêm" (Add
-                                                    profile)</b> để tạo một cửa sổ Chrome riêng biệt chuyên cho công tác
-                                                ĐHQGHN, hoàn toàn độc lập và không lẫn dữ liệu cá nhân!</li>
-                                        </ul>
-                                    </li>
+                                    <li>Mở cổng xác thực tập trung <a href="https://idp.vnu.edu.vn" target="_blank" rel="noopener" style="color:#00803d;font-weight:700;">https://idp.vnu.edu.vn ↗</a> và đăng nhập bằng email cán bộ <code>@vnu.edu.vn</code>.</li>
+                                    <li>Tại bảng danh sách ứng dụng ĐHQGHN, bấm chọn biểu tượng <b>Cổng thông tin Tài Liệu Tham Khảo Điện Tử (<code>thamkhao.vnu.edu.vn</code>)</b> — hoặc Thầy/Cô có thể truy cập trực tiếp <code>thamkhao.vnu.edu.vn</code> rồi bấm nút <b>Đăng nhập VNU SSO</b>.</li>
                                 </ol>
                                 <div class="tip-box">
                                     <span>💡</span>
-                                    <span><b>Mẹo cho Cán bộ:</b> Tạo riêng một Profile Google Chrome cho email
-                                        <b>@vnu.edu.vn</b> giúp trình duyệt tự động nhận diện chính sách trường và phân
-                                        tách 100% công việc với tài khoản cá nhân.</span>
+                                    <span><b>Tại sao nên đi từ <code>idp.vnu.edu.vn</code>?</b> Phiên SSO ĐHQGHN được thiết lập sẵn, nên khi bấm đăng nhập trong tiện ích VAGS hệ thống tự nhận diện danh tính ngay lập tức.</span>
                                 </div>
                             </div>
                         </div>
@@ -2127,296 +2496,267 @@
                         <div class="guide-step-header">
                             <div class="step-badge-circle">2</div>
                             <div>
-                                <div class="guide-step-title">Nhập Email VNU & Xác thực Cổng VNU Keycloak IDP</div>
-                                <div class="guide-step-subtitle">Google Workspace tự động nhận diện tổ chức và chuyển
-                                    hướng sang cổng xác thực ĐHQGHN</div>
+                                <div class="guide-step-title">Cài tiện ích chính thức (Chrome / Edge / Firefox) &amp; ghim lên thanh công cụ</div>
+                                <div class="guide-step-subtitle">Cài đặt 1 cú nhấp chuột từ Store và cố định biểu tượng [VNU] để bật/tắt nhanh</div>
                             </div>
                         </div>
 
                         <div class="guide-step-body">
-                            <!-- Ảnh chụp màn hình Bước 2: Google Sign-in & VNU Keycloak -->
-                            <div class="guide-image-grid-2">
-                                <div class="guide-image-container">
-                                    <div style="padding:6px 10px;background:#f8fafc;border-bottom:1px solid #e2e8f0;"
-                                        class="screenshot-caption">2.1. Đăng nhập Google với email VNU</div>
-                                    <img src="/images/guide/step2-google-signin.png"
-                                        alt="Đăng nhập Google Workspace với email @vnu.edu.vn"
-                                        class="guide-real-screenshot">
-                                </div>
-                                <div class="guide-image-container">
-                                    <div style="padding:6px 10px;background:#f8fafc;border-bottom:1px solid #e2e8f0;"
-                                        class="screenshot-caption">2.2. Google chuyển sang Cổng VNU Keycloak</div>
-                                    <img src="/images/guide/step3-vnu-idp.png"
-                                        alt="Xác thực tại Cổng VNU Keycloak idp.vnu.edu.vn"
-                                        class="guide-real-screenshot">
-                                </div>
+                            <div class="guide-image-container">
+                                <img src="/images/guide/step4b-vags-installed.png"
+                                    alt="Cài đặt tiện ích VAGS từ Store và ghim biểu tượng VNU lên thanh công cụ"
+                                    class="guide-real-screenshot">
                             </div>
 
-                            <!-- Hướng dẫn thao tác Bước 2 -->
                             <div class="guide-step-desc">
-                                <b>Các bước thực hiện trên màn hình đăng nhập:</b>
+                                <div class="guide-action-pills">
+                                    <a href="https://chromewebstore.google.com/detail/dgfahdmakaoconbibgilknoimmijcpla?utm_source=item-share-cb" target="_blank" rel="noopener" class="guide-pill-link chrome">🌐 Chrome Web Store (Chrome / Edge) ↗</a>
+                                    <a href="https://addons.mozilla.org/en-US/firefox/addon/vnu-academic-gateway-vags/" target="_blank" rel="noopener" class="guide-pill-link firefox">🦊 Firefox Add-ons ↗</a>
+                                </div>
                                 <ol>
-                                    <li>Tại ô đăng nhập Google (ảnh 2.1), nhập địa chỉ email cơ quan do ĐHQGHN cấp:
-                                        <code>tên_cán_bộ@vnu.edu.vn</code> &rarr; Bấm <b>Tiếp theo (Next)</b>.
-                                    </li>
-                                    <li>Google Workspace sẽ tự động nhận diện tên miền <code>@vnu.edu.vn</code> và lập
-                                        tức chuyển tiếp màn hình sang <b>Cổng xác thực tập trung ĐHQGHN (VNU Keycloak
-                                            SSO - idp.vnu.edu.vn)</b> (ảnh 2.2).</li>
-                                    <li>Tại cổng VNU SSO, Thầy/Cô nhập mật khẩu tài khoản email/SSO của mình.</li>
-                                    <li>Bấm nút <b>Đăng nhập (Sign In)</b> để hoàn tất ủy quyền danh tính cán bộ.</li>
+                                    <li>Chọn đúng kho tiện ích ở trên theo trình duyệt đang dùng, bấm <b>Thêm vào Chrome (Add to Chrome)</b> hoặc <b>Add to Firefox (Thêm vào Firefox)</b>.</li>
+                                    <li>Nhìn lên góc trên bên phải trình duyệt, bấm biểu tượng mảnh ghép <b>🧩</b> &rarr; bấm nút ghim <b>📌</b> cạnh mục <b>VNU Academic Gateway (VAGS)</b> để đưa biểu tượng <b>[VNU]</b> ra ngoài thanh công cụ.</li>
                                 </ol>
                                 <div class="tip-box">
-                                    <span>🔒</span>
-                                    <span><b>Bảo mật danh tính:</b> Mật khẩu của Thầy/Cô được xác thực trực tiếp tại máy
-                                        chủ VNU Keycloak nội bộ của ĐHQGHN (idp.vnu.edu.vn), Google không lưu giữ mật
-                                        khẩu này.</span>
+                                    <span>📌</span>
+                                    <span><b>Mẹo nhỏ:</b> Ghim biểu tượng <b>[VNU]</b> giúp Thầy/Cô luôn nhìn thấy trạng thái đèn xanh <b>ON</b> khi đang kết nối mạng thư viện ĐHQGHN.</span>
                                 </div>
                             </div>
                         </div>
                     </div>
 
                     <!-- BƯỚC 3 -->
-                    <div class="guide-step-card">
+                    <div class="guide-step-card" style="border-left-color:#0284c7;">
                         <div class="guide-step-header">
-                            <div class="step-badge-circle">3</div>
+                            <div class="step-badge-circle" style="background:#0284c7;">3</div>
                             <div>
-                                <div class="guide-step-title">Xác nhận "Bật tính năng đồng bộ hóa" & Quản trị bởi
-                                    vnu.edu.vn</div>
-                                <div class="guide-step-subtitle">Chrome nhận diện hồ sơ tổ chức và chuẩn bị nạp tiện ích
-                                    mở rộng VAGS</div>
+                                <div class="guide-step-title">Bấm Đăng nhập VNU SSO &amp; gạt công tắc Đường truyền Proxy sang BẬT</div>
+                                <div class="guide-step-subtitle">Tự động đồng bộ phiên VNU SSO và chuyển biểu tượng VAGS sang đèn xanh (ON)</div>
                             </div>
                         </div>
 
                         <div class="guide-step-body">
-                            <!-- Ảnh chụp màn hình Chrome Turn on sync -->
                             <div class="guide-image-container">
-                                <img src="/images/guide/step4-turn-on-sync.png"
-                                    alt="Bật tính năng đồng bộ và xác nhận tổ chức quản trị vnu.edu.vn"
+                                <img src="/images/guide/step5-sso-sync-activated.png"
+                                    alt="Bấm Đăng nhập VNU SSO và gạt công tắc Đường truyền Proxy sang BẬT"
                                     class="guide-real-screenshot">
                             </div>
 
-                            <!-- Hướng dẫn thao tác Bước 3 -->
                             <div class="guide-step-desc">
-                                <b>Hộp thoại xác nhận trên Chrome:</b>
                                 <ol>
-                                    <li>Ngay sau khi xác thực Keycloak thành công, Chrome sẽ hiển thị hộp thoại: <i>"Bật
-                                            tính năng đồng bộ hóa? (Turn on sync?)"</i>.</li>
-                                    <li>Thông báo tổ chức xuất hiện: <i>"Hồ sơ do vnu.edu.vn quản lý (Your profile is
-                                            managed by vnu.edu.vn)"</i>.</li>
-                                    <li>Thầy/Cô bấm nút <b>"Có, tôi đồng ý" (Yes, I'm in)</b> (hoặc bấm <b>"Liên kết dữ
-                                            liệu" / Link data</b> nếu có).</li>
-                                    <li><b>Xong!</b> Toàn bộ chính sách và tiện ích VAGS được Google Workspace kích hoạt
-                                        tự động cho máy tính.</li>
+                                    <li>Bấm vào biểu tượng <b>[VNU]</b> vừa ghim trên thanh công cụ, chọn <b>🔑 Đăng nhập VNU SSO</b> (nếu cổng đã đăng nhập sẵn từ Bước 1, tiện ích tự động nhận diện phiên Cán bộ ngay).</li>
+                                    <li>Kiểm tra hiển thị tên/email <code>@vnu.edu.vn</code> kèm nhãn <b>Cán bộ ✓</b>, sau đó gạt công tắc <b>"Đường truyền Proxy"</b> sang trạng thái <b>BẬT (ON)</b>.</li>
+                                    <li>Khi thấy dòng trạng thái <b>🟢 KẾT NỐI PROXY THÀNH CÔNG ✓</b> và biểu tượng chuyển sang <b>ON (đèn xanh)</b> là đường truyền tới các CSDL đã sẵn sàng.</li>
                                 </ol>
-                                <div class="tip-box">
-                                    <span>🏢</span>
-                                    <span><b>Lưu ý:</b> Bắt buộc phải bấm <b>"Có, tôi đồng ý" (Yes, I'm in)</b> thì
-                                        Google Chrome mới kích hoạt chính sách đồng bộ tiện ích VAGS tự động.</span>
-                                </div>
                             </div>
                         </div>
                     </div>
 
                     <!-- BƯỚC 4 -->
-                    <div class="guide-step-card">
+                    <div class="guide-step-card" style="border-left-color:#059669;">
                         <div class="guide-step-header">
-                            <div class="step-badge-circle">4</div>
+                            <div class="step-badge-circle" style="background:#059669;">4</div>
                             <div>
-                                <div class="guide-step-title">Tiện ích VAGS tự động xuất hiện trên thanh công cụ Chrome
-                                </div>
-                                <div class="guide-step-subtitle">Biểu tượng [VNU] màu xanh lá cây được ghim tự động bên
-                                    cạnh thanh địa chỉ</div>
+                                <div class="guide-step-title">Truy cập 4 CSDL Quốc tế &amp; tải toàn văn PDF miễn phí</div>
+                                <div class="guide-step-subtitle">Trang xuất bản tự động hiển thị "Brought to you by: Vietnam National University Library"</div>
                             </div>
                         </div>
 
                         <div class="guide-step-body">
-                            <!-- Ảnh chụp màn hình Bước 4: Extension VAGS xuất hiện kèm nút Đăng nhập SSO -->
-                            <div class="guide-image-container">
-                                <img src="/images/guide/step4b-vags-installed.png"
-                                    alt="Tiện ích VNU Academic Gateway tự động xuất hiện trên thanh công cụ Chrome"
-                                    class="guide-real-screenshot">
-                            </div>
-
-                            <!-- Hướng dẫn thao tác Bước 4 -->
-                            <div class="guide-step-desc">
-                                <b>Nhận diện tiện ích trên Chrome:</b>
-                                <ol>
-                                    <li>Biểu tượng <b>[VNU]</b> màu xanh lá cây sẽ <b>tự động xuất hiện</b> trên thanh
-                                        công cụ của Chrome (góc trên bên phải, cạnh biểu tượng mảnh ghép 🧩).</li>
-                                    <li>Bấm vào biểu tượng <b>[VNU]</b> để mở cửa sổ tiện ích.</li>
-                                    <li>Tại cửa sổ vừa mở, Thầy/Cô bấm vào nút màu xanh: <b>🔑 Đăng nhập VNU SSO</b> để
-                                        mở trang xác thực kích hoạt ủy quyền.</li>
-                                </ol>
-                                <div class="tip-box">
-                                    <span>💡</span>
-                                    <span><b>Hoàn toàn tự động:</b> Google Workspace đã tự động tải tiện ích về máy
-                                        tính. Thầy/Cô không cần tải tệp .zip hay bật Developer Mode!</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- BƯỚC 5 -->
-                    <div class="guide-step-card" style="border-left-color:#0284c7;background:#f0f9ff;">
-                        <div class="guide-step-header">
-                            <div class="step-badge-circle" style="background:#0284c7;">5</div>
-                            <div>
-                                <div class="guide-step-title" style="color:#0369a1;">Xác thực phiên Cán bộ trên Cổng
-                                    VAGS & Tiện ích tự động kích hoạt Proxy</div>
-                                <div class="guide-step-subtitle">Hệ thống đồng bộ danh tính Cán bộ ĐHQGHN và tự động bật
-                                    đường truyền 112.137.142.30</div>
-                            </div>
-                        </div>
-
-                        <div class="guide-step-body">
-                            <!-- Ảnh chụp màn hình Bước 5: Đăng nhập VAGS & Tiện ích đồng bộ thành công -->
-                            <div class="guide-image-container">
-                                <img src="/images/guide/step5-sso-sync-activated.png"
-                                    alt="Xác thực danh tính Cán bộ VNU và tiện ích tự động kích hoạt proxy"
-                                    class="guide-real-screenshot">
-                            </div>
-
-                            <!-- Hướng dẫn thao tác Bước 5 -->
-                            <div class="guide-step-desc">
-                                <b>Kích hoạt danh tính Cán bộ:</b>
-                                <ol>
-                                    <li>Sau khi bấm nút ở Bước 4, trình duyệt mở cổng <b>https://thamkhao.vnu.edu.vn</b>.
-                                        Thầy/Cô đăng nhập tài khoản Cán bộ ĐHQGHN.</li>
-                                    <li>Ngay khi đăng nhập thành công, tiện ích VAGS sẽ <b>tự động bắt tín hiệu đồng
-                                            bộ</b>:
-                                        <ul style="margin-top:6px;padding-left:18px;">
-                                            <li>Thẻ thông tin: <b>[CB] Họ và tên • email@vnu.edu.vn</b> kèm nhãn <b>Cán
-                                                    bộ ✓</b>.</li>
-                                            <li>Công tắc: Chuyển sang <b>"Đường truyền Proxy: Đang Bật"</b> (màu xanh).
-                                            </li>
-                                            <li>Dòng trạng thái: <b>🟢 KẾT NỐI PROXY THÀNH CÔNG ✓ (IP 112.137.142.30 -
-                                                    Mạng ĐHQGHN)</b>.</li>
-                                        </ul>
-                                    </li>
-                                    <li>Từ thời điểm này, toàn bộ phân tuyến CSDL quốc tế đã được kích hoạt hoàn toàn tự
-                                        động!</li>
-                                </ol>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- BƯỚC 6 (BƯỚC ĐÍCH) -->
-                    <div class="guide-step-card" style="border-left-color:#059669;background:#fafffd;">
-                        <div class="guide-step-header">
-                            <div class="step-badge-circle" style="background:#059669;">6</div>
-                            <div>
-                                <div class="guide-step-title" style="color:#065f46;">Mở website CSDL Quốc tế & Tải toàn
-                                    văn bài báo khoa học miễn phí 100%</div>
-                                <div class="guide-step-subtitle">Trang web tự động nhận diện "Brought to you by: Vietnam
-                                    National University Library"</div>
-                            </div>
-                        </div>
-
-                        <div class="guide-step-body">
-                            <!-- Ảnh chụp màn hình Bước 6: ScienceDirect nhận diện Thư viện ĐHQGHN -->
                             <div class="guide-image-container">
                                 <img src="/images/guide/step6-sciencedirect-vnu.png"
-                                    alt="ScienceDirect nhận diện thuê bao Vietnam National University Library"
+                                    alt="ScienceDirect nhận diện Vietnam National University Library và mở khóa tải PDF"
                                     class="guide-real-screenshot">
                             </div>
 
-                            <!-- Hướng dẫn thao tác Bước 6 -->
                             <div class="guide-step-desc">
-                                <b>Minh chứng kết nối thành công:</b>
+                                <div class="guide-action-pills">
+                                    <a href="https://www.sciencedirect.com" target="_blank" rel="noopener" class="guide-pill-link db">📙 sciencedirect.com ↗</a>
+                                    <a href="https://link.springer.com" target="_blank" rel="noopener" class="guide-pill-link db">📘 link.springer.com ↗</a>
+                                    <a href="https://mathscinet.ams.org/mathscinet/publications-search" target="_blank" rel="noopener" class="guide-pill-link db">📐 mathscinet.ams.org ↗</a>
+                                    <a href="https://www.proquest.com" target="_blank" rel="noopener" class="guide-pill-link db">📗 proquest.com ↗</a>
+                                </div>
                                 <ol>
-                                    <li>Thầy/Cô mở bất kỳ website CSDL quốc tế nào, ví dụ: <a
-                                            href="https://www.sciencedirect.com" target="_blank"
-                                            style="color:#00803d;font-weight:700;">ScienceDirect</a>, <a
-                                            href="https://link.springer.com" target="_blank"
-                                            style="color:#00803d;font-weight:700;">Springer</a>, Nature, Scopus...</li>
-                                    <li>Ngay trên đầu trang (như ảnh minh họa bên cạnh), hệ thống sẽ tự động hiển thị:
-                                        <div
-                                            style="background:#ecfdf5;border:1.5px solid #10b981;padding:8px 12px;border-radius:8px;margin:8px 0;font-size:12px;color:#065f46;">
+                                    <li>Mở trực tiếp một trong 4 cơ sở dữ liệu quốc tế ở trên như bình thường (không cần đổi địa chỉ URL).</li>
+                                    <li>Đầu trang xuất bản sẽ hiển thị xác nhận thuê bao ĐHQGHN:
+                                        <div style="background:#ecfdf5;border:1px solid #10b981;padding:8px 12px;border-radius:8px;margin:8px 0;font-size:12px;color:#065f46;">
                                             🏛️ <b>Brought to you by: Vietnam National University Library</b><br>
                                             <small>(Cấp quyền truy cập bởi: Thư viện Đại học Quốc gia Hà Nội)</small>
                                         </div>
                                     </li>
-                                    <li>Mọi bài báo khoa học, chương sách, báo cáo nghiên cứu... đều mở khóa nút
-                                        <b>Download PDF (Tải toàn văn miễn phí)</b> thay vì yêu cầu mua bài!
-                                    </li>
+                                    <li>Mọi bài báo, chương sách và luận án thuộc phạm vi thuê bao đều mở khóa nút <b>Download PDF (Tải toàn văn miễn phí)</b>.</li>
                                 </ol>
                             </div>
                         </div>
                     </div>
-
                 </div>
             </div>
 
-            <!-- ================= PHẦN 3: CÁCH 3 - CẤU HÌNH PAC SCRIPT & MẬT KHẨU ỨNG DỤNG CHO THIẾT BỊ DI ĐỘNG ================= -->
-            <div class="manual-guide-box" style="margin-top:30px;border-top:4px solid #475569;">
-                <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px;">
+            <!-- ================= TÙY CHỌN DỰ PHÒNG (THU GỌN MẶC ĐỊNH) ================= -->
+            <details class="guide-accordion">
+                <summary>
+                    <span>📦 Tùy chọn dự phòng: Cài đặt thủ công bằng tệp .zip (Chrome/Edge &amp; Firefox)</span>
+                </summary>
+                <div class="guide-accordion-body">
+                    <p style="font-size:12.5px;color:#475569;margin-bottom:12px;">
+                        Chỉ sử dụng khi máy tính không truy cập được Chrome Web Store hoặc Firefox Add-ons. Sau khi nạp gói giải nén, các bước ghim <code>🧩</code> &rarr; <code>📌</code>, đăng nhập VNU SSO và bật Proxy thực hiện tương tự Bước 2–4 ở trên.
+                    </p>
+                    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:8px;">
+                        <a href="/thamkhao-extension-chrome.zip" download class="btn-direct-download" style="margin-bottom:0;">
+                            <span>⬇️ Tải gói Chrome/Edge (.zip)</span>
+                        </a>
+                        <a href="/thamkhao-extension-firefox.zip" download class="btn-direct-download firefox" style="margin-bottom:0;">
+                            <span>⬇️ Tải gói Firefox (.zip)</span>
+                        </a>
+                        <a href="/huong-dan-cai-dat-vags-chrome.pdf" target="_blank" rel="noopener" class="btn-direct-download" style="background:#0284c7;margin-bottom:0;">
+                            <span>📄 Xem Hướng dẫn PDF</span>
+                        </a>
+                    </div>
+
+                    <div class="manual-cards-grid">
+                        <div class="manual-card">
+                            <div>
+                                <h5 style="font-size:14px;font-weight:800;color:#1d4ed8;margin-bottom:8px;">🌐 Chrome &amp; Microsoft Edge (.zip)</h5>
+                                <div class="unzip-instruction-box">
+                                    <ol>
+                                        <li>Tải <code>thamkhao-extension-chrome.zip</code> và giải nén (<b>Extract All...</b>) ra một thư mục cố định.</li>
+                                        <li>Mở tab mới, vào <code style="background:#f1f5f9;padding:1px 5px;border-radius:4px;color:#1d4ed8;font-weight:700;">chrome://extensions</code> (Edge: <code style="background:#f1f5f9;padding:1px 5px;border-radius:4px;color:#1d4ed8;font-weight:700;">edge://extensions</code>).</li>
+                                        <li>Gạt BẬT <b>Developer mode (Chế độ cho nhà phát triển)</b> ở góc trên bên phải.</li>
+                                        <li>Bấm <b>Load unpacked (Tải tiện ích đã giải nén)</b> &rarr; chọn đúng thư mục vừa giải nén.</li>
+                                    </ol>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="manual-card">
+                            <div>
+                                <h5 style="font-size:14px;font-weight:800;color:#ea580c;margin-bottom:8px;">🦊 Mozilla Firefox (.zip)</h5>
+                                <div class="unzip-instruction-box">
+                                    <ol>
+                                        <li>Tải <code>thamkhao-extension-firefox.zip</code> và giải nén (<b>Extract All...</b>) ra một thư mục.</li>
+                                        <li>Mở tab mới, nhập <code style="background:#f1f5f9;padding:1px 5px;border-radius:4px;color:#ea580c;font-weight:700;">about:debugging#/runtime/this-firefox</code> rồi nhấn Enter.</li>
+                                        <li>Bấm <b>Load Temporary Add-on... (Tải phần bổ trợ tạm thời...)</b>.</li>
+                                        <li>Chọn tệp <code>manifest.json</code> trong thư mục vừa giải nén để kích hoạt tiện ích.</li>
+                                    </ol>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </details>
+
+            <details class="guide-accordion">
+                <summary>
+                    <span>🏢 Tùy chọn cho đơn vị dùng Google Workspace: Đồng bộ Hồ sơ Google Chrome (@vnu.edu.vn)</span>
+                </summary>
+                <div class="guide-accordion-body">
+                    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+                        <p style="font-size:12.5px;color:#475569;">
+                            Dành cho cán bộ thuộc OU được quản trị tập trung qua Google Workspace ĐHQGHN (<code>@vnu.edu.vn</code>) để tự động đồng bộ tiện ích và chính sách trình duyệt:
+                        </p>
+                        <a href="https://chromewebstore.google.com/detail/dgfahdmakaoconbibgilknoimmijcpla?utm_source=item-share-cb" target="_blank" rel="noopener" class="guide-pill-link chrome">
+                            <span>🌐 Mở Chrome Web Store ↗</span>
+                        </a>
+                    </div>
+
+                    <div class="workspace-sync-grid">
+                        <div class="workspace-sync-step">
+                            <h5>1. Mở Avatar Profile Chrome</h5>
+                            <div class="guide-image-container">
+                                <img src="/images/guide/step1-chrome-profile.png" alt="Mở menu Profile Google Chrome ở góc trên bên phải" class="guide-real-screenshot">
+                            </div>
+                            <p>Bấm Avatar góc trên phải Chrome &rarr; chọn <b>Bật tính năng đồng bộ... (Turn on sync...)</b> hoặc <b>➕ Thêm (Add profile)</b> để tách riêng hồ sơ công tác ĐHQGHN.</p>
+                        </div>
+
+                        <div class="workspace-sync-step">
+                            <h5>2. Đăng nhập email @vnu.edu.vn</h5>
+                            <div class="guide-image-container">
+                                <img src="/images/guide/step2-google-signin.png" alt="Đăng nhập Google Workspace với email @vnu.edu.vn" class="guide-real-screenshot">
+                            </div>
+                            <p>Nhập email <code>tên_cán_bộ@vnu.edu.vn</code>; Google tự động chuyển tiếp sang <b>VNU Keycloak SSO (<code>idp.vnu.edu.vn</code>)</b> để xác thực an toàn.</p>
+                        </div>
+
+                        <div class="workspace-sync-step">
+                            <h5>3. Xác nhận Đồng bộ hóa</h5>
+                            <div class="guide-image-container">
+                                <img src="/images/guide/step4-turn-on-sync.png" alt="Bật tính năng đồng bộ và xác nhận tổ chức quản trị vnu.edu.vn" class="guide-real-screenshot">
+                            </div>
+                            <p>Khi thấy thông báo <i>"Hồ sơ do vnu.edu.vn quản lý"</i>, bấm <b>"Có, tôi đồng ý" (Yes, I'm in)</b> để hoàn tất đồng bộ tiện ích VAGS.</p>
+                        </div>
+                    </div>
+                </div>
+            </details>
+
+            <!-- ================= PAC SCRIPT & MẬT KHẨU ỨNG DỤNG CHO DI ĐỘNG ================= -->
+            <div class="pac-compact-card">
+                <div class="pac-compact-header">
                     <div>
-                        <h4 style="font-size:16px;font-weight:800;color:#0f172a;display:flex;align-items:center;gap:8px;">
-                            <span>📱</span> Cách 3: Cấu hình PAC Script & Mật Khẩu Ứng Dụng (iOS, Android, macOS)
+                        <h4 style="font-size:15px;font-weight:800;color:#0f172a;display:flex;align-items:center;gap:8px;">
+                            <span>📱</span> Cấu hình PAC Script &amp; Mật Khẩu Ứng Dụng (iOS, Android, macOS)
                         </h4>
-                        <p style="font-size:12.5px;color:var(--muted);margin-top:2px;">
+                        <p style="font-size:12px;color:var(--muted);margin-top:2px;">
                             Dành cho thiết bị di động hoặc Thầy/Cô cấu hình trực tiếp vào cài đặt Proxy của hệ thống:
                         </p>
                     </div>
                     <div>
-                        <a href="/vags.pac" target="_blank"
+                        <a href="/vags.pac" target="_blank" rel="noopener"
                             style="font-family:monospace;font-size:12px;background:#0f172a;color:#38bdf8;padding:6px 12px;border-radius:6px;text-decoration:none;display:inline-block;font-weight:700;">PAC URL: https://thamkhao.vnu.edu.vn/vags.pac ↗</a>
                     </div>
                 </div>
-<div id="proxyKeySection"
-                        style="background:#ffffff;border:1px solid #e2e8f0;border-radius:8px;padding:14px 16px;">
-                        <div id="proxyKeyUnauth"
-                            style="font-size:12px;color:#64748b;display:flex;align-items:center;gap:8px;">
-                            <span>🔒</span>
-                            <span>Vui lòng đăng nhập <b>VNU SSO</b> ở góc trên bên phải để nhận <b>Mật khẩu ứng dụng
-                                    (Proxy Access Key)</b> định danh bảo mật cho thiết bị.</span>
+                <div id="proxyKeySection"
+                    style="background:#ffffff;border:1px solid #e2e8f0;border-radius:8px;padding:14px 16px;">
+                    <div id="proxyKeyUnauth"
+                        style="font-size:12px;color:#64748b;display:flex;align-items:center;gap:8px;">
+                        <span>🔒</span>
+                        <span>Vui lòng đăng nhập <b>VNU SSO</b> ở góc trên bên phải để nhận <b>Mật khẩu ứng dụng
+                                (Proxy Access Key)</b> định danh bảo mật cho thiết bị.</span>
+                    </div>
+                    <div id="proxyKeyAuth" style="display:none;">
+                        <div
+                            style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
+                            <span style="font-size:12px;font-weight:700;color:#0f172a;">Thông tin xác thực Proxy
+                                định danh (App Password):</span>
+                            <button type="button" onclick="regenerateUserProxyKey()"
+                                style="padding:4px 10px;font-size:11px;background:#f1f5f9;color:#0f172a;border:1px solid #cbd5e1;cursor:pointer;border-radius:6px;font-weight:600;">
+                                🔄 Tạo Mới Mã Truy Cập
+                            </button>
                         </div>
-                        <div id="proxyKeyAuth" style="display:none;">
+                        <div
+                            style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:12px;font-size:12px;">
                             <div
-                                style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
-                                <span style="font-size:12px;font-weight:700;color:#0f172a;">Thông tin xác thực Proxy
-                                    định danh (App Password):</span>
-                                <button type="button" onclick="regenerateUserProxyKey()"
-                                    style="padding:4px 10px;font-size:11px;background:#f1f5f9;color:#0f172a;border:1px solid #cbd5e1;cursor:pointer;border-radius:6px;font-weight:600;">
-                                    🔄 Tạo Mới Mã Truy Cập
-                                </button>
+                                style="background:#f8fafc;padding:10px 12px;border-radius:6px;border:1px solid #e2e8f0;">
+                                <div style="color:#64748b;font-size:11px;margin-bottom:2px;">Máy chủ Proxy (Host &amp;
+                                    Port):</div>
+                                <code
+                                    style="font-weight:700;color:#0f172a;font-size:13px;">thamkhao.vnu.edu.vn : 443</code>
                             </div>
                             <div
-                                style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:12px;font-size:12px;">
-                                <div
-                                    style="background:#f8fafc;padding:10px 12px;border-radius:6px;border:1px solid #e2e8f0;">
-                                    <div style="color:#64748b;font-size:11px;margin-bottom:2px;">Máy chủ Proxy (Host &
-                                        Port):</div>
-                                    <code
-                                        style="font-weight:700;color:#0f172a;font-size:13px;">thamkhao.vnu.edu.vn : 443</code>
-                                </div>
-                                <div
-                                    style="background:#f8fafc;padding:10px 12px;border-radius:6px;border:1px solid #e2e8f0;">
-                                    <div style="color:#64748b;font-size:11px;margin-bottom:2px;">Tên đăng nhập
-                                        (Username):</div>
-                                    <code id="displayProxyUser"
-                                        style="font-weight:700;color:#0369a1;font-size:13px;">canbo@vnu.edu.vn</code>
-                                </div>
-                                <div
-                                    style="background:#f8fafc;padding:10px 12px;border-radius:6px;border:1px solid #e2e8f0;display:flex;align-items:center;justify-content:space-between;">
-                                    <div>
-                                        <div style="color:#64748b;font-size:11px;margin-bottom:2px;">Mật khẩu ứng dụng
-                                            (Access Key):</div>
-                                        <code id="displayProxyKey"
-                                            style="font-weight:800;color:#059669;font-size:13px;letter-spacing:0.5px;">vags_k_...</code>
-                                    </div>
-                                    <button type="button" onclick="copyProxyKey()"
-                                        style="background:#e0f2fe;color:#0369a1;border:none;padding:5px 10px;border-radius:4px;cursor:pointer;font-size:11px;font-weight:700;">📋
-                                        Chép</button>
-                                </div>
+                                style="background:#f8fafc;padding:10px 12px;border-radius:6px;border:1px solid #e2e8f0;">
+                                <div style="color:#64748b;font-size:11px;margin-bottom:2px;">Tên đăng nhập
+                                    (Username):</div>
+                                <code id="displayProxyUser"
+                                    style="font-weight:700;color:#0369a1;font-size:13px;">canbo@vnu.edu.vn</code>
                             </div>
-                            <div style="font-size:11px;color:#64748b;margin-top:10px;">
-                                💡 <b>Lưu ý an toàn:</b> Dùng cặp Username/Access Key trên khi thiết bị di động
-                                (iPhone/iPad/Android) hoặc trình duyệt yêu cầu xác thực Proxy. Proxy sẽ chặn hoàn toàn
-                                các truy cập từ khách lạ không có tài khoản.
+                            <div
+                                style="background:#f8fafc;padding:10px 12px;border-radius:6px;border:1px solid #e2e8f0;display:flex;align-items:center;justify-content:space-between;">
+                                <div>
+                                    <div style="color:#64748b;font-size:11px;margin-bottom:2px;">Mật khẩu ứng dụng
+                                        (Access Key):</div>
+                                    <code id="displayProxyKey"
+                                        style="font-weight:800;color:#059669;font-size:13px;letter-spacing:0.5px;">vags_k_...</code>
+                                </div>
+                                <button type="button" onclick="copyProxyKey()"
+                                    style="background:#e0f2fe;color:#0369a1;border:none;padding:5px 10px;border-radius:4px;cursor:pointer;font-size:11px;font-weight:700;">📋
+                                    Chép</button>
                             </div>
+                        </div>
+                        <div style="font-size:11px;color:#64748b;margin-top:10px;">
+                            💡 <b>Lưu ý an toàn:</b> Dùng cặp Username/Access Key trên khi thiết bị di động
+                            (iPhone/iPad/Android) hoặc trình duyệt yêu cầu xác thực Proxy. Proxy sẽ chặn hoàn toàn
+                            các truy cập từ khách lạ không có tài khoản.
                         </div>
                     </div>
+                </div>
             </div>
         </section>
 

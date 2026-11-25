@@ -13,7 +13,9 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Connections;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
+using Microsoft.AspNetCore.Server.Kestrel.Core.Features;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.AspNetCore.StaticFiles;
 using VagsBackend;
@@ -413,7 +415,7 @@ void SetPendingForceOff(string? username, string? ip, string reason)
     {
         foreach (var kvp in pendingForceProxyOff.ToArray())
         {
-            if (now - kvp.Value.CreatedAtUtc >= TimeSpan.FromHours(12))
+            if (now - kvp.Value.CreatedAtUtc >= TimeSpan.FromMinutes(3))
             {
                 pendingForceProxyOff.TryRemove(kvp.Key, out _);
             }
@@ -430,7 +432,7 @@ bool TryGetPendingForceOff(string? username, string? ip, out PendingForceOffEntr
     if (string.IsNullOrEmpty(key)) return false;
     if (pendingForceProxyOff.TryGetValue(key, out var found))
     {
-        if (DateTimeOffset.UtcNow - found.CreatedAtUtc < TimeSpan.FromHours(12))
+        if (DateTimeOffset.UtcNow - found.CreatedAtUtc < TimeSpan.FromMinutes(3))
         {
             entry = found;
             return true;
@@ -917,7 +919,7 @@ async Task<bool> VerifyKeycloakRs256SignatureAsync(string headerB64, string payl
     return false;
 }
 
-async Task<VerifiedTokenIdentity?> TryVerifyBearerTokenAsync(string? rawToken)
+async Task<VerifiedTokenIdentity?> VerifyJwtTokenCoreAsync(string? rawToken, bool expectExpired)
 {
     if (string.IsNullOrWhiteSpace(rawToken)) return null;
     var token = rawToken.Trim();
@@ -926,7 +928,7 @@ async Task<VerifiedTokenIdentity?> TryVerifyBearerTokenAsync(string? rawToken)
     if (string.IsNullOrWhiteSpace(token)) return null;
 
     // (b) Check verified session token cache (populated by /auth/exchange)
-    if (verifiedSessionTokens.TryGetValue(token, out var cached))
+    if (!expectExpired && verifiedSessionTokens.TryGetValue(token, out var cached))
     {
         if (DateTimeOffset.UtcNow <= cached.ExpiresAtUtc &&
             !IsTokenRevokedForUser(cached.Username, cached.IssuedAtUtc) &&
@@ -959,10 +961,18 @@ async Task<VerifiedTokenIdentity?> TryVerifyBearerTokenAsync(string? rawToken)
         if (!pRoot.TryGetProperty("exp", out var expEl) || !expEl.TryGetInt64(out var expUnix))
             return null;
         var nowUnix = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-        if (nowUnix > expUnix) return null;
-
-        if (pRoot.TryGetProperty("nbf", out var nbfEl) && nElTryInt64(nbfEl, out var nbfUnix) && nowUnix + 30 < nbfUnix)
-            return null;
+        if (expectExpired)
+        {
+            if (nowUnix <= expUnix) return null;
+            if (pRoot.TryGetProperty("nbf", out var nbfEl) && nElTryInt64(nbfEl, out var nbfUnix) && expUnix < nbfUnix)
+                return null;
+        }
+        else
+        {
+            if (nowUnix > expUnix) return null;
+            if (pRoot.TryGetProperty("nbf", out var nbfEl) && nElTryInt64(nbfEl, out var nbfUnix) && nowUnix + 30 < nbfUnix)
+                return null;
+        }
 
         var iss = pRoot.TryGetProperty("iss", out var issEl) ? (issEl.GetString() ?? "").TrimEnd('/') : "";
         var jti = pRoot.TryGetProperty("jti", out var jtiEl) ? jtiEl.GetString() : null;
@@ -1057,6 +1067,12 @@ async Task<VerifiedTokenIdentity?> TryVerifyBearerTokenAsync(string? rawToken)
     static bool nElTryInt64(JsonElement el, out long val) => el.TryGetInt64(out val);
 }
 
+async Task<VerifiedTokenIdentity?> TryVerifyBearerTokenAsync(string? rawToken) =>
+    await VerifyJwtTokenCoreAsync(rawToken, expectExpired: false);
+
+async Task<VerifiedTokenIdentity?> TryExtractExpiredGenuineTokenAsync(string? rawToken) =>
+    await VerifyJwtTokenCoreAsync(rawToken, expectExpired: true);
+
 async Task<(bool Ok, string AuthNote, string? Username, string? Unit, string? MemberType)> ValidateProxyAuthAsync(string? authHeader, RuleStoreModel currentRules)
 {
     if (string.IsNullOrWhiteSpace(authHeader))
@@ -1139,54 +1155,66 @@ async Task HandleConnectionAsync(ConnectionContext connectionContext, Connection
     var output = connectionContext.Transport.Output;
 
     ReadResult readResult;
-    try
-    {
-        readResult = await input.ReadAsync(connectionContext.ConnectionClosed);
-    }
-    catch
-    {
-        return;
-    }
-
-    var buffer = readResult.Buffer;
-    if (buffer.IsEmpty)
-    {
-        input.AdvanceTo(buffer.Start);
-        return;
-    }
-
-    // Check if the stream starts with "CONNECT "
-    var copyLen = (int)Math.Min(8, buffer.Length);
-    var prefixBytes = buffer.Slice(0, copyLen).ToArray();
-    var prefixStr = Encoding.ASCII.GetString(prefixBytes);
-
-    if (!"CONNECT ".StartsWith(prefixStr, StringComparison.OrdinalIgnoreCase) || (copyLen == 8 && !prefixStr.Equals("CONNECT ", StringComparison.OrdinalIgnoreCase)))
-    {
-        // Normal HTTP request (GET, POST, OPTIONS, HEAD, etc.) -> rewind and pass to Kestrel
-        input.AdvanceTo(buffer.Start, buffer.Start);
-        await next(connectionContext);
-        return;
-    }
-
-    // Read full CONNECT request headers until \r\n\r\n
     string headerBlock = string.Empty;
-    while (true)
+    using (var headerCts = CancellationTokenSource.CreateLinkedTokenSource(connectionContext.ConnectionClosed))
     {
-        buffer = readResult.Buffer;
-        if (TryExtractHeaderBlock(buffer, out headerBlock, out var consumedPos))
+        headerCts.CancelAfter(TimeSpan.FromSeconds(15));
+        try
         {
-            input.AdvanceTo(consumedPos);
-            break;
+            readResult = await input.ReadAsync(headerCts.Token);
         }
-
-        if (readResult.IsCompleted || buffer.Length > 16384)
+        catch
         {
-            input.AdvanceTo(buffer.End);
             return;
         }
 
-        input.AdvanceTo(buffer.Start, buffer.End);
-        readResult = await input.ReadAsync(connectionContext.ConnectionClosed);
+        var buffer = readResult.Buffer;
+        if (readResult.IsCanceled || buffer.IsEmpty)
+        {
+            input.AdvanceTo(buffer.Start);
+            return;
+        }
+
+        // Check if the stream starts with "CONNECT "
+        var copyLen = (int)Math.Min(8, buffer.Length);
+        var prefixBytes = buffer.Slice(0, copyLen).ToArray();
+        var prefixStr = Encoding.ASCII.GetString(prefixBytes);
+
+        if (!"CONNECT ".StartsWith(prefixStr, StringComparison.OrdinalIgnoreCase) || (copyLen == 8 && !prefixStr.Equals("CONNECT ", StringComparison.OrdinalIgnoreCase)))
+        {
+            // Normal HTTP request (GET, POST, OPTIONS, HEAD, etc.) -> rewind and pass to Kestrel
+            input.AdvanceTo(buffer.Start, buffer.Start);
+            headerCts.Dispose();
+            await next(connectionContext);
+            return;
+        }
+
+        // Read full CONNECT request headers until \r\n\r\n
+        while (true)
+        {
+            buffer = readResult.Buffer;
+            if (TryExtractHeaderBlock(buffer, out headerBlock, out var consumedPos))
+            {
+                input.AdvanceTo(consumedPos);
+                break;
+            }
+
+            if (readResult.IsCompleted || readResult.IsCanceled || buffer.Length > 16384)
+            {
+                input.AdvanceTo(buffer.End);
+                return;
+            }
+
+            input.AdvanceTo(buffer.Start, buffer.End);
+            try
+            {
+                readResult = await input.ReadAsync(headerCts.Token);
+            }
+            catch
+            {
+                return;
+            }
+        }
     }
 
     var lines = headerBlock.Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries);
@@ -1447,6 +1475,8 @@ async Task HandleConnectionAsync(ConnectionContext connectionContext, Connection
                 try
                 {
                     attemptClient = new TcpClient(connectFamily);
+                    attemptClient.NoDelay = true;
+                    attemptClient.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
                     using var cts = CancellationTokenSource.CreateLinkedTokenSource(connectionContext.ConnectionClosed);
                     cts.CancelAfter(TimeSpan.FromSeconds(10));
                     await attemptClient.ConnectAsync(connectIps, targetPort, cts.Token);
@@ -1458,6 +1488,12 @@ async Task HandleConnectionAsync(ConnectionContext connectionContext, Connection
                 {
                     attemptClient?.Dispose();
                     return;
+                }
+                catch (OperationCanceledException oce) when (attempt == 0 && !connectionContext.ConnectionClosed.IsCancellationRequested)
+                {
+                    attemptClient?.Dispose();
+                    lastConnectEx = oce;
+                    await Task.Delay(150, connectionContext.ConnectionClosed);
                 }
                 catch (SocketException sockEx) when (attempt == 0 && !connectionContext.ConnectionClosed.IsCancellationRequested)
                 {
@@ -1652,6 +1688,9 @@ builder.Services.AddHttpClient();
 
 builder.WebHost.ConfigureKestrel(serverOptions =>
 {
+    serverOptions.Limits.KeepAliveTimeout = TimeSpan.FromSeconds(65);
+    serverOptions.Limits.RequestHeadersTimeout = TimeSpan.FromSeconds(30);
+
     // Internal HTTP port 8080 (used by Nginx Reverse Proxy & internal healthchecks + HTTP CONNECT testing)
     serverOptions.ListenAnyIP(8080, listenOptions =>
     {
@@ -2082,6 +2121,12 @@ app.MapGet("/api/v1/rules/stream", async context =>
         return;
     }
 
+    var minRespRateFeature = context.Features.Get<IHttpMinResponseDataRateFeature>();
+    if (minRespRateFeature != null)
+    {
+        minRespRateFeature.MinDataRate = null;
+    }
+
     context.Response.Headers.Append("Content-Type", "text/event-stream; charset=utf-8");
     context.Response.Headers.Append("Cache-Control", "no-cache, no-transform");
     context.Response.Headers.Append("Connection", "keep-alive");
@@ -2173,7 +2218,7 @@ app.MapGet("/api/v1/rules/stream", async context =>
 
         while (!context.RequestAborted.IsCancellationRequested)
         {
-            await Task.Delay(TimeSpan.FromSeconds(20), context.RequestAborted);
+            await Task.Delay(TimeSpan.FromSeconds(15), context.RequestAborted);
             if (!await WriteSseEventAsync(clientInfo, $": keep-alive {DateTime.UtcNow:O}\n\n", context.RequestAborted))
                 break;
         }
@@ -2325,14 +2370,16 @@ app.MapGet("/api/v1/auth/keycloak-config", () => Results.Json(new
 async Task<IResult> HandleLogoutAsync(HttpContext context)
 {
     var clientIp = GetRealClientIp(context);
-    monitorDb.UnregisterUserActivity(clientIp);
     var normLogoutIp = MonitorDbService.NormalizeClientIp(clientIp);
     var authHeader = context.Request.Headers.Authorization.FirstOrDefault();
-    if (!string.IsNullOrWhiteSpace(authHeader) && authHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+    VerifiedTokenIdentity? id = null;
+    if (!string.IsNullOrWhiteSpace(authHeader))
     {
-        var rawTok = authHeader.Substring(7).Trim();
+        var rawTok = authHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)
+            ? authHeader.Substring(7).Trim()
+            : authHeader.Trim();
+        id = await TryVerifyBearerTokenAsync(authHeader) ?? await TryExtractExpiredGenuineTokenAsync(authHeader);
         verifiedSessionTokens.TryRemove(rawTok, out _);
-        var id = await TryVerifyBearerTokenAsync(authHeader);
         if (id != null)
         {
             ClearPendingForceOff(id.Username, clientIp);
@@ -2342,9 +2389,13 @@ async Task<IResult> HandleLogoutAsync(HttpContext context)
             }
         }
     }
+    string? logoutUser = id?.Username;
+    monitorDb.UnregisterUserActivity(clientIp, logoutUser);
     foreach (var c in sseClients.Values)
     {
-        if (!string.IsNullOrEmpty(normLogoutIp) && MonitorDbService.NormalizeClientIp(c.RemoteIp) == normLogoutIp)
+        if (!string.IsNullOrEmpty(normLogoutIp) &&
+            MonitorDbService.NormalizeClientIp(c.RemoteIp) == normLogoutIp &&
+            (string.IsNullOrEmpty(logoutUser) || IsSameUser(c.User, logoutUser)))
         {
             c.ProxyEnabled = false;
         }
@@ -2353,8 +2404,8 @@ async Task<IResult> HandleLogoutAsync(HttpContext context)
 }
 
 // 6.1 API Đăng xuất - Thu hồi phiên hoạt động theo IP & Bearer token nếu có
-app.MapPost("/api/v1/auth/logout", HandleLogoutAsync);
-app.MapPost("/api/v1/user/logout", HandleLogoutAsync);
+app.MapPost("/api/v1/auth/logout", (Delegate)(Func<HttpContext, Task<IResult>>)HandleLogoutAsync);
+app.MapPost("/api/v1/user/logout", (Delegate)(Func<HttpContext, Task<IResult>>)HandleLogoutAsync);
 
 string NormalizeUsername(string? raw)
 {
@@ -3184,7 +3235,33 @@ async Task<IResult> HandleUserHeartbeatAsync(HttpContext ctx, string? rawUser, s
             bearerId = await TryVerifyBearerTokenAsync(authHeader);
             if (bearerId == null)
             {
-                return Results.Json(new { ok = false, error = "Invalid Bearer token" }, statusCode: 401);
+                var expiredId = await TryExtractExpiredGenuineTokenAsync(authHeader);
+                if (expiredId != null && IsSameUser(u, expiredId.Username))
+                {
+                    if (!proxyEnabled)
+                    {
+                        return Results.Json(new { ok = true, clientIp, user = u, proxyEnabled = false, tokenExpired = true }, jsonOptions);
+                    }
+                    monitorDb.UpdateUserProxyStatus(clientIp, u, false);
+                    var expReason = "Phiên đăng nhập VNU SSO đã hết hạn. Hệ thống tự động tắt Proxy — vui lòng đăng nhập lại tại thamkhao.vnu.edu.vn.";
+                    await SendTargetedForceProxyOffAsync(u, new[] { clientIp }, expReason, recordTombstone: false);
+                    return Results.Json(new
+                    {
+                        ok = true,
+                        clientIp,
+                        user = u,
+                        proxyEnabled = false,
+                        forceProxyOff = true,
+                        tokenExpired = true,
+                        reason = expReason
+                    }, jsonOptions);
+                }
+
+                if (IsUserDenied(u) && proxyEnabled)
+                {
+                    await SendTargetedForceProxyOffAsync(u, new[] { clientIp }, "Tài khoản đã bị Quản trị viên khoá quyền sử dụng Proxy VAGS.", recordTombstone: false);
+                }
+                return Results.Json(new { ok = false, error = "Invalid Bearer token", tokenExpired = true, forceProxyOff = true }, statusCode: 401);
             }
             if (!IsSameUser(u, bearerId.Username))
             {
@@ -3267,7 +3344,18 @@ app.MapPost("/api/v1/user/status", async (HttpContext ctx, UserStatusRequest? re
         {
             bearerId = await TryVerifyBearerTokenAsync(authHeader);
             if (bearerId == null)
-                return Results.Json(new { ok = false, error = "Invalid Bearer token" }, statusCode: 401);
+            {
+                if (proxyEnabled)
+                {
+                    var expiredId = await TryExtractExpiredGenuineTokenAsync(authHeader);
+                    if (expiredId != null && IsSameUser(u, expiredId.Username))
+                    {
+                        monitorDb.UpdateUserProxyStatus(clientIp, u, false);
+                        await SendTargetedForceProxyOffAsync(u, new[] { clientIp }, "Phiên đăng nhập VNU SSO đã hết hạn. Vui lòng đăng nhập lại tại thamkhao.vnu.edu.vn.", recordTombstone: false);
+                    }
+                }
+                return Results.Json(new { ok = false, error = "Invalid or expired Bearer token", tokenExpired = true, forceProxyOff = true }, statusCode: 401);
+            }
             if (!IsSameUser(u, bearerId.Username))
                 return Results.Json(new { ok = false, error = "Bearer token does not match target user" }, statusCode: 403);
         }
