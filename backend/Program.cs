@@ -791,7 +791,7 @@ string CreateSignedSessionToken(string username, string name, string email, stri
 {
     var now = DateTimeOffset.UtcNow;
     var iat = now.ToUnixTimeSeconds();
-    var exp = now.AddHours(12).ToUnixTimeSeconds();
+    var exp = now.AddDays(7).ToUnixTimeSeconds();
     var jti = Guid.NewGuid().ToString("N");
     var header = Base64UrlEncode(Encoding.UTF8.GetBytes("{\"alg\":\"HS256\",\"typ\":\"JWT\"}"));
     var payloadObj = new
@@ -2328,28 +2328,17 @@ async Task<IResult> HandleLogoutAsync(HttpContext context)
     monitorDb.UnregisterUserActivity(clientIp);
     var normLogoutIp = MonitorDbService.NormalizeClientIp(clientIp);
     var authHeader = context.Request.Headers.Authorization.FirstOrDefault();
-    VerifiedTokenIdentity? verifiedLogoutId = null;
     if (!string.IsNullOrWhiteSpace(authHeader) && authHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
     {
         var rawTok = authHeader.Substring(7).Trim();
         verifiedSessionTokens.TryRemove(rawTok, out _);
-        verifiedLogoutId = await TryVerifyBearerTokenAsync(authHeader);
-        if (verifiedLogoutId != null)
+        var id = await TryVerifyBearerTokenAsync(authHeader);
+        if (id != null)
         {
-            ClearPendingForceOff(verifiedLogoutId.Username, clientIp);
-            if (!string.IsNullOrEmpty(verifiedLogoutId.Jti))
+            ClearPendingForceOff(id.Username, clientIp);
+            if (!string.IsNullOrEmpty(id.Jti))
             {
-                revokedTokenJtis[verifiedLogoutId.Jti] = DateTimeOffset.UtcNow;
-            }
-        }
-    }
-    if (verifiedLogoutId == null && !string.IsNullOrEmpty(normLogoutIp))
-    {
-        foreach (var kvp in pendingForceProxyOff.ToArray())
-        {
-            if (string.Equals(kvp.Value.Ip, normLogoutIp, StringComparison.OrdinalIgnoreCase))
-            {
-                pendingForceProxyOff.TryRemove(kvp.Key, out _);
+                revokedTokenJtis[id.Jti] = DateTimeOffset.UtcNow;
             }
         }
     }
@@ -2357,18 +2346,15 @@ async Task<IResult> HandleLogoutAsync(HttpContext context)
     {
         if (!string.IsNullOrEmpty(normLogoutIp) && MonitorDbService.NormalizeClientIp(c.RemoteIp) == normLogoutIp)
         {
-            if (verifiedLogoutId == null || IsSameUser(c.User, verifiedLogoutId.Username))
-            {
-                c.ProxyEnabled = false;
-            }
+            c.ProxyEnabled = false;
         }
     }
     return Results.Json(new { ok = true, clientIp, message = "Đã thu hồi phiên cán bộ thành công." }, jsonOptions);
 }
 
 // 6.1 API Đăng xuất - Thu hồi phiên hoạt động theo IP & Bearer token nếu có
-app.MapPost("/api/v1/auth/logout", (Delegate)((HttpContext context) => HandleLogoutAsync(context)));
-app.MapPost("/api/v1/user/logout", (Delegate)((HttpContext context) => HandleLogoutAsync(context)));
+app.MapPost("/api/v1/auth/logout", HandleLogoutAsync);
+app.MapPost("/api/v1/user/logout", HandleLogoutAsync);
 
 string NormalizeUsername(string? raw)
 {
@@ -2523,20 +2509,47 @@ app.MapPost("/api/v1/auth/exchange", async (HttpContext context, ExchangeCodeReq
     var userInfoContent = await userInfoResp.Content.ReadAsStringAsync();
     using var userDoc = JsonDocument.Parse(userInfoContent);
     var root = userDoc.RootElement;
-    var username = root.TryGetProperty("preferred_username", out var puEl) ? (puEl.GetString() ?? "").Trim() : "";
-    if (string.IsNullOrWhiteSpace(username) && root.TryGetProperty("sub", out var subEl))
-        username = (subEl.GetString() ?? "").Trim();
+
+    static string ExtractClaimString(JsonElement obj, string propName)
+    {
+        if (!obj.TryGetProperty(propName, out var el)) return "";
+        if (el.ValueKind == JsonValueKind.String) return (el.GetString() ?? "").Trim();
+        if (el.ValueKind == JsonValueKind.Array)
+        {
+            var items = new List<string>();
+            foreach (var item in el.EnumerateArray())
+            {
+                if (item.ValueKind == JsonValueKind.String)
+                {
+                    var s = (item.GetString() ?? "").Trim();
+                    if (!string.IsNullOrEmpty(s)) items.Add(s);
+                }
+            }
+            return string.Join(",", items);
+        }
+        return "";
+    }
+
+    var username = ExtractClaimString(root, "preferred_username");
+    if (string.IsNullOrWhiteSpace(username))
+        username = ExtractClaimString(root, "sub");
     if (string.IsNullOrWhiteSpace(username))
     {
         return Results.Json(new { error = "Keycloak UserInfo thiếu preferred_username." }, statusCode: 401);
     }
 
-    var name = root.TryGetProperty("name", out var nEl) ? (nEl.GetString() ?? username) : username;
-    var email = root.TryGetProperty("email", out var eEl) ? (eEl.GetString() ?? $"{username}@vnu.edu.vn") : $"{username}@vnu.edu.vn";
-    var organizationalUnit = root.TryGetProperty("organizational_unit", out var ouEl) ? (ouEl.GetString() ?? "") : "";
-    if (string.IsNullOrEmpty(organizationalUnit) && root.TryGetProperty("vnu_admin_unit", out var vauEl))
-        organizationalUnit = vauEl.GetString() ?? "";
-    var memberType = root.TryGetProperty("vnu_member_type", out var mtEl) ? (mtEl.GetString() ?? "") : "";
+    var name = ExtractClaimString(root, "name");
+    if (string.IsNullOrWhiteSpace(name)) name = username;
+    var email = ExtractClaimString(root, "email");
+    if (string.IsNullOrWhiteSpace(email)) email = $"{username}@vnu.edu.vn";
+    var organizationalUnit = ExtractClaimString(root, "organizational_unit");
+    if (string.IsNullOrEmpty(organizationalUnit))
+        organizationalUnit = ExtractClaimString(root, "vnu_admin_unit");
+    if (string.IsNullOrEmpty(organizationalUnit))
+        organizationalUnit = ExtractClaimString(root, "ou");
+    if (string.IsNullOrEmpty(organizationalUnit))
+        organizationalUnit = ExtractClaimString(root, "department");
+    var memberType = ExtractClaimString(root, "vnu_member_type");
 
     if (IsUserDenied(username))
     {
@@ -2562,7 +2575,7 @@ app.MapPost("/api/v1/auth/exchange", async (HttpContext context, ExchangeCodeReq
     ClearPendingForceOff(username, clientIp);
     monitorDb.RegisterUserActivity(clientIp, username, safeDbUnit, effectiveMemberType, proxyEnabled: true);
 
-    // Ký VAGS Session JWT (12 giờ) & lưu cache phiên đã xác thực
+    // Ký VAGS Session JWT (7 ngày) & lưu cache phiên đã xác thực
     var sessionToken = CreateSignedSessionToken(username, name, email, organizationalUnit, effectiveMemberType, isAdmin, adminRole);
     var nowUtc = DateTimeOffset.UtcNow;
     if (verifiedSessionTokens.Count > 5000)
@@ -2573,7 +2586,7 @@ app.MapPost("/api/v1/auth/exchange", async (HttpContext context, ExchangeCodeReq
         }
     }
     verifiedSessionTokens[sessionToken] = new VerifiedSessionEntry(
-        username, email, organizationalUnit, effectiveMemberType, null, nowUtc, nowUtc.AddHours(12));
+        username, email, organizationalUnit, effectiveMemberType, null, nowUtc, nowUtc.AddDays(7));
     verifiedSessionTokens[accessToken] = new VerifiedSessionEntry(
         username, email, organizationalUnit, effectiveMemberType, null, nowUtc, nowUtc.AddSeconds(Math.Clamp(expiresIn, 60, 43200)));
 
@@ -2584,7 +2597,7 @@ app.MapPost("/api/v1/auth/exchange", async (HttpContext context, ExchangeCodeReq
         sessionToken = sessionToken,
         idToken = idToken,
         expiresIn = expiresIn,
-        sessionExpiresIn = 43200,
+        sessionExpiresIn = 604800,
         user = username,
         name = name,
         email = email,
@@ -2628,14 +2641,14 @@ app.MapPost("/api/v1/auth/demo-token", (HttpContext context, DemoTokenRequest? r
     var sessionToken = CreateSignedSessionToken(username, displayName, email, unit, "canbo", isAdmin, adminRole);
     var nowUtc = DateTimeOffset.UtcNow;
     verifiedSessionTokens[sessionToken] = new VerifiedSessionEntry(
-        username, email, unit, "canbo", null, nowUtc, nowUtc.AddHours(12));
+        username, email, unit, "canbo", null, nowUtc, nowUtc.AddDays(7));
 
     return Results.Json(new
     {
         accessToken = sessionToken,
         sessionToken = sessionToken,
         tokenType = "Bearer",
-        expiresIn = 43200,
+        expiresIn = 604800,
         user = username,
         name = username == "phongnd" ? "Nguyễn Đức Phong" : username,
         organizationalUnit = unit,
@@ -2646,11 +2659,45 @@ app.MapPost("/api/v1/auth/demo-token", (HttpContext context, DemoTokenRequest? r
 });
 
 // 7.1 API Kiểm tra quyền Admin & Role RBAC hiện tại
-app.MapGet("/api/v1/auth/check-admin", (HttpContext context) =>
+app.MapGet("/api/v1/auth/check-admin", async (HttpContext context) =>
 {
     var user = context.Request.Query["user"].FirstOrDefault();
     var email = context.Request.Query["email"].FirstOrDefault();
     var ou = context.Request.Query["ou"].FirstOrDefault();
+
+    var authHeader = context.Request.Headers.Authorization.FirstOrDefault();
+    bool hasBearer = !string.IsNullOrWhiteSpace(authHeader) && authHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase);
+
+    if (hasBearer)
+    {
+        var identity = await TryVerifyBearerTokenAsync(authHeader);
+        if (identity != null)
+        {
+            var verifiedRole = ResolveAdminRole(identity.Username, identity.Email, identity.Unit);
+            return Results.Json(new
+            {
+                isAdmin = !string.IsNullOrEmpty(verifiedRole),
+                adminRole = verifiedRole,
+                user = identity.Username,
+                ou = identity.Unit,
+                tokenPresent = true,
+                tokenValid = true,
+                tokenExpired = false
+            }, jsonOptions);
+        }
+
+        var queryRole = ResolveAdminRole(user, email, ou);
+        return Results.Json(new
+        {
+            isAdmin = !string.IsNullOrEmpty(queryRole),
+            adminRole = queryRole,
+            user = user ?? "",
+            ou = ou ?? "",
+            tokenPresent = true,
+            tokenValid = false,
+            tokenExpired = true
+        }, jsonOptions);
+    }
 
     var role = ResolveAdminRole(user, email, ou);
     return Results.Json(new
@@ -2658,7 +2705,10 @@ app.MapGet("/api/v1/auth/check-admin", (HttpContext context) =>
         isAdmin = !string.IsNullOrEmpty(role),
         adminRole = role,
         user = user ?? "",
-        ou = ou ?? ""
+        ou = ou ?? "",
+        tokenPresent = false,
+        tokenValid = false,
+        tokenExpired = false
     }, jsonOptions);
 });
 

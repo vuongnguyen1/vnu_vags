@@ -2530,6 +2530,25 @@
                     .then(res => res.ok ? res.json() : null)
                     .then(data => {
                         if (!data) return;
+                        if (data.tokenPresent && data.tokenValid === false) {
+                            localStorage.removeItem('vags_token');
+                            const btnOpenLogin = document.getElementById('btnOpenLogin');
+                            const userPanelEl = document.getElementById('userPanel');
+                            const pUnauth = document.getElementById('proxyKeyUnauth');
+                            const pAuth = document.getElementById('proxyKeyAuth');
+                            if (btnOpenLogin) btnOpenLogin.style.display = 'inline-flex';
+                            if (userPanelEl) userPanelEl.style.display = 'none';
+                            if (btnAdmin) btnAdmin.style.display = 'none';
+                            if (pUnauth) pUnauth.style.display = 'flex';
+                            if (pAuth) pAuth.style.display = 'none';
+
+                            if (unauthBanner) unauthBanner.className = 'auth-alert-banner';
+                            if (authAlertIcon) authAlertIcon.textContent = '⏳';
+                            if (authAlertTitle) authAlertTitle.textContent = `Phiên đăng nhập VNU SSO đã hết hạn (${name || user})`;
+                            if (authAlertDesc) authAlertDesc.innerHTML = 'Vui lòng bấm nút <b>[🔑 Đăng nhập ngay]</b> để gia hạn phiên (7 ngày) và truy cập Quản trị / Proxy Key.';
+                            if (btnAlertLogin) btnAlertLogin.style.display = 'inline-flex';
+                            return;
+                        }
                         const liveIsAdmin = Boolean(data.isAdmin);
                         const liveRole = data.adminRole || (liveIsAdmin ? 'super_admin' : '');
                         localStorage.setItem('vags_is_admin', liveIsAdmin ? 'true' : 'false');
@@ -2590,6 +2609,13 @@
                 const res = await fetch(`/api/v1/user/proxy-key?user=${encodeURIComponent(user)}`, {
                     headers: token ? { 'Authorization': `Bearer ${token}` } : {}
                 });
+                if (res.status === 401) {
+                    const pUnauth = document.getElementById('proxyKeyUnauth');
+                    const pAuth = document.getElementById('proxyKeyAuth');
+                    if (pUnauth) pUnauth.style.display = 'flex';
+                    if (pAuth) pAuth.style.display = 'none';
+                    return;
+                }
                 if (res.ok) {
                     const data = await res.json();
                     const key = data ? (data.proxyKey || data.key) : null;

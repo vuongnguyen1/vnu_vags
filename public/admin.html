@@ -511,12 +511,15 @@
             <div style="font-size:48px;margin-bottom:12px;">🛡️</div>
             <h2 style="font-size:20px;font-weight:800;color:white;margin:0 0 8px;">Khu Vực Quản Trị Hệ Thống VAGS</h2>
             <p id="authGateMsg" style="font-size:13px;color:#94a3b8;margin-bottom:24px;line-height:1.6;">
-                Bảng điều khiển này chỉ dành riêng cho Cán bộ Quản trị thuộc <b>Phòng Quản Trị & Kế Hoạch (PQTKT)</b> / <b>Trung tâm Quản trị Đại học số (TTQTDHS)</b>. Vui lòng xác thực tài khoản có thẩm quyền qua VNU Single Sign-On.
+                Bảng điều khiển này chỉ dành riêng cho Cán bộ Quản trị thuộc <b>Phòng Quản Trị & Kế Hoạch (PQTKT)</b> / <b>Trung tâm Quản trị Đại học số (TTQTDHS)</b> hoặc tài khoản được cấp quyền Xem Báo Cáo / Quản trị thủ công. Vui lòng xác thực tài khoản có thẩm quyền qua VNU Single Sign-On.
             </p>
             <div style="display:flex;flex-direction:column;gap:10px;">
                 <button onclick="loginKeycloakSso()" style="background:#00803d;color:white;padding:12px 20px;border-radius:10px;font-weight:700;font-size:14px;border:none;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px;">
                     <img src="/logo-vnu.svg" alt="VNU" style="height:20px;">
                     <span>Đăng nhập VNU SSO Quản Trị</span>
+                </button>
+                <button onclick="loginKeycloakSso(true)" style="background:#334155;color:#e2e8f0;padding:10px 18px;border-radius:10px;font-weight:700;font-size:13px;border:1px solid #475569;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px;">
+                    <span>🔄 Đổi tài khoản VNU SSO khác</span>
                 </button>
                 <a href="/" style="color:#94a3b8;font-size:13px;text-decoration:none;margin-top:6px;">← Quay về Trang chủ Học Thuật</a>
             </div>
@@ -1635,7 +1638,10 @@
             return Array.isArray(rules.internalWhitelist) ? rules.internalWhitelist : [];
         }
 
-        function showAuthGate(message) {
+        function showAuthGate(message, options = {}) {
+            if (options && options.clearToken) {
+                localStorage.removeItem('vags_token');
+            }
             currentAdminRole = '';
             if (metricsInterval) { clearInterval(metricsInterval); metricsInterval = null; }
             if (analyticsInterval) { clearInterval(analyticsInterval); analyticsInterval = null; }
@@ -1647,7 +1653,11 @@
             if (message) {
                 const msgEl = document.getElementById('authGateMsg');
                 if (msgEl) {
-                    msgEl.innerHTML = `<span style="color:#f87171;font-weight:700;">⚠️ ${escapeHtml(message)}</span><br>Vui lòng đăng nhập lại bằng tài khoản Quản trị VNU Single Sign-On.`;
+                    if (options && options.isExpired) {
+                        msgEl.innerHTML = `<span style="color:#fbbf24;font-weight:700;">⏳ ${escapeHtml(message)}</span><br>Vui lòng bấm nút <b>Đăng nhập VNU SSO Quản Trị</b> bên dưới để gia hạn phiên (hiệu lực 7 ngày).`;
+                    } else {
+                        msgEl.innerHTML = `<span style="color:#f87171;font-weight:700;">⚠️ ${escapeHtml(message)}</span><br>Vui lòng đăng nhập lại bằng tài khoản Quản trị VNU Single Sign-On.`;
+                    }
                 }
             }
         }
@@ -1659,8 +1669,10 @@
                 headers.set('Authorization', `Bearer ${token}`);
             }
             const res = await fetch(url, { ...options, headers });
-            if (res.status === 401 || res.status === 403) {
-                showAuthGate('Phiên đăng nhập VNU SSO đã hết hạn hoặc tài khoản không có quyền Quản trị.');
+            if (res.status === 401) {
+                showAuthGate('Phiên đăng nhập VNU SSO đã hết hạn.', { clearToken: true, isExpired: true });
+            } else if (res.status === 403) {
+                showAuthGate('Tài khoản hiện tại không có quyền thực hiện thao tác Quản trị này.', { clearToken: false, isExpired: false });
             }
             return res;
         }
@@ -1716,7 +1728,7 @@
         async function checkAdminAuth() {
             const user = localStorage.getItem('vags_user');
             const token = localStorage.getItem('vags_token');
-            const unit = localStorage.getItem('vags_unit') || '';
+            let unit = localStorage.getItem('vags_unit') || '';
             const unitLower = unit.toLowerCase();
             const userLower = (user || '').toLowerCase();
             const isAdminStorage = localStorage.getItem('vags_is_admin') === 'true';
@@ -1742,18 +1754,40 @@
                         headers: { 'Authorization': `Bearer ${token}` }
                     });
                     if (res.status === 401 || res.status === 403) {
+                        if (res.status === 401) localStorage.removeItem('vags_token');
                         isAdmin = false;
                         resolvedRole = '';
                     } else if (res.ok) {
                         const data = await res.json();
+                        if (data.tokenPresent && data.tokenValid === false) {
+                            if (data.isAdmin) {
+                                showAuthGate(`Phiên đăng nhập VNU SSO của tài khoản ${user} đã hết hạn.`, { clearToken: true, isExpired: true });
+                            } else {
+                                showAuthGate(`Phiên đăng nhập đã hết hạn và tài khoản ${user} không có quyền Quản trị.`, { clearToken: true, isExpired: false });
+                            }
+                            return false;
+                        }
                         isAdmin = Boolean(data.isAdmin);
                         resolvedRole = data.adminRole || (isAdmin ? 'super_admin' : '');
+                        if (data.ou) {
+                            unit = data.ou;
+                            localStorage.setItem('vags_unit', data.ou);
+                        }
                         localStorage.setItem('vags_is_admin', isAdmin ? 'true' : 'false');
                         localStorage.setItem('vags_admin_role', resolvedRole);
                     }
                 } catch (err) {
                     console.warn('Không thể kiểm tra check-admin từ máy chủ:', err);
                 }
+            }
+
+            if (!(user && token)) {
+                if (user) {
+                    showAuthGate(`Phiên đăng nhập VNU SSO của tài khoản ${user} đã hết hạn hoặc chưa được xác thực lại.`, { isExpired: true });
+                } else {
+                    showAuthGate();
+                }
+                return false;
             }
 
             if (!isAdmin) {
@@ -1765,7 +1799,7 @@
                 if (user) {
                     const msgEl = document.getElementById('authGateMsg');
                     if (msgEl) {
-                        msgEl.innerHTML = `<span style="color:#f87171;font-weight:700;">⚠️ Tài khoản <b>${escapeHtml(user)}</b> (${escapeHtml((unit || 'canbo').toUpperCase())}) không có quyền Quản trị!</span><br>Khu vực này chỉ dành riêng cho Cán bộ Quản trị thuộc <b>Phòng Quản trị & Kế hoạch (PQTKT)</b> / <b>Trung tâm Quản trị Đại học số (TTQTDHS)</b> hoặc tài khoản được cấp quyền thủ công.`;
+                        msgEl.innerHTML = `<span style="color:#f87171;font-weight:700;">⚠️ Tài khoản <b>${escapeHtml(user)}</b> (${escapeHtml((unit || 'canbo').toUpperCase())}) không có quyền Quản trị!</span><br>Khu vực này chỉ dành riêng cho Cán bộ Quản trị thuộc <b>Phòng Quản trị & Kế hoạch (PQTKT)</b> / <b>Trung tâm Quản trị Đại học số (TTQTDHS)</b> hoặc tài khoản được cấp quyền Xem Báo Cáo / Quản trị thủ công.`;
                     }
                 }
                 return false;
@@ -2800,7 +2834,7 @@
         }
 
         // 15. Đăng xuất
-        async function handleLogout() {
+        async function handleLogout(forceIdpLogout = true) {
             const token = localStorage.getItem('vags_token') || '';
             try {
                 await fetch('/api/v1/auth/logout', {
@@ -2821,6 +2855,12 @@
 
             window.dispatchEvent(new CustomEvent('VAGS_SSO_LOGOUT'));
             window.postMessage({ type: 'VAGS_SSO_LOGOUT' }, window.location.origin);
+
+            if (forceIdpLogout) {
+                const redirectUri = encodeURIComponent(window.location.origin);
+                window.location.href = `https://idp.vnu.edu.vn/auth/realms/vnu/protocol/openid-connect/logout?client_id=vags-gateway&post_logout_redirect_uri=${redirectUri}`;
+                return;
+            }
             setTimeout(() => { window.location.href = '/'; }, 80);
         }
 
@@ -2862,8 +2902,17 @@
             return { verifier, challenge };
         }
 
-        async function loginKeycloakSso() {
+        async function loginKeycloakSso(forcePrompt = false) {
             try {
+                if (forcePrompt === true) {
+                    localStorage.removeItem('vags_token');
+                    localStorage.removeItem('vags_user');
+                    localStorage.removeItem('vags_unit');
+                    localStorage.removeItem('vags_name');
+                    localStorage.removeItem('vags_member_type');
+                    localStorage.removeItem('vags_is_admin');
+                    localStorage.removeItem('vags_admin_role');
+                }
                 const res = await fetch('/api/v1/auth/keycloak-config');
                 const cfg = await res.json();
                 const pkce = await generatePkce();
@@ -2873,13 +2922,16 @@
                 sessionStorage.setItem('vags_oauth_state', state);
                 const redirectUri = window.location.origin + '/auth/callback';
 
-                const authUrl = `${cfg.authorizationEndpoint}?client_id=${encodeURIComponent(cfg.clientId)}` +
+                let authUrl = `${cfg.authorizationEndpoint}?client_id=${encodeURIComponent(cfg.clientId)}` +
                     `&response_type=code` +
                     `&scope=openid%20profile%20email` +
                     `&redirect_uri=${encodeURIComponent(redirectUri)}` +
                     `&state=${encodeURIComponent(state)}` +
                     `&code_challenge=${encodeURIComponent(pkce.challenge)}` +
                     `&code_challenge_method=S256`;
+                if (forcePrompt === true) {
+                    authUrl += `&prompt=login`;
+                }
 
                 window.location.href = authUrl;
             } catch (e) {
